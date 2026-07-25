@@ -149,18 +149,33 @@ flex). Breakpoint por sección: hero `sm`, tarjetas de pilares y footer `md`, re
 Excepción deliberada: las **etiquetas y campos de formulario siguen alineados a la
 izquierda** (legibilidad); solo se centra su encabezado.
 
-## 7. Fases del proyecto
+## 7. Panel Administrativo
 
-- **Fase 1 (hecha, jul 2026):** landing + UI de login/registro, sin backend.
-- **Fase 2 (siguiente):** auth real (p. ej. Supabase), imágenes reales del estudio.
-- **Fase 3:** panel administrativo / gestión.
+En `/admin` (ruta protegida en fase 2). Incluye:
 
-## 8. Pendientes inmediatos
+- **Dashboard** (`/admin`): Estadísticas (usuarios totales, clientes activos, instructores, pendientes), actividad reciente.
+- **Gestión de usuarios** (`/admin/usuarios`): Listado, crear, editar, eliminar. Mock data en `src/lib/usuarios.ts`.
+- **Estructura**: Navbar lateral (verde selvático) con menú contextual. Componentes en `src/components/admin/`.
+- **Diseño**: Mantiene paleta premium, tipografía Cormorant/Lato, efectos suaves, mobile-first.
+
+Ver [`docs/ADMIN_PANEL.md`](./ADMIN_PANEL.md) para detalles de implementación.
+
+## 8. Fases del proyecto
+
+- **Fase 1 (landing, jul 2026):** landing + UI de login/registro, sin backend. ✅
+- **Fase 1.5 (admin, jul 2026):** panel administrativo (usuarios), mock data. ✅
+- **Fase 2 (siguiente):** auth real (Supabase u otro), backend para admin, imágenes reales.
+- **Fase 3:** módulos de clases, planes, reportes analíticos.
+
+## 9. Pendientes inmediatos
 
 - [x] Logo oficial en el hero (`public/logo-reforme.png`).
+- [x] Panel administrativo fase 1 (usuarios) con mock data.
 - [ ] Navbar, Footer y AuthShell **siguen usando el isotipo recreado**
       (`Logo.tsx`). Sustituirlo por el oficial (idealmente un SVG, el que hay es
       PNG) + favicon real.
 - [ ] Imágenes reales del estudio.
 - [ ] Conectar auth real (fase 2). El login ya no ofrece Google; decidir proveedor real.
+- [ ] Backend para admin (endpoints `/api/usuarios`).
+- [ ] Proteger rutas `/admin` con autenticación.
 - [ ] Validar en dispositivo real el drawer móvil y las páginas de auth (capturas pendientes).
