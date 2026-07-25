@@ -1,26 +1,220 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* =========================================================
+   REFORME STUDIO PILATES — Sistema de diseño
+   Paleta oficial del manual de marca + escala de apoyo.
+   Verde selvático, dorado arena, beige y blanco cálido.
+   ========================================================= */
+@theme {
+  /* Colores de marca */
+  --color-verde: #284435; /* Verde selvático — principal */
+  --color-verde-900: #1b2f24; /* Profundidad / hovers oscuros */
+  --color-verde-700: #2f5040;
+  --color-verde-500: #3d6a55;
+  --color-verde-300: #7d9a8b; /* Verde apagado para textos secundarios sobre claro */
+
+  --color-dorado: #be9b69; /* Dorado / arena — acento */
+  --color-dorado-dark: #9c7e4f; /* Hover de acento */
+  --color-dorado-light: #d4bd96;
+
+  --color-beige: #e8e1d9; /* Beige claro */
+  --color-arena: #f7f6f3; /* Blanco cálido — fondo base */
+
+  /* Alias semánticos */
+  --color-background: var(--color-arena);
+  --color-foreground: var(--color-verde);
+
+  /* Tipografía */
+  --font-sans: var(--font-lato), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-cormorant), ui-serif, Georgia, serif;
+
+  /* Sombras suaves y premium (verde translúcido, nada de negro puro) */
+  --shadow-soft: 0 1px 2px rgba(40, 68, 53, 0.04),
+    0 8px 24px rgba(40, 68, 53, 0.06);
+  --shadow-lift: 0 2px 4px rgba(40, 68, 53, 0.05),
+    0 18px 48px rgba(40, 68, 53, 0.12);
+
+  /* Curvas de animación */
+  --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Base -------------------------------------------------- */
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-dorado);
+  color: var(--color-arena);
+}
+
+/* Foco accesible coherente con la marca */
+:where(a, button, input, textarea, select):focus-visible {
+  outline: 2px solid var(--color-dorado);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* Utilidades de marca ---------------------------------- */
+@layer utilities {
+  /* Titulares serif con tracking cuidado */
+  .font-display {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+
+  /* Kicker / eyebrow: mayúsculas espaciadas, look editorial */
+  .eyebrow {
+    font-family: var(--font-sans);
+    text-transform: uppercase;
+    letter-spacing: 0.32em;
+    font-weight: 400;
+    font-size: 0.72rem;
+  }
+
+  /* Línea divisoria dorada del logotipo */
+  .rule-gold {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-dorado),
+      transparent
+    );
+  }
+
+  /* Degradado de marca (banda verde→dorado del manual) */
+  .brand-gradient {
+    background: linear-gradient(
+      100deg,
+      var(--color-verde-900) 0%,
+      var(--color-verde) 45%,
+      var(--color-dorado) 100%
+    );
+  }
+
+  /* Aparición suave al montar */
+  .animate-rise {
+    animation: rise 0.9s var(--ease-smooth) both;
+  }
+  .animate-fade {
+    animation: fade 1.2s var(--ease-smooth) both;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Botones: brillo (sheen) + onda al pulsar (ripple) ---- */
+.btn-fx {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    120deg,
+    transparent 30%,
+    rgba(247, 246, 243, 0.35) 50%,
+    transparent 70%
+  );
+  transform: translateX(-160%);
+  transition: transform 1.15s var(--ease-smooth);
+}
+.btn-fx:hover .btn-sheen {
+  transform: translateX(160%);
+}
+
+/* Dash diagonal dorado que cruza una tarjeta al hacer hover (grupo) */
+.card-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    120deg,
+    transparent 38%,
+    rgba(190, 155, 105, 0.22) 50%,
+    transparent 62%
+  );
+  transform: translateX(-170%);
+  transition: transform 1.3s var(--ease-smooth);
+}
+.group:hover .card-sheen {
+  transform: translateX(170%);
+}
+
+.btn-ripple {
+  position: absolute;
+  z-index: 0;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: rgba(247, 246, 243, 0.4);
+  transform: scale(0);
+  opacity: 0.6;
+  animation: btn-ripple 0.6s var(--ease-smooth) forwards;
+}
+@keyframes btn-ripple {
+  to {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* Grano/textura sutil sobre toda la página --------------- */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0.06;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .animate-rise,
+  .animate-fade {
+    animation: none;
+  }
+  .btn-sheen,
+  .card-sheen {
+    transition: none;
+    display: none;
+  }
+  .btn-ripple {
+    animation: none;
+    display: none;
+  }
 }
