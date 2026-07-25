@@ -107,6 +107,22 @@ body {
   .animate-fade {
     animation: fade 1.2s var(--ease-smooth) both;
   }
+
+  /* Logo del hero: entrada suave + flotación continua muy leve */
+  .logo-float {
+    animation: fade 1s var(--ease-smooth) both,
+      logo-float 5s ease-in-out 1s infinite;
+  }
+}
+
+@keyframes logo-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 @keyframes rise {
@@ -205,7 +221,8 @@ body {
     scroll-behavior: auto;
   }
   .animate-rise,
-  .animate-fade {
+  .animate-fade,
+  .logo-float {
     animation: none;
   }
   .btn-sheen,

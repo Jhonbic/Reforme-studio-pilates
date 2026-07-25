@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Reveal from "@/components/Reveal";
@@ -47,82 +48,75 @@ export default function Home() {
                 "radial-gradient(120% 90% at 70% 10%, #2f5040 0%, #284435 45%, #1b2f24 100%)",
             }}
           />
-          <Parallax
-            speed={-0.22}
-            className="pointer-events-none absolute -right-24 top-1/2 hidden -translate-y-1/2 text-verde-500/40 lg:block"
-          >
-            <Isotype size={720} />
-          </Parallax>
-          <Parallax
-            speed={0.12}
-            className="pointer-events-none absolute -left-16 bottom-24 text-verde-700/40"
-          >
-            <Isotype size={280} />
-          </Parallax>
 
           {/* Capa interactiva: polvo dorado + burbujas al cursor + goteo al clic */}
           <HeroFX className="z-10" />
 
           <div className="relative z-20 mx-auto w-full max-w-7xl px-6 pt-32 pb-32 lg:px-10">
-            <div className="mx-auto max-w-3xl text-center sm:mx-0 sm:text-left">
-              <p className="eyebrow animate-fade text-dorado-light">
-                Florencia · Caquetá — Studio Pilates
-              </p>
-              <h1 className="animate-rise mt-6 font-display text-5xl leading-[1.05] sm:text-6xl lg:text-7xl">
-                Movimiento con
-                <span className="mt-1 block italic text-dorado">
-                  Propósito.
-                </span>
-              </h1>
-              <p
-                className="animate-rise mx-auto mt-8 max-w-xl text-lg leading-relaxed text-beige sm:mx-0"
-                style={{ animationDelay: "120ms" }}
-              >
-                Un espacio creado para vivir el Pilates a través de una
-                experiencia elegante y personalizada, enfocada en tu bienestar
-                integral.
-              </p>
-              <div
-                className="animate-rise mt-10 flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4"
-                style={{ animationDelay: "220ms" }}
-              >
-                <Magnetic className="w-full sm:w-auto">
-                  <ButtonLink
-                    href="/registro"
-                    variant="gold"
-                    size="lg"
-                    className="w-full justify-center sm:w-auto"
-                  >
-                    Reservar mi clase
-                  </ButtonLink>
-                </Magnetic>
-                <ButtonLink
-                  href="/#estudio"
-                  variant="ghost"
-                  size="lg"
-                  className="w-full justify-center text-arena hover:text-dorado sm:w-auto"
-                >
-                  Conocer el estudio →
-                </ButtonLink>
+            <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
+              {/* Logo oficial — en móvil encabeza el hero; en escritorio, a la derecha */}
+              <div className="order-1 flex justify-center lg:order-2 lg:justify-end">
+                <Image
+                  src="/logo-reforme.png"
+                  alt="Reforme Studio Pilates"
+                  width={554}
+                  height={328}
+                  priority
+                  className="logo-float w-52 max-w-full sm:w-64 lg:w-[24rem]"
+                  /* El PNG trae el trazo en verde: lo pasamos a blanco puro para
+                     que contraste sobre el hero. Inline y no con utilidades de
+                     Tailwind porque `filter` es una sola propiedad y las clases
+                     de brillo/inversión no se estaban combinando con drop-shadow. */
+                  style={{
+                    filter:
+                      "brightness(0) invert(1) drop-shadow(0 4px 20px rgba(0,0,0,0.35))",
+                  }}
+                />
               </div>
 
-              <ul
-                className="animate-fade mt-12 flex flex-col items-center gap-3 text-sm text-beige sm:mt-14 sm:flex-row sm:flex-wrap sm:items-center sm:justify-start sm:gap-x-6 sm:gap-y-3"
-                style={{ animationDelay: "400ms" }}
-              >
-                {[
-                  "Grupos reducidos",
-                  "Reformer premium",
-                  "Acompañamiento personalizado",
-                ].map((item) => (
-                  <li key={item} className="flex items-center gap-3">
-                    <span aria-hidden="true" className="text-dorado/70">
-                      ◆
-                    </span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
+              {/* Texto */}
+              <div className="order-2 text-center lg:order-1 lg:text-left">
+                <p className="eyebrow animate-fade text-dorado-light">
+                  Florencia · Caquetá — Studio Pilates
+                </p>
+                <h1 className="animate-rise mt-6 font-display text-5xl leading-[1.05] sm:text-6xl lg:text-7xl">
+                  Movimiento con
+                  <span className="mt-1 block italic text-dorado">
+                    Propósito.
+                  </span>
+                </h1>
+                <p
+                  className="animate-rise mx-auto mt-8 max-w-xl text-lg leading-relaxed text-beige lg:mx-0"
+                  style={{ animationDelay: "120ms" }}
+                >
+                  Un espacio creado para vivir el Pilates a través de una
+                  experiencia elegante y personalizada, enfocada en tu bienestar
+                  integral.
+                </p>
+                <div
+                  className="animate-rise mt-10 flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-4 lg:justify-start"
+                  style={{ animationDelay: "220ms" }}
+                >
+                  <Magnetic className="w-full sm:w-auto">
+                    <ButtonLink
+                      href="/registro"
+                      variant="gold"
+                      size="lg"
+                      className="w-full justify-center sm:w-auto"
+                    >
+                      Reservar mi clase
+                    </ButtonLink>
+                  </Magnetic>
+                  <ButtonLink
+                    href="/#estudio"
+                    variant="ghost"
+                    size="lg"
+                    className="w-full justify-center text-arena hover:text-dorado sm:w-auto"
+                  >
+                    Conocer el estudio →
+                  </ButtonLink>
+                </div>
+              </div>
             </div>
           </div>
 

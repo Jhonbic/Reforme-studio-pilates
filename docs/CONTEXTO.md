@@ -83,7 +83,8 @@ En `src/components/`:
   `<>…</>`), NO dentro de él. El header usa `backdrop-blur` al scrollear, y un `backdrop-filter`
   convierte al ancestro en bloque contenedor de sus hijos `fixed` → si están dentro, el drawer
   se encoge/rompe al abrir con la página scrolleada. Mantener fuera.
-- `Footer.tsx` — con redes reales.
+- `Footer.tsx` — 2 columnas (marca + Visítanos) con las redes reales en círculos de
+  56px. Se eliminó la columna "Explora": duplicaba la navegación del navbar.
 - `Reveal.tsx` — scroll reveal con prop `direction`.
 - `Parallax.tsx`.
 - `SectionWave.tsx` — ondas orgánicas entre secciones (usa `fill-*`).
@@ -106,8 +107,25 @@ En `src/components/`:
 ## 6. Páginas
 
 - Landing [`src/app/page.tsx`](../src/app/page.tsx): hero + El estudio +
-  Experiencia (3 pilares) + CTA membresía + Ubicación (mapa embed). El hero muestra
-  highlights (Grupos reducidos · Reformer premium · Acompañamiento personalizado).
+  Experiencia (3 pilares) + CTA membresía + Ubicación (mapa embed).
+  - **Hero:** logo oficial + eyebrow + titular + párrafo + 2 CTAs, y nada más. Se
+    quitaron los highlights (Grupos reducidos · Reformer premium · Acompañamiento
+    personalizado) porque **repetían los 3 pilares** de más abajo y saturaban el
+    móvil. No reintroducir texto aquí sin quitar otro.
+  - **Logo en el hero:** `public/logo-reforme.png` (el oficial, descargado de
+    reformestudiopilates.com y recortado a su caja opaca → 554×328). El PNG viene
+    con el trazo en verde sobre fondo transparente, así que se pinta en blanco con
+    `filter: brightness(0) invert(1)` — igual que hace su web.
+    ⚠️ **Gotcha:** ese filtro va **inline**, no con utilidades Tailwind: `filter` es
+    una sola propiedad CSS y `brightness-0 invert` no se combinaba con el
+    `drop-shadow-[...]` arbitrario → el logo salía verde sobre verde, invisible.
+    Móvil: centrado encabezando el
+    hero. Escritorio (`lg`): columna derecha, texto a la izquierda. Flota suave con
+    `.logo-float`.
+  - Se eliminaron del hero los isotipos de marca de agua (`Parallax` + `Isotype`):
+    con el logo real en primer plano sobraban.
+  - **3 pilares:** icono en círculo dorado (ver `icons/PilarIcons.tsx`), sin
+    numeración.
 - `/login` y `/registro`: **solo UI**, validación en cliente, sin backend (muestran
   confirmación simulada). Comparten [`auth/AuthShell.tsx`](../src/components/auth/AuthShell.tsx).
   - Login **sin** "Continuar con Google" (se quitó; la auth real es fase 2 aún sin definir).
@@ -139,7 +157,10 @@ izquierda** (legibilidad); solo se centra su encabezado.
 
 ## 8. Pendientes inmediatos
 
-- [ ] Sustituir isotipo por **SVG oficial** + favicon/logo real.
+- [x] Logo oficial en el hero (`public/logo-reforme.png`).
+- [ ] Navbar, Footer y AuthShell **siguen usando el isotipo recreado**
+      (`Logo.tsx`). Sustituirlo por el oficial (idealmente un SVG, el que hay es
+      PNG) + favicon real.
 - [ ] Imágenes reales del estudio.
 - [ ] Conectar auth real (fase 2). El login ya no ofrece Google; decidir proveedor real.
 - [ ] Validar en dispositivo real el drawer móvil y las páginas de auth (capturas pendientes).

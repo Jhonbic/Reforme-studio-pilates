@@ -1,4 +1,3 @@
-import Link from "next/link";
 import Logo from "./Logo";
 import HeroFX from "./fx/HeroFX";
 
@@ -33,7 +32,7 @@ export default function Footer() {
     >
       <HeroFX className="z-0" />
       <div className="relative z-10 mx-auto max-w-7xl px-6 py-16 lg:px-10 lg:py-20">
-        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr]">
+        <div className="grid gap-12 md:grid-cols-2 md:gap-16">
           {/* Marca */}
           <div className="flex flex-col items-center gap-5 text-center md:items-start md:text-left">
             <div className="text-arena">
@@ -47,7 +46,7 @@ export default function Footer() {
             <p className="max-w-xs font-display text-xl italic text-beige">
               Movimiento con Propósito.
             </p>
-            <div className="flex justify-center gap-3 pt-2 md:justify-start">
+            <div className="flex justify-center gap-4 pt-2 md:justify-start">
               {social.map((s) => (
                 <a
                   key={s.label}
@@ -55,37 +54,14 @@ export default function Footer() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={s.label}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-arena/25 text-arena transition-all duration-300 hover:border-dorado hover:bg-dorado hover:text-verde-900"
+                  className="flex h-14 w-14 items-center justify-center rounded-full border border-arena/25 text-arena transition-all duration-300 hover:border-dorado hover:bg-dorado hover:text-verde-900"
                 >
-                  <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6">
                     <path d={s.path} />
                   </svg>
                 </a>
               ))}
             </div>
-          </div>
-
-          {/* Navegación */}
-          <div className="text-center md:text-left">
-            <h3 className="eyebrow text-dorado-light">Explora</h3>
-            <ul className="mt-5 space-y-3 text-sm text-beige">
-              {[
-                { href: "/#estudio", label: "El estudio" },
-                { href: "/#experiencia", label: "Experiencia" },
-                { href: "/#ubicacion", label: "Ubicación" },
-                { href: "/login", label: "Iniciar sesión" },
-                { href: "/registro", label: "Registrarse" },
-              ].map((l) => (
-                <li key={l.href}>
-                  <Link
-                    href={l.href}
-                    className="transition-colors duration-300 hover:text-dorado"
-                  >
-                    {l.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
           </div>
 
           {/* Contacto */}
