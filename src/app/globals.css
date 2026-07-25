@@ -34,6 +34,13 @@
   --shadow-lift: 0 2px 4px rgba(40, 68, 53, 0.05),
     0 18px 48px rgba(40, 68, 53, 0.12);
 
+  /* Tarjetas del PANEL. Aparte de `shadow-soft` (que usa la web pública) a
+     propósito: en una herramienta de trabajo hay 8-10 tarjetas a la vez y las
+     sombras difusas de la web ensucian la rejilla. Aquí la separación la da el
+     borde beige; la sombra solo despega la tarjeta del fondo un milímetro. */
+  --shadow-card: 0 1px 2px -1px rgba(40, 68, 53, 0.07),
+    0 2px 8px -3px rgba(40, 68, 53, 0.06);
+
   /* Curvas de animación */
   --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
 

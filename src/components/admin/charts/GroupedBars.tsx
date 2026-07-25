@@ -172,7 +172,10 @@ export default function GroupedBars({
                       // Extremo redondeado solo arriba; la base queda anclada
                       rx="2"
                       fill={series[s].color}
-                      opacity={activo === null || resaltado ? 1 : 0.45}
+                      // Sin transición el atenuado es instantáneo y se lee como
+                      // un flash al recorrer las barras con el ratón.
+                      className="[transition:opacity_.35s_var(--ease-smooth)] motion-reduce:transition-none"
+                      opacity={activo === null || resaltado ? 1 : 0.35}
                       onPointerEnter={() => setActivo({ g, s })}
                       onPointerLeave={() => setActivo(null)}
                     />

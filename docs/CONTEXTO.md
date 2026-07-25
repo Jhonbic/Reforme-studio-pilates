@@ -114,8 +114,13 @@ En `src/components/`:
   corazón), mismos conceptos que la web anterior, trazo alineado con el isotipo.
 
 **Panel administrativo** en `src/components/admin/` — ver §6:
+- `Variacion.tsx` — el indicador «▲ +2,5 %» respecto al periodo anterior. **Un
+  solo sitio decide qué es "bueno"**: no se puede deducir del signo (en cartera
+  pendiente subir es malo). Estaba escrito tres veces, y la tarjeta de tasa de
+  renovación llevaba además la flecha a mano → habría seguido diciendo ▲ aunque
+  el dato bajara. Nunca codifica solo con color: van flecha y signo.
 - **Sistema de tarjetas:** `Card.tsx` (tonos `claro` / `oscuro` / `acento`,
-  densidad `normal` / `compacta`), `CardHeader.tsx` (emite `<h2>`) y
+  densidad `normal` / `compacta` / `plana`), `CardHeader.tsx` (emite `<h2>`) y
   `TablaDeDatos.tsx` (el `<details>` con los datos en tabla). Antes ese puñado de
   clases estaba copiado a mano en cinco sitios. `ChartCard.tsx` se monta sobre
   ellos y **conserva su API pública**; re-exporta el tipo `TablaDatos`, que se
@@ -243,6 +248,108 @@ agenda: no hay datos para eso y no se inventan.
   gráficos ya no se estiran.
 - **No usar `grid-flow-dense`:** reordena visualmente sin reordenar el DOM y rompe
   el orden de tabulación.
+
+**Contenido actual del Dashboard** (tras la poda de jul 2026). Reparto en `xl`:
+
+| Fila | Bloques |
+|---|---|
+| 12 | Utilidad del mes · Clientes activos · Cartera por vencer |
+| 8 + 4 | Ingresos del mes (héroe oscuro) · Ingresos por tipo de plan |
+| 4 + 4 + 4 | Tasa de renovación (oscura) · Cómo pagan los clientes · Altas y bajas |
+
+- **Las dos tarjetas oscuras usan `bg-verde` (`#284435`), el verde de marca.**
+  Antes usaban `verde-900` (`#1b2f24`), que es la escala de *profundidad* para
+  hovers y sombras, no un color de superficie: se veía casi negro. El
+  `verde-900` sí se sigue usando **como tinta sobre dorado** (5.47:1); el verde
+  de marca ahí se queda en 4.11:1 y no llega al 4.5 de AA.
+- **Efectos del panel: motas + estela, NUNCA goteo.** `HeroFX` acepta
+  `goteo={false}` y así se usa en las dos tarjetas oscuras, en la barra lateral
+  y en la cabecera móvil. El motivo: en el panel casi todo clic va a un control
+  (un filtro, un desplegable, un enlace) y una onda decorativa encima confunde
+  sobre si la acción se registró. La web pública (landing, `AuthShell`,
+  `Footer`) mantiene el goteo.
+- **Todas las tarjetas encienden el borde en dorado** al `hover` y al
+  `focus-within` (para quien navega con teclado). ⚠️ El grosor extra lo pone un
+  **`ring`, no un `border-2`**: cambiar el ancho del borde en hover desplazaría
+  1px todo el contenido y se vería como un temblor. Por eso la transición es
+  `transition-[border-color,box-shadow]` y no `transition-colors`.
+  Las **tres cifras de cabecera**
+  llevan además `sheen`: la estela diagonal `.card-sheen` de la web pública. Son
+  las únicas tarjetas sin tooltip ni contenido que se salga del marco, así que
+  son las únicas donde se puede recortar con `overflow-hidden` sin romper nada.
+- ⚠️ **Lenis (`SmoothScroll`) está DESACTIVADO en `/admin`.** No es solo criterio:
+  era un **bug**. Lenis cachea la altura desplazable, y los `<details>` de «Ver
+  datos en tabla» hacen crecer la página al abrirse; Lenis no se enteraba y
+  dejaba el tope de scroll en la altura vieja, así que **no se podía bajar a ver
+  la tabla**. Se salta por `usePathname`. En la web pública se le añadió un
+  `ResizeObserver` sobre `body` que llama a `lenis.resize()`, por si aparece
+  algún contenido que cambie de alto.
+- **`Card` con `fx`** monta `HeroFX` (motas, estela y goteo de la web pública)
+  dentro de la tarjeta. Solo en tono `oscuro`: sobre fondo claro el dorado no se
+  ve, y en las tarjetas de datos competiría con el hover de los gráficos.
+  ⚠️ El canvas va **detrás del texto con `isolate` + `-z-10`**, no envolviendo
+  los hijos: envolverlos rompería los `flex-col`, `mt-auto` y `self-start` que
+  las tarjetas reciben desde fuera.
+- **Sombras: `--shadow-card`, no `shadow-soft`.** La web pública se queda con
+  `shadow-soft`; el panel tiene su propio token, mucho más ceñido, porque con
+  8-10 tarjetas a la vez las sombras difusas ensucian la rejilla.
+- **Los gráficos atenúan con transición** (`.35s var(--ease-smooth)`). Sin ella
+  el cambio de opacidad al pasar el ratón se lee como un flash.
+- **«Ingresos por mes» filtra por periodo** (`GraficaIngresos.tsx`, cliente).
+  Se llama "por mes" y no "del mes" porque la tarjeta ya no muestra solo la
+  cifra del mes en curso, sino la serie; el mes al que se refiere el número
+  grande lo dice `detalle` ("Jul 2026 · frente a Jun").
+  - Desplegable con **atajos** (12 · 6 · 3 meses) y **rango exacto**
+    (`desde` / `hasta` con `<select>` agrupados por año con `<optgroup>`).
+  - ⚠️ **Una sola fuente de verdad: el par `[desde, hasta]`.** Los atajos no son
+    un modo aparte, solo escriben ese par — así es imposible que el atajo diga
+    una cosa y el rango explícito otra. La etiqueta del botón muestra siempre lo
+    que se está viendo (`12 meses` o `Ago 25 – Jul 26`), nunca "Personalizado".
+  - ⚠️ **Los rangos imposibles no se validan: no se pueden elegir.** Cada
+    `<select>` solo ofrece los meses que respetan el mínimo de 2 puntos, así que
+    no hay ningún mensaje de error que mostrar ni estado inválido que gestionar.
+  - Va **superpuesto** (`absolute`) en la esquina superior derecha de la
+    tarjeta, no en el flujo: abrirlo no puede empujar la gráfica ni estirar la
+    tarjeta, porque eso descuadraría toda su fila de la rejilla. Cierra al
+    pulsar fuera y con `Escape`. El eyebrow lleva `pr-32` para que en móvil el
+    botón no se le eche encima.
+  - `<select>` nativo a propósito: en móvil abre el selector del sistema, que es
+    mejor que cualquier lista propia, y trae teclado y accesibilidad gratis.
+  - La **tabla se filtra con la gráfica** (es su equivalente accesible; si
+    divergieran dejaría de serlo), pero **la cifra grande no cambia**: es
+    siempre el mes en curso frente al anterior.
+- **Las tarjetas van SIN descripción a propósito.** El título y el propio gráfico
+  tienen que bastar; si un bloque necesita un párrafo, el problema es el bloque.
+  Excepción deliberada: **Finanzas sí las conserva** — ahí se entra a mirar el
+  dato despacio, no de un vistazo.
+- **«Cartera por vencer» NO es la cartera vencida.** No es dinero que ya se debe,
+  sino el importe de renovación de las membresías que vencen en ≤ 7 días
+  (`DIAS_POR_VENCER` en `queries.ts`). El importe y el número de clientes salen
+  de la misma constante a propósito: separarlos haría que dijeran cosas distintas.
+  La cartera vencida real sigue en `getCartera()` / `getTotalCartera()`, sin
+  pintar hoy, reservada para la Cartera detallada de Finanzas.
+- **Eliminados del Dashboard:** «Membresías por vencer» (su función la absorbe la
+  cifra de cabecera), «Pagos vencidos por antigüedad» y el aviso de datos de
+  ejemplo. **Movidos a `/admin/finanzas`:** «Ingresos frente a gastos» y «Gastos
+  por categoría» — son detalle contable, no resumen de negocio.
+- ⚠️ **Ya no hay ningún aviso en pantalla de que las cifras son inventadas.** Se
+  quitó por decisión del usuario. Sigue siendo verdad: todo sale de `mock.ts`.
+
+**⚠️ shadcn/ui se evaluó y se descartó (jul 2026).** Se probó instalar el bloque
+`@efferd/dashboard-3` en la rama `shadcn-dashboard-3`, ya borrada. Qué se aprendió,
+por si se vuelve a plantear:
+- `shadcn init` **no borra** `globals.css`, añade un `@theme inline` al final —
+  pero ese bloque **redefine `--color-chart-1..5`** apuntando a grises de croma 0,
+  y como va después, **gana por cascada**: los cuatro gráficos saldrían en escala
+  de grises, justo lo que prohíbe la nota de accesibilidad de este mismo archivo.
+- El init también inyecta **Geist** en `layout.tsx` con `variable: '--font-sans'`,
+  que pisa a Lato **en toda la web pública**, no solo en el panel.
+- En Windows el sistema de ficheros es *case-insensitive*: el `button.tsx` de
+  shadcn **colisiona con `ui/Button.tsx`**, el botón de marca con sheen y ripple.
+- El bloque en sí era un panel de **soporte técnico** (CSAT, tiempo de primera
+  respuesta) y su rejilla era un `sm:grid-cols-2 lg:grid-cols-4` — más simple que
+  este bento. De él solo se aprovecharon dos ideas, reescritas a mano con los
+  tokens de marca: `Variacion` y la lista a sangre.
 
 **⚠️ Paleta de gráficos ≠ paleta de marca.** El verde `#284435` y el dorado
 `#BE9B69` **fallan** como colores de datos (validado con el verificador de

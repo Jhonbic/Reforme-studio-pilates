@@ -67,10 +67,17 @@ export default function Donut({
   });
 
   return (
-    <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
+    /* ⚠️ `@container` + variantes `@lg:`, NO `sm:`.
+       Los breakpoints normales miden la VENTANA, no la tarjeta: con `sm:flex-row`
+       esto se ponía en paralelo en cuanto la pantalla pasaba de 640px, aunque la
+       tarjeta midiera 390px — el donut y la leyenda no cabían y los importes se
+       salían por el borde. `@lg` (512px) es el ancho mínimo real en el que caben
+       el donut (176px) y una fila de leyenda completa. */
+    <div className="@container">
+      <div className="flex flex-col items-center gap-5 @lg:flex-row @lg:gap-6">
       <svg
         viewBox={`0 0 ${TAM} ${TAM}`}
-        className="w-40 shrink-0 sm:w-44"
+        className="w-40 shrink-0 @lg:w-44"
         role="img"
         aria-label={totalEtiqueta}
       >
@@ -79,7 +86,11 @@ export default function Donut({
             key={p.label}
             d={arco(p.desde + HUECO / 2, p.hasta - HUECO / 2)}
             fill={p.color}
-            opacity={activo === null || activo === i ? 1 : 0.4}
+            // Sin transición el cambio de opacidad es instantáneo y se lee como
+            // un flash al pasar el ratón entre porciones. `--ease-smooth` es la
+            // misma curva que usan las animaciones de la web pública.
+            className="[transition:opacity_.35s_var(--ease-smooth)] motion-reduce:transition-none"
+            opacity={activo === null || activo === i ? 1 : 0.35}
             onPointerEnter={() => setActivo(i)}
             onPointerLeave={() => setActivo(null)}
           />
@@ -121,16 +132,17 @@ export default function Donut({
               className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
               style={{ background: p.color }}
             />
-            <span className="flex-1 text-verde-700">{p.label}</span>
-            <span className="tabular-nums text-verde">
+            <span className="min-w-0 flex-1 text-verde-700">{p.label}</span>
+            <span className="shrink-0 tabular-nums text-verde">
               {fmt(p.value, formato)}
             </span>
-            <span className="w-12 text-right tabular-nums text-verde-300">
+            <span className="w-12 shrink-0 text-right tabular-nums text-verde-300">
               {((p.value / total) * 100).toFixed(0)} %
             </span>
           </li>
         ))}
       </ul>
+      </div>
     </div>
   );
 }

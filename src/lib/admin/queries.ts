@@ -43,6 +43,13 @@ export function getCartera() {
   return CARTERA;
 }
 
+/**
+ * Horizonte de "por vencer" del indicador de cabecera: una semana. Es el plazo
+ * en el que todavía da tiempo a llamar al cliente antes de que se le caiga la
+ * membresía.
+ */
+export const DIAS_POR_VENCER = 7;
+
 /** Membresías que vencen dentro de `dias`, de la más urgente a la menos. */
 export function getMembresiasPorVencer(dias = 15) {
   return MEMBRESIAS_POR_VENCER.filter((m) => m.diasRestantes <= dias).sort(
@@ -71,8 +78,8 @@ export function getUtilidadMensual() {
 
 /**
  * Las cuatro cifras de cabecera: lo que la administración mira primero.
- * Se eligieron para responder "¿cómo vamos de plata?" — facturación, tamaño de
- * la base de clientes, dinero sin cobrar y capacidad de retener.
+ * Responden "¿cómo vamos de plata?" — facturación, utilidad, tamaño de la base
+ * de clientes y qué hay que renovar esta semana.
  */
 export function getIndicadores(): Indicador[] {
   const actual = MESES[MESES.length - 1];
@@ -82,7 +89,10 @@ export function getIndicadores(): Indicador[] {
 
   return [
     {
-      etiqueta: "Ingresos del mes",
+      // "por mes" y no "del mes": la tarjeta ya no muestra solo la cifra del
+      // mes en curso, sino la serie. El mes concreto al que se refiere el
+      // número grande lo dice `detalle` ("Jul 2026 · frente a Jun").
+      etiqueta: "Ingresos por mes",
       valor: actual.ingresos,
       formato: "moneda",
       variacion: calcularVariacion(actual.ingresos, anterior.ingresos),
@@ -109,12 +119,16 @@ export function getIndicadores(): Indicador[] {
       detalle: `${RESUMEN.clientesInactivos30d} sin reservar hace 30 días`,
     },
     {
-      etiqueta: "Cartera pendiente",
-      valor: getTotalCartera(),
+      // OJO: no es la cartera vencida (dinero que ya se debe), sino la que
+      // está A PUNTO de vencer: lo que hay que renovar esta semana. Es un
+      // aviso accionable, no un pasivo.
+      etiqueta: "Cartera por vencer",
+      valor: getIngresoEnRiesgo(DIAS_POR_VENCER),
       formato: "moneda",
       variacion: null,
+      // Que suba significa más plata pendiente de renovar: no es buena noticia.
       subirEsBueno: false,
-      detalle: `${CARTERA.reduce((t, c) => t + c.clientes, 0)} clientes con pagos vencidos`,
+      detalle: `${getMembresiasPorVencer(DIAS_POR_VENCER).length} clientes por vencer`,
     },
   ];
 }

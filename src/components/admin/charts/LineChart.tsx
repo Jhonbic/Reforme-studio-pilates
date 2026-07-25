@@ -21,11 +21,12 @@ type Props = {
  *
  * ⚠️ En oscuro la serie va en DORADO DE MARCA, contra la nota de `globals.css`.
  * Esa nota mide el dorado sobre fondo arena (2.64:1) y como color para
- * DISTINGUIR series. Aquí no se cumple ninguna de las dos cosas: sobre
- * `verde-900` el dorado claro da 7.79:1, y con una sola serie no hay pares que
- * separar — el color no codifica categoría, solo tiene que verse. El verde de
- * datos (#31875C) daría 3.21:1 y encima es verde sobre verde. La tabla de datos
- * se mantiene, así que la garantía de accesibilidad no se relaja.
+ * DISTINGUIR series. Aquí no se cumple ninguna de las dos cosas: sobre el verde
+ * de marca `#284435` el dorado claro da **5.85:1**, y con una sola serie no hay
+ * pares que separar — el color no codifica categoría, solo tiene que verse. El
+ * verde de datos (#31875C) daría **2.41:1** sobre este fondo, o sea que ni
+ * siquiera pasaría el suelo de 3:1, y encima es verde sobre verde. La tabla de
+ * datos se mantiene, así que la garantía de accesibilidad no se relaja.
  */
 const PALETA = {
   claro: {
@@ -41,10 +42,10 @@ const PALETA = {
   oscuro: {
     serie: "var(--color-dorado-light)",
     area: "var(--color-dorado)",
-    // El beige puro sobre verde-900 domina el gráfico: la rejilla es contexto.
-    rejilla: "color-mix(in srgb, var(--color-arena) 14%, transparent)",
+    // El beige puro sobre el verde domina el gráfico: la rejilla es contexto.
+    rejilla: "color-mix(in srgb, var(--color-arena) 16%, transparent)",
     ejes: "fill-beige/70",
-    bordePunto: "var(--color-verde-900)",
+    bordePunto: "var(--color-verde)",
     tooltip: "border-verde-500 bg-verde-700",
     tooltipLabel: "text-beige/80",
     tooltipValor: "text-arena",

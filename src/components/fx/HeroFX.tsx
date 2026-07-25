@@ -20,11 +20,22 @@ type Ripple = { x: number; y: number; r: number; max: number; life: number };
  * Capa interactiva del hero (canvas):
  *  - Motas doradas flotando muy lento (ambiente).
  *  - Cadena de burbujas que sigue el cursor / dedo con inercia.
- *  - Ondas concéntricas ("goteo") al hacer clic o tocar.
+ *  - Ondas concéntricas ("goteo") al hacer clic o tocar — opcional.
  * Un único bucle rAF. Se desactiva por completo con prefers-reduced-motion.
  * pointer-events-none: nunca bloquea los botones del hero.
  */
-export default function HeroFX({ className = "" }: { className?: string }) {
+export default function HeroFX({
+  className = "",
+  goteo = true,
+}: {
+  className?: string;
+  /**
+   * Ondas al hacer clic. Se apaga en el panel administrativo: allí casi todo
+   * clic va a un control (un filtro, un desplegable, un enlace), y lanzar una
+   * onda decorativa encima confunde sobre si la acción se registró.
+   */
+  goteo?: boolean;
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -204,7 +215,7 @@ export default function HeroFX({ className = "" }: { className?: string }) {
     const ro = new ResizeObserver(resize);
     ro.observe(parent);
     window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("pointerdown", onDown, { passive: true });
+    if (goteo) window.addEventListener("pointerdown", onDown, { passive: true });
     const onLeave = () => (pointer.inside = false);
     window.addEventListener("blur", onLeave);
 
@@ -216,7 +227,7 @@ export default function HeroFX({ className = "" }: { className?: string }) {
       window.removeEventListener("pointerdown", onDown);
       window.removeEventListener("blur", onLeave);
     };
-  }, []);
+  }, [goteo]);
 
   return (
     <canvas

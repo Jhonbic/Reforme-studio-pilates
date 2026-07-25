@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Logo from "@/components/Logo";
 import AdminNav from "@/components/admin/AdminNav";
 import AdminTopbar from "@/components/admin/AdminTopbar";
+import HeroFX from "@/components/fx/HeroFX";
 
 export const metadata: Metadata = {
   title: "Panel administrativo · Reforme Studio Pilates",
@@ -28,7 +29,12 @@ export default function AdminLayout(props: LayoutProps<"/admin">) {
           de irse hacia arriba. Necesita alto propio porque, como hijo flex, el
           `stretch` por defecto la haría tan alta como toda la página y no
           quedaría recorrido por el que pegarse. */}
-      <aside className="hidden shrink-0 bg-verde text-arena lg:sticky lg:top-0 lg:flex lg:h-[100svh] lg:w-64 lg:flex-col lg:justify-between lg:overflow-y-auto">
+      <aside className="hidden shrink-0 isolate overflow-hidden bg-verde text-arena lg:sticky lg:top-0 lg:flex lg:h-[100svh] lg:w-64 lg:flex-col lg:justify-between lg:overflow-y-auto">
+        {/* Motas y estela, sin goteo. `isolate` + `-z-10` lo dejan detrás del
+            menú; el canvas es `pointer-events-none`, así que los enlaces siguen
+            siendo clicables con normalidad. */}
+        <HeroFX className="-z-10" goteo={false} />
+
         <div>
           <div className="border-b border-verde-700 px-6 py-6">
             <Logo size={30} layout="horizontal" href="/admin" />
@@ -56,7 +62,8 @@ export default function AdminLayout(props: LayoutProps<"/admin">) {
           estiramiento que se acaba de arreglar. */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Cabecera (móvil) */}
-        <header className="sticky top-0 z-30 bg-verde text-arena lg:hidden">
+        <header className="sticky top-0 z-30 isolate overflow-hidden bg-verde text-arena lg:hidden">
+          <HeroFX className="-z-10" goteo={false} />
           <div className="flex items-center justify-between px-4 py-4">
             <Logo size={26} layout="horizontal" href="/admin" />
             <Link
