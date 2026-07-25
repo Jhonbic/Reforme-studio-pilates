@@ -36,6 +36,46 @@
 
   /* Curvas de animación */
   --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* ---------------------------------------------------------------
+     Paleta de GRÁFICOS (panel administrativo).
+     OJO: no son los colores de marca. El verde #284435 y el dorado
+     #BE9B69 son demasiado oscuros y apagados para codificar datos:
+     fallan el suelo de croma (se leen como gris) y no se distinguen
+     entre sí en daltonismo. Estos 4 pasan las seis comprobaciones
+     (banda de luminosidad, croma, separación CVD en TODOS los pares,
+     suelo de visión normal y contraste) sobre el fondo arena.
+     Restricciones que arrastran:
+       · máximo 4 series por gráfico — una 5ª no se inventa, se agrupa
+         en "Otros" o se separa en varios gráficos;
+       · el dorado queda en 2.64:1 de contraste → SIEMPRE con etiqueta
+         visible y tabla de datos disponible;
+       · se asignan en orden fijo, nunca cíclico.
+
+     MATIZ (tarjetas oscuras del panel): todo lo anterior se midió
+     sobre fondo ARENA y como colores para DISTINGUIR series entre sí.
+     Sobre verde-900 y con UNA SOLA serie no se cumple ninguna de las
+     dos cosas: no hay pares que separar, así que el color no codifica
+     categoría — solo tiene que verse. Ahí sí vale el dorado de marca
+     (dorado-light da 7.79:1 sobre verde-900, frente a los 3.21:1 del
+     chart-1, que además es verde sobre verde). Sigue exigiéndose la
+     tabla de datos. Ver `charts/LineChart.tsx`, constante PALETA.
+     --------------------------------------------------------------- */
+  --color-chart-1: #31875c; /* verde   — serie principal / ingresos */
+  --color-chart-2: #c68f28; /* dorado  — serie secundaria / gastos */
+  --color-chart-3: #c24a24; /* terracota */
+  --color-chart-4: #8b4a8f; /* ciruela */
+
+  /* Estados reservados: NUNCA se reutilizan como "serie 5" */
+  --color-estado-ok: #2f7d55;
+  --color-estado-aviso: #b47612;
+  --color-estado-grave: #b4442a;
+
+  /* Los mismos estados sobre fondo VERDE OSCURO. Los de arriba están
+     calculados contra arena y sobre verde-900 se hunden: el ok (#2f7d55)
+     es verde sobre verde y no se lee como señal. */
+  --color-estado-ok-claro: #7fc9a0;
+  --color-estado-grave-claro: #e8a08c;
 }
 
 /* Base -------------------------------------------------- */

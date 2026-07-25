@@ -2,17 +2,39 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AuthShell from "@/components/auth/AuthShell";
 import TextField from "@/components/auth/TextField";
 import { Button } from "@/components/ui/Button";
 
+/**
+ * PROVISIONAL — reparto por rol sin backend.
+ *
+ * Se decidió que clientes y equipo entren por la MISMA puerta y que sea el rol
+ * quien decida a dónde van. Como todavía no hay autenticación, el rol se deduce
+ * del dominio del correo. Cuando exista auth real, esto se sustituye por el rol
+ * que devuelva el servidor — la bifurcación de abajo se queda igual.
+ *
+ * ⚠️ No es seguridad: cualquiera que escriba un correo así entra. El panel no
+ * está protegido hasta que haya auth de verdad.
+ */
+const CORREO_EQUIPO = /@reforme\.(com|co)$/i;
+
 export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
+  const [email, setEmail] = useState("");
   const [done, setDone] = useState(false);
+  const router = useRouter();
 
-  // Solo UI por ahora: no hay backend. Simulamos el envío.
   function onSubmit(e: FormEvent) {
     e.preventDefault();
+
+    if (CORREO_EQUIPO.test(email.trim())) {
+      router.push("/admin");
+      return;
+    }
+
+    // Clientes: aún no hay a dónde llevarlos, así que confirmamos y ya.
     setDone(true);
   }
 
@@ -60,6 +82,8 @@ export default function LoginPage() {
             autoComplete="email"
             required
             placeholder="tu@correo.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
 
           <div>
