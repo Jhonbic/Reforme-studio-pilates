@@ -1,6 +1,7 @@
 import type {
   CarteraVencida,
   Cliente,
+  CondicionesPlan,
   EstadoMembresia,
   GastoCategoria,
   MembresiaPorVencer,
@@ -97,13 +98,58 @@ export function diasHasta(iso: string): number {
 }
 
 /** Precio de renovación por modalidad. Son los mismos importes que ya usaban
- *  las membresías por vencer, para no contradecir al dashboard. */
-const PRECIO_PLAN: Record<TipoPlan, number> = {
+ *  las membresías por vencer, para no contradecir al dashboard.
+ *
+ *  ⚠️ Se **exporta** desde que existe la pantalla de Planes: es el único sitio
+ *  donde vive un precio, y esa pantalla lo enseña en vez de guardar el suyo. */
+export const PRECIO_PLAN: Record<TipoPlan, number> = {
   Mensual: 190_000,
   Trimestral: 510_000,
   "Pack 10 clases": 320_000,
   "Clase suelta": 35_000,
 };
+
+/**
+ * Condiciones de venta de cada modalidad.
+ *
+ * ⚠️ **Sin precio ni número de clientes a propósito.** El precio es
+ * `PRECIO_PLAN` y los clientes se cuentan sobre `CLIENTES`; duplicarlos aquí
+ * es exactamente cómo dos pantallas acaban diciendo cifras distintas. Aquí
+ * solo está lo que no se puede deducir de ningún otro sitio.
+ *
+ * La vigencia de «Clase suelta» es 1 día porque se consume el mismo día que se
+ * compra: no es una membresía, es una entrada.
+ */
+export const CONDICIONES_PLANES: CondicionesPlan[] = [
+  {
+    plan: "Mensual",
+    vigenciaDias: 30,
+    clasesIncluidas: null,
+    seVende: true,
+    descripcion: "Para quien entrena de forma constante todas las semanas.",
+  },
+  {
+    plan: "Trimestral",
+    vigenciaDias: 90,
+    clasesIncluidas: null,
+    seVende: true,
+    descripcion: "Tres meses por adelantado, con descuento sobre el mensual.",
+  },
+  {
+    plan: "Pack 10 clases",
+    vigenciaDias: 60,
+    clasesIncluidas: 10,
+    seVende: true,
+    descripcion: "Diez clases para usar cuando se pueda, sin atarse al mes.",
+  },
+  {
+    plan: "Clase suelta",
+    vigenciaDias: 1,
+    clasesIncluidas: 1,
+    seVende: true,
+    descripcion: "Una clase para probar el estudio o para quien está de paso.",
+  },
+];
 
 const NOMBRES = [
   "Laura", "Andrés", "Valentina", "Camila", "Santiago", "Daniela",

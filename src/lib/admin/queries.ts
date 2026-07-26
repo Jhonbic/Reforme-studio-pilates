@@ -2,12 +2,14 @@ import { calcularVariacion, moneda } from "./format";
 import {
   CARTERA,
   CLIENTES,
+  CONDICIONES_PLANES,
   EQUIPO,
   GASTOS,
   MEMBRESIAS_POR_VENCER,
   MESES,
   MOVIMIENTO_CLIENTES,
   NOTIFICACIONES,
+  PRECIO_PLAN,
   REPARTO_METODOS,
   REPARTO_PLANES,
   RESUMEN,
@@ -19,6 +21,8 @@ import type {
   Indicador,
   MiembroEquipo,
   Notificacion,
+  PlanConMetricas,
+  TipoPlan,
   UsuarioActual,
 } from "./types";
 
@@ -88,6 +92,35 @@ export function getClienteIds(): string[] {
  * Va aquí y no en la pantalla porque es un dato del dominio: los recuentos que
  * se enseñan dentro de los filtros son los mismos que alimentan el dashboard.
  */
+/**
+ * El catálogo de planes con lo que ha pasado con cada uno.
+ *
+ * ⚠️ **Los clientes se cuentan sobre `CLIENTES`, no se leen de
+ * `REPARTO_PLANES`.** Los dos números existen y NO coinciden: `REPARTO_PLANES`
+ * suma 121 clientes y la base tiene 118. Es un dato escrito a mano en el mock
+ * que se quedó atrás cuando `CLIENTES` pasó a ser la fuente de verdad — el
+ * mismo problema que ya arreglaron `MEMBRESIAS_POR_VENCER` y los recuentos de
+ * `RESUMEN` derivándose. Esta pantalla cuenta; el donut del dashboard todavía
+ * lee `REPARTO_PLANES`, así que hasta que se unifique pueden discrepar.
+ *
+ * La facturación sí sale de `REPARTO_PLANES`: es un importe mensual del reparto
+ * de ingresos, no algo que se pueda deducir de la ficha de cada cliente.
+ */
+export function getPlanes(): PlanConMetricas[] {
+  const porPlan = new Map<TipoPlan, number>();
+  for (const c of CLIENTES) {
+    porPlan.set(c.plan, (porPlan.get(c.plan) ?? 0) + 1);
+  }
+
+  return CONDICIONES_PLANES.map((cond) => ({
+    ...cond,
+    precio: PRECIO_PLAN[cond.plan],
+    clientes: porPlan.get(cond.plan) ?? 0,
+    facturacionMes:
+      REPARTO_PLANES.find((r) => r.plan === cond.plan)?.importe ?? 0,
+  }));
+}
+
 export function getConteoEstados(): Record<EstadoMembresia | "Todas", number> {
   const conteo: Record<EstadoMembresia | "Todas", number> = {
     Todas: CLIENTES.length,

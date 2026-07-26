@@ -155,6 +155,37 @@ export type RepartoPlan = {
   clientes: number;
 };
 
+/**
+ * Una modalidad del catálogo, con sus condiciones de venta.
+ *
+ * ⚠️ **El precio y el número de clientes NO se escriben aquí**: el precio sale
+ * de `PRECIO_PLAN` (el mismo que cobra cada cliente) y los clientes se cuentan
+ * sobre `CLIENTES`. Si el catálogo los guardara por su cuenta, la pantalla de
+ * Planes podría decir «$190.000 · 47 clientes» mientras el listado de Usuarios
+ * enseña otro precio y otro recuento. Aquí solo vive lo que no se puede
+ * deducir de ningún otro sitio: la vigencia y las clases incluidas.
+ */
+export type CondicionesPlan = {
+  plan: TipoPlan;
+  /** Días que dura la membresía desde que se paga. */
+  vigenciaDias: number;
+  /** Clases incluidas, o `null` si son ilimitadas dentro de la vigencia. */
+  clasesIncluidas: number | null;
+  /** Si se puede vender hoy. Un plan retirado conserva sus clientes vigentes. */
+  seVende: boolean;
+  /** Para quién es, en una línea. */
+  descripcion: string;
+};
+
+/** Una fila de la pantalla de Planes: condiciones + lo que ha pasado con ellas. */
+export type PlanConMetricas = CondicionesPlan & {
+  precio: number;
+  /** Clientes que lo tienen ahora mismo, contados sobre `CLIENTES`. */
+  clientes: number;
+  /** Lo que factura al mes ese plan según el reparto de ingresos. */
+  facturacionMes: number;
+};
+
 export type RepartoMetodoPago = {
   metodo: MetodoPago;
   importe: number;
