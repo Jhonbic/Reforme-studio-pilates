@@ -45,7 +45,11 @@ export default function AppSidebar() {
           estar cerrada en móvil y abierta en escritorio a la vez, y eso no se
           puede expresar con una prop de JavaScript sin medir el viewport. */}
       <aside
-        className={`fixed left-0 top-16 z-40 flex h-[calc(100svh-4rem)] w-64 flex-col border-r border-beige bg-white transition-[transform,visibility] duration-300 lg:top-0 lg:h-[100svh] lg:translate-x-0 lg:transition-[width,visibility] ${
+        /* `top-0` y alto completo: antes arrancaba en `top-16` porque encima
+           había una franja de cabecera propia. Esa franja se retiró —la
+           cabecera es ahora `AdminTopbar`, una sola—, así que el cajón móvil
+           cubre la pantalla entera. */
+        className={`fixed left-0 top-0 z-40 flex h-[100svh] w-64 flex-col border-r border-beige bg-white transition-[transform,visibility] duration-300 lg:translate-x-0 lg:transition-[width,visibility] ${
           isMobileOpen ? "visible translate-x-0" : "invisible -translate-x-full"
         } ${
           isExpanded
@@ -54,8 +58,34 @@ export default function AppSidebar() {
         }`}
       >
         {/* Logo area (solo móvil) */}
-        <div className="hidden border-b border-beige/50 px-6 py-4 lg:block">
+        {/* El logo se ve también en móvil: ahora el cajón cubre la pantalla
+            entera, y sin él la navegación no diría de qué producto es. */}
+        <div className="flex items-center justify-between gap-3 border-b border-beige/50 px-6 py-4">
           <Logo size={30} layout="horizontal" href="/admin" />
+
+          {/* ⚠️ Cierre explícito, solo en móvil. Con el cajón abierto, el
+              scrim (z-30) queda por encima de la cabecera, así que el botón
+              que lo abrió NO se puede volver a pulsar: sin esta ✕ la única
+              salida sería adivinar que hay que tocar la zona oscurecida. */}
+          <button
+            type="button"
+            onClick={closeMobileSidebar}
+            aria-label="Cerrar navegación"
+            className="-mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-verde-300 transition-colors duration-300 hover:text-verde focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dorado lg:hidden"
+          >
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Navegación */}
