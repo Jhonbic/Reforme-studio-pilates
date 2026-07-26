@@ -2,17 +2,9 @@ import Card from "@/components/admin/Card";
 import CardHeader from "@/components/admin/CardHeader";
 import StatTile from "@/components/admin/StatTile";
 import LibroPagos from "@/components/admin/finanzas/LibroPagos";
+import RegistrarGasto from "@/components/admin/finanzas/RegistrarGasto";
 import { HOY } from "@/lib/admin/mock";
 import { getIndicadoresFinanzas, getPagos } from "@/lib/admin/queries";
-
-/* Lo que sigue faltando. Todo lo que queda pide ESCRIBIR —registrar un gasto,
-   cerrar la caja, guardar un comprobante—, y eso no se puede hacer sin base de
-   datos. Los puntos que solo pedían LEER ya están construidos. */
-const PREVISTO = [
-  "Registrar gastos a mano, con su comprobante adjunto",
-  "Cierre de caja diario: cuadrar el efectivo contra lo digital",
-  "Presupuesto anual, no solo el del mes en curso",
-];
 
 /**
  * Finanzas.
@@ -24,8 +16,10 @@ const PREVISTO = [
  * la que documentaba `CONTEXTO.md` («son detalle contable, no resumen de
  * negocio»), y se revierte a petición del usuario.
  *
- * Lo que queda aquí es lo que solo tiene sentido en Finanzas: el libro de
- * movimientos y la deuda.
+ * ⚠️ **Ya no hay lista de «pendiente en esta sección».** Tenía tres puntos:
+ * registrar gastos —que ahora existe como formulario—, cierre de caja y
+ * presupuesto anual, los dos descartados por el usuario. Lo que falta de
+ * verdad lo dice el propio formulario al enviarlo: que todavía no guarda.
  */
 export default function FinanzasPage() {
   const indicadores = getIndicadoresFinanzas();
@@ -51,31 +45,18 @@ export default function FinanzasPage() {
             columnas —fecha, cliente, plan, método e importe— una columna
             estrecha obligaba a recortar el nombre del cliente casi siempre. */}
         <Card densidad="plana" className="md:col-span-6 xl:col-span-12">
-          <div className="p-5 sm:p-6">
+          {/* El alta de gasto vive en la cabecera del libro, no en una barra
+              propia: un gasto es un movimiento más, y se registra mirando los
+              que ya están. `CardHeader` deja su hueco a la derecha justo para
+              esto. */}
+          <div className="flex flex-wrap items-start justify-between gap-3 p-5 sm:p-6">
             <CardHeader
               titulo="Libro de movimientos"
               descripcion="Todos los cobros, con su plan y su método. Cada fila lleva a la ficha del cliente."
             />
+            <RegistrarGasto hoy={HOY} />
           </div>
           <LibroPagos pagos={pagos} hoy={HOY} />
-        </Card>
-
-        {/* Los pendientes van al final y en horizontal: son una nota al pie de
-            la sección, no un bloque que compita con el libro. */}
-        <Card tono="acento" className="md:col-span-6 xl:col-span-12">
-          <h2 className="font-display text-lg">Pendiente en esta sección</h2>
-          <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
-            {PREVISTO.map((p) => (
-              <li key={p} className="flex gap-2.5">
-                <span aria-hidden="true">◆</span>
-                <span>{p}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-3 text-sm">
-            Las tres necesitan base de datos: hoy Finanzas se lee, no se
-            escribe.
-          </p>
         </Card>
       </div>
     </div>
