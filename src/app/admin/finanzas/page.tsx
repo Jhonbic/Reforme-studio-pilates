@@ -1,9 +1,14 @@
 import Card from "@/components/admin/Card";
 import ChartCard from "@/components/admin/ChartCard";
+import StatTile from "@/components/admin/StatTile";
 import GroupedBars from "@/components/admin/charts/GroupedBars";
 import HBars from "@/components/admin/charts/HBars";
 import { moneda } from "@/lib/admin/format";
-import { getGastos, getMesesFinancieros } from "@/lib/admin/queries";
+import {
+  getGastos,
+  getIndicadoresFinanzas,
+  getMesesFinancieros,
+} from "@/lib/admin/queries";
 
 const C1 = "var(--color-chart-1)";
 const C2 = "var(--color-chart-2)";
@@ -29,12 +34,30 @@ const PREVISTO = [
 export default function FinanzasPage() {
   const meses = getMesesFinancieros();
   const gastos = getGastos();
+  const indicadores = getIndicadoresFinanzas();
 
   return (
     <div className="mx-auto w-full max-w-[1440px]">
       <h1 className="sr-only">Finanzas</h1>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-6 xl:grid-cols-12 xl:gap-5">
+        {/* ⚠️ La pantalla abría directamente con un gráfico de doce meses. Para
+            saber cómo fue ESTE mes había que leer la última pareja de barras
+            —o abrir la tabla— cuando es justo lo primero que se viene a mirar.
+            Las cuatro cifras responden eso antes de que nadie interprete nada.
+
+            Reutilizan `StatTile`, el mismo componente del Dashboard: son el
+            mismo objeto (cifra + variación + detalle) y duplicarlo habría hecho
+            que las dos pantallas se separaran con el primer retoque. */}
+        <section
+          aria-label="Cifras del mes"
+          className="grid gap-4 sm:grid-cols-2 md:col-span-6 xl:col-span-12 xl:grid-cols-4"
+        >
+          {indicadores.map((i) => (
+            <StatTile key={i.etiqueta} indicador={i} />
+          ))}
+        </section>
+
         <ChartCard
           titulo="Ingresos frente a gastos"
           descripcion="Las dos series comparten un mismo eje en pesos. La distancia entre barras es la utilidad del mes."

@@ -38,8 +38,34 @@ export function getMesesFinancieros() {
   return MESES;
 }
 
+/** Cuántos clientes tiene cada modalidad ahora mismo, contados sobre `CLIENTES`. */
+function contarClientesPorPlan(): Map<TipoPlan, number> {
+  const porPlan = new Map<TipoPlan, number>();
+  for (const c of CLIENTES) {
+    porPlan.set(c.plan, (porPlan.get(c.plan) ?? 0) + 1);
+  }
+  return porPlan;
+}
+
+/**
+ * Reparto de ingresos por modalidad.
+ *
+ * ⚠️ **El recuento de clientes se DERIVA de `CLIENTES`; solo el importe sale de
+ * `REPARTO_PLANES`.** Los números escritos a mano en el mock sumaban 121
+ * clientes mientras la base tiene 118: era un dato que se quedó atrás cuando
+ * `CLIENTES` pasó a ser la fuente de verdad. Con esto, la tabla del donut del
+ * dashboard y la pantalla de Planes cuentan lo mismo por construcción, que es
+ * la misma regla que ya seguían `MEMBRESIAS_POR_VENCER` y `RESUMEN`.
+ *
+ * El importe no se puede derivar: es cuánto factura el plan al mes, no algo
+ * deducible de la ficha de cada cliente.
+ */
 export function getRepartoPlanes() {
-  return REPARTO_PLANES;
+  const porPlan = contarClientesPorPlan();
+  return REPARTO_PLANES.map((r) => ({
+    ...r,
+    clientes: porPlan.get(r.plan) ?? 0,
+  }));
 }
 
 export function getRepartoMetodos() {
@@ -95,22 +121,15 @@ export function getClienteIds(): string[] {
 /**
  * El catálogo de planes con lo que ha pasado con cada uno.
  *
- * ⚠️ **Los clientes se cuentan sobre `CLIENTES`, no se leen de
- * `REPARTO_PLANES`.** Los dos números existen y NO coinciden: `REPARTO_PLANES`
- * suma 121 clientes y la base tiene 118. Es un dato escrito a mano en el mock
- * que se quedó atrás cuando `CLIENTES` pasó a ser la fuente de verdad — el
- * mismo problema que ya arreglaron `MEMBRESIAS_POR_VENCER` y los recuentos de
- * `RESUMEN` derivándose. Esta pantalla cuenta; el donut del dashboard todavía
- * lee `REPARTO_PLANES`, así que hasta que se unifique pueden discrepar.
+ * Los clientes se cuentan sobre `CLIENTES` con el mismo ayudante que usa
+ * `getRepartoPlanes()`, así que esta pantalla y el donut del dashboard no
+ * pueden discrepar.
  *
  * La facturación sí sale de `REPARTO_PLANES`: es un importe mensual del reparto
  * de ingresos, no algo que se pueda deducir de la ficha de cada cliente.
  */
 export function getPlanes(): PlanConMetricas[] {
-  const porPlan = new Map<TipoPlan, number>();
-  for (const c of CLIENTES) {
-    porPlan.set(c.plan, (porPlan.get(c.plan) ?? 0) + 1);
-  }
+  const porPlan = contarClientesPorPlan();
 
   return CONDICIONES_PLANES.map((cond) => ({
     ...cond,
@@ -219,6 +238,83 @@ export function getIndicadores(): Indicador[] {
       // Que suba significa más plata pendiente de renovar: no es buena noticia.
       subirEsBueno: false,
       detalle: `${getMembresiasPorVencer(DIAS_POR_VENCER).length} clientes por vencer`,
+    },
+  ];
+}
+
+/**
+ * Las cifras de cabecera de Finanzas: el mes cerrado frente al anterior.
+ *
+ * ⚠️ **No repiten las del Dashboard.** Allí se pregunta «¿cómo vamos de
+ * plata?» y se responde con ingresos, utilidad y clientes. Aquí se entra a
+ * mirar la contabilidad, así que lo que importa es el **margen** (qué
+ * proporción de lo que entra se queda) y la **desviación del presupuesto** (si
+ * se está gastando lo previsto). Ninguna de las dos estaba visible en ningún
+ * sitio: el presupuesto solo se veía como marca dentro de una barra.
+ */
+export function getIndicadoresFinanzas(): Indicador[] {
+  const actual = MESES[MESES.length - 1];
+  const anterior = MESES[MESES.length - 2];
+
+  const utilidad = actual.ingresos - actual.gastos;
+  const utilidadAnterior = anterior.ingresos - anterior.gastos;
+
+  /* Margen sobre ingresos. Con ingresos a 0 no hay margen que calcular, y eso
+     no es «0 %»: es que la pregunta no aplica. */
+  const margen = actual.ingresos ? (utilidad / actual.ingresos) * 100 : 0;
+  const margenAnterior = anterior.ingresos
+    ? (utilidadAnterior / anterior.ingresos) * 100
+    : 0;
+
+  const presupuestado = GASTOS.reduce((t, g) => t + g.presupuesto, 0);
+  const gastado = GASTOS.reduce((t, g) => t + g.importe, 0);
+  const pasadas = GASTOS.filter((g) => g.importe > g.presupuesto).length;
+
+  return [
+    {
+      etiqueta: "Ingresos del mes",
+      valor: actual.ingresos,
+      formato: "moneda",
+      variacion: calcularVariacion(actual.ingresos, anterior.ingresos),
+      subirEsBueno: true,
+      detalle: `${actual.mes} ${actual.anio} · frente a ${anterior.mes}`,
+    },
+    {
+      etiqueta: "Gastos del mes",
+      valor: actual.gastos,
+      formato: "moneda",
+      variacion: calcularVariacion(actual.gastos, anterior.gastos),
+      // Gastar más que el mes pasado no es una buena noticia.
+      subirEsBueno: false,
+      detalle: `frente a ${moneda(anterior.gastos)} en ${anterior.mes}`,
+    },
+    {
+      etiqueta: "Margen",
+      valor: margen,
+      formato: "porcentaje",
+      /* ⚠️ En PUNTOS porcentuales, no en variación relativa: pasar de 30 % a
+         33 % son 3 puntos. Decir «+10 %» ahí se confundiría con el margen. */
+      variacion: margen - margenAnterior,
+      subirEsBueno: true,
+      detalle: "de cada peso que entra",
+    },
+    {
+      /* ⚠️ Se enseña como PORCENTAJE de lo presupuestado, no como la
+         desviación en pesos. En pesos, quedarse corto sale en negativo
+         («−$200.000») y hay que pararse a pensar si eso es bueno; en
+         porcentaje, 102 % se lee al instante como «nos pasamos un 2 %». */
+      etiqueta: "Presupuesto usado",
+      valor: presupuestado ? (gastado / presupuestado) * 100 : 0,
+      formato: "porcentaje",
+      variacion: null,
+      subirEsBueno: false,
+      detalle: `de ${moneda(presupuestado)} · ${
+        pasadas === 0
+          ? "ninguna categoría por encima"
+          : pasadas === 1
+            ? "1 categoría por encima"
+            : `${pasadas} categorías por encima`
+      }`,
     },
   ];
 }
