@@ -159,6 +159,7 @@ export function getPlanes(): PlanConMetricas[] {
 
   return CONDICIONES_PLANES.map((cond) => ({
     ...cond,
+    nombreVisible: cond.plan,
     precio: PRECIO_PLAN[cond.plan],
     clientes: porPlan.get(cond.plan) ?? 0,
     facturacionMes:

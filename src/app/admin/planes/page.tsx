@@ -1,6 +1,5 @@
 import Card from "@/components/admin/Card";
-import CardHeader from "@/components/admin/CardHeader";
-import FilaPlan from "@/components/admin/planes/FilaPlan";
+import PanelPlanes from "@/components/admin/planes/PanelPlanes";
 import { moneda, numero } from "@/lib/admin/format";
 import { getPlanes } from "@/lib/admin/queries";
 
@@ -64,33 +63,18 @@ export default function PlanesPage() {
         </Card>
       </section>
 
-      <Card densidad="plana">
-        <div className="p-5 sm:p-6">
-          <CardHeader
-            titulo="Modalidades"
-            descripcion="Lo que vende el estudio y cómo se está comportando cada plan."
-          />
-        </div>
-
-        <ul className="divide-y divide-beige border-t border-beige">
-          {planes.map((p) => (
-            <li key={p.plan}>
-              <FilaPlan plan={p} total={facturacion} />
-            </li>
-          ))}
-        </ul>
-      </Card>
+      <PanelPlanes planes={planes} />
 
       <Card tono="acento">
         <h2 className="font-display text-lg">Pendiente en esta sección</h2>
         <ul className="mt-3 space-y-1.5 text-sm">
-          <li>Crear y retirar modalidades sin tocar código.</li>
-          <li>Cambiar precios, guardando el histórico de cada cambio.</li>
+          <li>
+            Que crear, editar y eliminar guarden de verdad — hoy la pantalla
+            existe pero el catálogo vive en el código.
+          </li>
+          <li>Histórico de precios: quién los cambió y cuándo.</li>
           <li>Promociones y descuentos por temporada.</li>
         </ul>
-        <p className="mt-3 text-sm">
-          Las tres necesitan base de datos: hoy el catálogo se lee, no se edita.
-        </p>
       </Card>
     </div>
   );

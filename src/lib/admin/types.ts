@@ -175,10 +175,49 @@ export type CondicionesPlan = {
   seVende: boolean;
   /** Para quién es, en una línea. */
   descripcion: string;
+  /**
+   * Lo que incluye, en frases cortas para la tarjeta de precio.
+   *
+   * ⚠️ **No repiten el precio, la vigencia ni las clases**: esos tres ya tienen
+   * su sitio propio en la tarjeta, y duplicarlos aquí obligaría a acordarse de
+   * cambiarlos en dos lugares.
+   */
+  caracteristicas: string[];
 };
 
-/** Una fila de la pantalla de Planes: condiciones + lo que ha pasado con ellas. */
+/**
+ * Un plan que se está creando o editando en el formulario.
+ *
+ * ⚠️ **No es un `CondicionesPlan`, igual que `FichaAlta` no es un `Cliente`.**
+ * El motivo es `TipoPlan`: es una unión de cuatro literales porque cada cliente
+ * guarda el suyo, así que un plan nuevo —con nombre libre— no encaja en ese
+ * tipo. Forzarlo a `string` obligaría a tocar `Cliente`, `REPARTO_PLANES`, el
+ * filtro del listado y el CSV, y todo eso para un formulario que hoy no guarda.
+ *
+ * El día que haya base de datos, el plan pasará a tener id propio y `TipoPlan`
+ * desaparecerá como unión cerrada; ahí `guardarPlan(borrador)` hará el mapeo.
+ */
+export type BorradorPlan = {
+  nombre: string;
+  precio: number;
+  vigenciaDias: number;
+  /** `null` = ilimitadas dentro de la vigencia. */
+  clasesIncluidas: number | null;
+  seVende: boolean;
+  descripcion: string;
+  caracteristicas: string[];
+};
+
+/** Una tarjeta de la pantalla de Planes: condiciones + lo que ha pasado con ellas. */
 export type PlanConMetricas = CondicionesPlan & {
+  /**
+   * El nombre para pintar. Hoy es siempre igual que `plan`, pero se separa a
+   * propósito: `plan` es la clave de tipo `TipoPlan` con la que los clientes
+   * guardan su modalidad, y un plan creado desde el formulario tendrá nombre
+   * libre sin pertenecer a esa unión. Escribir `plan.plan` en la UI, además,
+   * se lee fatal.
+   */
+  nombreVisible: string;
   precio: number;
   /** Clientes que lo tienen ahora mismo, contados sobre `CLIENTES`. */
   clientes: number;

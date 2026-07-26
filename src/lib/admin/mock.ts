@@ -129,6 +129,12 @@ export const CONDICIONES_PLANES: CondicionesPlan[] = [
     clasesIncluidas: null,
     seVende: true,
     descripcion: "Para quien entrena de forma constante todas las semanas.",
+    caracteristicas: [
+      "Reserva con 7 días de antelación",
+      "Grupos de máximo 6 personas",
+      "Valoración postural al empezar",
+      "Congela hasta 7 días por viaje o enfermedad",
+    ],
   },
   {
     plan: "Trimestral",
@@ -136,6 +142,13 @@ export const CONDICIONES_PLANES: CondicionesPlan[] = [
     clasesIncluidas: null,
     seVende: true,
     descripcion: "Tres meses por adelantado, con descuento sobre el mensual.",
+    caracteristicas: [
+      "Todo lo del plan Mensual",
+      "Ahorro de $60.000 frente a pagar mes a mes",
+      "Reserva con 14 días de antelación",
+      "Congela hasta 15 días",
+      "Una clase de invitado al trimestre",
+    ],
   },
   {
     plan: "Pack 10 clases",
@@ -143,6 +156,11 @@ export const CONDICIONES_PLANES: CondicionesPlan[] = [
     clasesIncluidas: 10,
     seVende: true,
     descripcion: "Diez clases para usar cuando se pueda, sin atarse al mes.",
+    caracteristicas: [
+      "Sin días fijos: se reserva según agenda",
+      "Grupos de máximo 6 personas",
+      "Transferible a otra persona una vez",
+    ],
   },
   {
     plan: "Clase suelta",
@@ -150,6 +168,10 @@ export const CONDICIONES_PLANES: CondicionesPlan[] = [
     clasesIncluidas: 1,
     seVende: true,
     descripcion: "Una clase para probar el estudio o para quien está de paso.",
+    caracteristicas: [
+      "Sin compromiso ni matrícula",
+      "Se descuenta si se contrata un plan esa semana",
+    ],
   },
 ];
 
