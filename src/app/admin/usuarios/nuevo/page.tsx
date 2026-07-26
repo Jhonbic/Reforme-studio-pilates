@@ -1,35 +1,23 @@
-'use client';
+import FormularioAlta from "@/components/admin/usuarios/FormularioAlta";
+import { getClientes } from "@/lib/admin/queries";
+import { claveNombre } from "@/lib/validacion";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import UserForm from '@/components/admin/UserForm';
-import { UsuarioCreate } from '@/types/usuario';
-import { crearUsuario } from '@/lib/usuarios';
-
-export default function NuevoUsuarioPage() {
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleSubmit = async (datos: UsuarioCreate) => {
-    setIsLoading(true);
-    try {
-      await crearUsuario(datos);
-      router.push('/admin/usuarios');
-    } catch (error) {
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
+export default function NuevoClientePage() {
+  const documentosExistentes: Record<string, string> = {};
+  const nombresExistentes: Record<string, string> = {};
+  for (const c of getClientes()) {
+    documentosExistentes[c.identificacion] = c.nombre;
+    nombresExistentes[claveNombre(c.nombre)] = c.nombre;
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-4xl text-verde mb-2">Crear Nuevo Usuario</h1>
-        <p className="text-verde-300">Añade un nuevo cliente, instructor o personal administrativo</p>
-      </div>
+    <div className="mx-auto w-full max-w-5xl">
+      <h1 className="sr-only">Nuevo cliente</h1>
 
-      <UserForm onSubmit={handleSubmit} isLoading={isLoading} />
+      <FormularioAlta
+        documentosExistentes={documentosExistentes}
+        nombresExistentes={nombresExistentes}
+      />
     </div>
   );
 }

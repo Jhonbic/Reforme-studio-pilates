@@ -1,145 +1,146 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-import AdminCard from '@/components/admin/AdminCard';
-import RecentIngresses from '@/components/admin/RecentIngresses';
-import MonthlyChart from '@/components/admin/MonthlyChart';
-import Link from 'next/link';
-import { Usuario } from '@/types/usuario';
+import Card from "@/components/admin/Card";
+import ChartCard from "@/components/admin/ChartCard";
+import StatTile from "@/components/admin/StatTile";
+import TarjetaIngresos from "@/components/admin/TarjetaIngresos";
+import Variacion from "@/components/admin/Variacion";
+import Donut from "@/components/admin/charts/Donut";
+import GroupedBars from "@/components/admin/charts/GroupedBars";
+import HBars from "@/components/admin/charts/HBars";
+import { moneda, monedaCorta, numero, porcentaje } from "@/lib/admin/format";
 import {
-  obtenerUsuarios,
-  obtenerUltimosIngresos,
-  obtenerEstadisticasPorMes,
-} from '@/lib/usuarios';
+  getIndicadores,
+  getMesesFinancieros,
+  getMovimientoClientes,
+  getRepartoMetodos,
+  getRepartoPlanes,
+  getTasaRenovacion,
+} from "@/lib/admin/queries";
 
-export default function AdminDashboard() {
-  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [ultimos, setUltimos] = useState<Usuario[]>([]);
-  const [estadisticas, setEstadisticas] = useState<{ mes: string; count: number }[]>([]);
-  const [loading, setLoading] = useState(true);
+const C1 = "var(--color-chart-1)";
+const C2 = "var(--color-chart-2)";
+const C3 = "var(--color-chart-3)";
+const C4 = "var(--color-chart-4)";
 
-  useEffect(() => {
-    const cargarDatos = async () => {
-      try {
-        const [todosLosUsuarios, ultimosIngresos, stats] = await Promise.all([
-          obtenerUsuarios(),
-          obtenerUltimosIngresos(3),
-          obtenerEstadisticasPorMes(),
-        ]);
+export default function DashboardPage() {
+  const [ingresosMes, ...tiles] = getIndicadores();
+  const meses = getMesesFinancieros();
+  const planes = getRepartoPlanes();
+  const metodos = getRepartoMetodos();
+  const movimiento = getMovimientoClientes();
+  const renovacion = getTasaRenovacion();
 
-        setUsuarios(todosLosUsuarios);
-        setUltimos(ultimosIngresos);
-        setEstadisticas(stats);
-      } catch (error) {
-        console.error('Error cargando datos:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    cargarDatos();
-  }, []);
-
-  const activos = usuarios.filter((u) => u.estado === 'activo').length;
-  const instructores = usuarios.filter((u) => u.rol === 'instructor').length;
+  const totalPlanes = planes.reduce((t, p) => t + p.importe, 0);
+  const totalMetodos = metodos.reduce((t, m) => t + m.importe, 0);
 
   return (
-    <div className="space-y-8">
-      {/* Encabezado */}
-      <div>
-        <h1 className="font-display text-4xl text-verde mb-2">Dashboard</h1>
-        <p className="text-verde-300">Gestión de Reforme Studio Pilates</p>
-      </div>
+    <div className="mx-auto w-full max-w-[1440px]">
+      <h1 className="sr-only">Dashboard</h1>
 
-      {/* Estadísticas principales */}
-      <div className="grid md:grid-cols-4 gap-4">
-        <AdminCard
-          title="Usuarios Totales"
-          value={usuarios.length}
-          subtitle={`${activos} activos`}
-          icon="👥"
-          trend="up"
-        />
-        <AdminCard
-          title="Clientes Activos"
-          value={activos}
-          subtitle="Con acceso vigente"
-          icon="✅"
-          trend="up"
-        />
-        <AdminCard
-          title="Instructores"
-          value={instructores}
-          subtitle="Personal activo"
-          icon="🧘‍♀️"
-          trend="neutral"
-        />
-        <AdminCard
-          title="Nuevos este Mes"
-          value={
-            estadisticas.find((s) => s.mes === 'Julio')?.count ||
-            0
-          }
-          subtitle="Julio 2026"
-          icon="📈"
-          trend="up"
-        />
-      </div>
-
-      {/* Menu rápido */}
-      <div className="grid md:grid-cols-4 gap-4">
-        <Link
-          href="/admin/usuarios"
-          className="bg-white hover:shadow-lift rounded-lg p-4 text-center transition cursor-pointer border border-beige hover:border-dorado"
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-6 xl:grid-cols-12 xl:gap-5">
+        <section
+          aria-label="Cifras principales"
+          className="grid gap-4 sm:grid-cols-3 md:col-span-6 xl:col-span-12"
         >
-          <div className="text-3xl mb-2">👥</div>
-          <p className="font-semibold text-verde">Usuarios</p>
-          <p className="text-sm text-verde-300">Gestionar usuarios</p>
-        </Link>
+          {tiles.map((i) => (
+            <StatTile key={i.etiqueta} indicador={i} />
+          ))}
+        </section>
 
-        <Link
-          href="/admin/usuarios/nuevo"
-          className="bg-white hover:shadow-lift rounded-lg p-4 text-center transition cursor-pointer border border-beige hover:border-dorado"
+        <TarjetaIngresos
+          indicador={ingresosMes}
+          meses={meses}
+          className="md:col-span-6 xl:col-span-8"
+        />
+
+        <ChartCard
+          titulo="Ingresos por tipo de plan"
+          className="md:col-span-6 xl:col-span-4"
+          tabla={{
+            cabeceras: ["Plan", "Clientes", "Importe"],
+            filas: planes.map((p) => [
+              p.plan,
+              numero(p.clientes),
+              moneda(p.importe),
+            ]),
+          }}
         >
-          <div className="text-3xl mb-2">➕</div>
-          <p className="font-semibold text-verde">Nuevo Usuario</p>
-          <p className="text-sm text-verde-300">Añadir cliente</p>
-        </Link>
+          <Donut
+            totalEtiqueta="Facturado"
+            totalValor={monedaCorta(totalPlanes)}
+            formato="moneda"
+            datos={[
+              { label: planes[0].plan, value: planes[0].importe, color: C1 },
+              { label: planes[1].plan, value: planes[1].importe, color: C2 },
+              { label: planes[2].plan, value: planes[2].importe, color: C3 },
+              { label: planes[3].plan, value: planes[3].importe, color: C4 },
+            ]}
+          />
+        </ChartCard>
 
-        <div className="bg-white rounded-lg p-4 text-center border border-beige opacity-50 cursor-not-allowed">
-          <div className="text-3xl mb-2">📅</div>
-          <p className="font-semibold text-verde-300">Clases</p>
-          <p className="text-sm text-verde-300">Próximamente</p>
-        </div>
-
-        <div className="bg-white rounded-lg p-4 text-center border border-beige opacity-50 cursor-not-allowed">
-          <div className="text-3xl mb-2">💳</div>
-          <p className="font-semibold text-verde-300">Planes</p>
-          <p className="text-sm text-verde-300">Próximamente</p>
-        </div>
-      </div>
-
-      {/* Sección principal: Últimos ingresos y estadísticas */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          {loading ? (
-            <div className="bg-white rounded-lg shadow-soft p-12 text-center">
-              <p className="text-verde-300">Cargando datos...</p>
-            </div>
-          ) : (
-            <RecentIngresses usuarios={ultimos} />
+        <Card
+          tono="oscuro"
+          fx
+          className="flex flex-col justify-center md:col-span-3 xl:col-span-4"
+        >
+          <h2 className="font-display text-xl text-arena">
+            Tasa de renovación
+          </h2>
+          <p className="mt-6 font-display text-5xl tabular-nums leading-none text-arena xl:text-6xl">
+            {porcentaje(renovacion.valor)}
+          </p>
+          {renovacion.variacion !== null && (
+            <p className="mt-3 flex flex-wrap items-center gap-x-2 text-sm">
+              <Variacion valor={renovacion.variacion} tono="oscuro" />
+              <span className="text-beige/75">frente al mes anterior</span>
+            </p>
           )}
-        </div>
+        </Card>
 
-        <div>
-          {loading ? (
-            <div className="bg-white rounded-lg shadow-soft p-12 text-center">
-              <p className="text-verde-300">Cargando datos...</p>
-            </div>
-          ) : (
-            <MonthlyChart data={estadisticas} />
-          )}
-        </div>
+        <ChartCard
+          titulo="Cómo pagan los clientes"
+          className="md:col-span-3 xl:col-span-4"
+          tabla={{
+            cabeceras: ["Método", "Importe", "% del total"],
+            filas: metodos.map((m) => [
+              m.metodo,
+              moneda(m.importe),
+              porcentaje((m.importe / totalMetodos) * 100, 0),
+            ]),
+          }}
+        >
+          <HBars
+            datos={metodos.map((m) => ({ label: m.metodo, value: m.importe }))}
+            color={C1}
+            formatoValor={moneda}
+          />
+        </ChartCard>
+
+        <ChartCard
+          titulo="Altas y bajas por mes"
+          className="md:col-span-6 xl:col-span-4"
+          tabla={{
+            cabeceras: ["Mes", "Altas", "Bajas", "Neto"],
+            filas: movimiento.map((m) => [
+              m.mes,
+              m.altas,
+              m.bajas,
+              `${m.altas - m.bajas > 0 ? "+" : ""}${m.altas - m.bajas}`,
+            ]),
+          }}
+        >
+          <GroupedBars
+            datos={movimiento.map((m) => ({
+              label: m.mes,
+              valores: [m.altas, m.bajas],
+            }))}
+            series={[
+              { nombre: "Altas", color: C1 },
+              { nombre: "Bajas", color: C3 },
+            ]}
+            formato="clientes"
+            formatoEje="numero"
+          />
+        </ChartCard>
       </div>
     </div>
   );

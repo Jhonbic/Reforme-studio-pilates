@@ -5,6 +5,7 @@ import Link from "next/link";
 import AuthShell from "@/components/auth/AuthShell";
 import TextField from "@/components/auth/TextField";
 import { Button } from "@/components/ui/Button";
+import { esCorreo } from "@/lib/validacion";
 
 type Errors = Partial<Record<"nombre" | "email" | "password" | "confirm" | "terms", string>>;
 
@@ -29,7 +30,7 @@ export default function RegistroPage() {
   function validate(): Errors {
     const e: Errors = {};
     if (values.nombre.trim().length < 2) e.nombre = "Cuéntanos tu nombre.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email))
+    if (!esCorreo(values.email))
       e.email = "Introduce un correo válido.";
     if (values.password.length < 8)
       e.password = "Mínimo 8 caracteres.";

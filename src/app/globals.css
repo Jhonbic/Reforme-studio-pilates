@@ -34,8 +34,55 @@
   --shadow-lift: 0 2px 4px rgba(40, 68, 53, 0.05),
     0 18px 48px rgba(40, 68, 53, 0.12);
 
+  /* Tarjetas del PANEL. Aparte de `shadow-soft` (que usa la web pública) a
+     propósito: en una herramienta de trabajo hay 8-10 tarjetas a la vez y las
+     sombras difusas de la web ensucian la rejilla. Aquí la separación la da el
+     borde beige; la sombra solo despega la tarjeta del fondo un milímetro. */
+  --shadow-card: 0 1px 2px -1px rgba(40, 68, 53, 0.07),
+    0 2px 8px -3px rgba(40, 68, 53, 0.06);
+
   /* Curvas de animación */
   --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* ---------------------------------------------------------------
+     Paleta de GRÁFICOS (panel administrativo).
+     OJO: no son los colores de marca. El verde #284435 y el dorado
+     #BE9B69 son demasiado oscuros y apagados para codificar datos:
+     fallan el suelo de croma (se leen como gris) y no se distinguen
+     entre sí en daltonismo. Estos 4 pasan las seis comprobaciones
+     (banda de luminosidad, croma, separación CVD en TODOS los pares,
+     suelo de visión normal y contraste) sobre el fondo arena.
+     Restricciones que arrastran:
+       · máximo 4 series por gráfico — una 5ª no se inventa, se agrupa
+         en "Otros" o se separa en varios gráficos;
+       · el dorado queda en 2.64:1 de contraste → SIEMPRE con etiqueta
+         visible y tabla de datos disponible;
+       · se asignan en orden fijo, nunca cíclico.
+
+     MATIZ (tarjetas oscuras del panel): todo lo anterior se midió
+     sobre fondo ARENA y como colores para DISTINGUIR series entre sí.
+     Sobre verde-900 y con UNA SOLA serie no se cumple ninguna de las
+     dos cosas: no hay pares que separar, así que el color no codifica
+     categoría — solo tiene que verse. Ahí sí vale el dorado de marca
+     (dorado-light da 7.79:1 sobre verde-900, frente a los 3.21:1 del
+     chart-1, que además es verde sobre verde). Sigue exigiéndose la
+     tabla de datos. Ver `charts/LineChart.tsx`, constante PALETA.
+     --------------------------------------------------------------- */
+  --color-chart-1: #31875c; /* verde   — serie principal / ingresos */
+  --color-chart-2: #c68f28; /* dorado  — serie secundaria / gastos */
+  --color-chart-3: #c24a24; /* terracota */
+  --color-chart-4: #8b4a8f; /* ciruela */
+
+  /* Estados reservados: NUNCA se reutilizan como "serie 5" */
+  --color-estado-ok: #2f7d55;
+  --color-estado-aviso: #b47612;
+  --color-estado-grave: #b4442a;
+
+  /* Los mismos estados sobre fondo VERDE OSCURO. Los de arriba están
+     calculados contra arena y sobre verde-900 se hunden: el ok (#2f7d55)
+     es verde sobre verde y no se lee como señal. */
+  --color-estado-ok-claro: #7fc9a0;
+  --color-estado-grave-claro: #e8a08c;
 }
 
 /* Base -------------------------------------------------- */
@@ -188,6 +235,38 @@ body {
   transform: translateX(170%);
 }
 
+/* Dash diagonal dorado de los CONTROLES del panel (pastillas, pestañas,
+   paginación). Es el gesto de `.card-sheen` sustituyendo al relleno de fondo
+   como respuesta al hover.
+
+   Dos diferencias con el de las tarjetas, y las dos por el tamaño: **0.55s en
+   vez de 1.3s** —una pastilla mide 100px, a 1.3s el barrido se arrastraría
+   mucho después de haber movido el cursor— y **0.28 de opacidad en vez de
+   0.22**, porque en tan poco recorrido un dorado más tenue no se llega a ver.
+
+   `.control-fx` va en el propio control, no en un `.group` ancestro: si el
+   disparador fuera el grupo, pasar por CUALQUIER pastilla barrería las cinco. */
+.control-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    120deg,
+    transparent 35%,
+    rgba(190, 155, 105, 0.28) 50%,
+    transparent 65%
+  );
+  transform: translateX(-160%);
+  transition: transform 0.55s var(--ease-smooth);
+}
+/* `focus-visible` y no `focus`: al pulsar con el ratón el botón también recibe
+   foco, y el barrido se dispararía dos veces por un solo clic. */
+.control-fx:hover .control-sheen,
+.control-fx:focus-visible .control-sheen {
+  transform: translateX(160%);
+}
+
 .btn-ripple {
   position: absolute;
   z-index: 0;
@@ -226,7 +305,8 @@ body {
     animation: none;
   }
   .btn-sheen,
-  .card-sheen {
+  .card-sheen,
+  .control-sheen {
     transition: none;
     display: none;
   }
