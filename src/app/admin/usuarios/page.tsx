@@ -6,9 +6,9 @@ export default function UsuariosPage() {
     <div className="mx-auto w-full max-w-[1440px]">
       <h1 className="sr-only">Usuarios</h1>
       <PanelUsuarios
-        clientesInicial={getClientes()}
-        equipoInicial={getEquipo()}
-        conteoEstados={getConteoEstados()}
+        clientes={getClientes()}
+        equipo={getEquipo()}
+        conteos={getConteoEstados()}
       />
     </div>
   );
