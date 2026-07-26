@@ -9,6 +9,7 @@ import {
   MESES,
   MOVIMIENTO_CLIENTES,
   NOTIFICACIONES,
+  PAGOS,
   PRECIO_PLAN,
   REPARTO_METODOS,
   REPARTO_PLANES,
@@ -21,6 +22,7 @@ import type {
   Indicador,
   MiembroEquipo,
   Notificacion,
+  Pago,
   PlanConMetricas,
   TipoPlan,
   UsuarioActual,
@@ -82,6 +84,23 @@ export function getMovimientoClientes() {
 
 export function getCartera() {
   return CARTERA;
+}
+
+/** Clientes con deuda, sumando los tres tramos de antigüedad. */
+export function getClientesEnMora(): number {
+  return CARTERA.reduce((t, c) => t + c.clientes, 0);
+}
+
+/**
+ * Los últimos pagos cobrados, del más reciente al más antiguo.
+ *
+ * ⚠️ Devuelve una **ventana**, no el libro entero: son 118 pagos y la pantalla
+ * enseña los últimos. Cuando exista el libro de ingresos completo con su propia
+ * paginación, esta función crecerá con filtros de periodo — hoy no los tiene
+ * porque no hay nada que filtrar más allá de "los últimos".
+ */
+export function getUltimosPagos(cuantos = 8): Pago[] {
+  return PAGOS.slice(0, cuantos);
 }
 
 /** La base de clientes, ordenada alfabéticamente. Es el orden por defecto de

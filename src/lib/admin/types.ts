@@ -216,6 +216,27 @@ export type MembresiaPorVencer = {
   importeRenovacion: number;
 };
 
+/**
+ * Un pago cobrado por el estudio.
+ *
+ * ⚠️ **Se DERIVA de `CLIENTES`, no se escribe a mano.** Cada pago es la
+ * renovación que ya consta en la ficha de un cliente: mismo plan, mismo
+ * importe (`PRECIO_PLAN`) y una fecha coherente con su vencimiento. Escrito
+ * aparte, el libro sumaría una cosa y el reparto por método otra — que es
+ * exactamente el problema que tenían los 121 clientes de `REPARTO_PLANES`.
+ */
+export type Pago = {
+  id: string;
+  /** Id del cliente, para enlazar a su ficha. */
+  clienteId: string;
+  cliente: string;
+  plan: TipoPlan;
+  metodo: MetodoPago;
+  /** ISO corto. */
+  fecha: string;
+  importe: number;
+};
+
 /** Tramos de antigüedad de cartera, el estándar contable. */
 export type TramoCartera = "1-30 días" | "31-60 días" | "Más de 60 días";
 

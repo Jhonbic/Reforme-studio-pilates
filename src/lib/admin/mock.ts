@@ -6,9 +6,11 @@ import type {
   GastoCategoria,
   MembresiaPorVencer,
   MesFinanciero,
+  MetodoPago,
   MiembroEquipo,
   MovimientoClientes,
   Notificacion,
+  Pago,
   RepartoMetodoPago,
   RepartoPlan,
   TipoPlan,
@@ -150,6 +152,12 @@ export const CONDICIONES_PLANES: CondicionesPlan[] = [
     descripcion: "Una clase para probar el estudio o para quien está de paso.",
   },
 ];
+
+/** Vigencia por plan, indexada. Se DERIVA del catálogo en vez de repetirse:
+ *  si un plan cambia de duración, solo se toca `CONDICIONES_PLANES`. */
+const VIGENCIA_PLAN = Object.fromEntries(
+  CONDICIONES_PLANES.map((c) => [c.plan, c.vigenciaDias]),
+) as Record<TipoPlan, number>;
 
 const NOMBRES = [
   "Laura", "Andrés", "Valentina", "Camila", "Santiago", "Daniela",
@@ -369,6 +377,64 @@ export const CARTERA: CarteraVencida[] = [
   { tramo: "31-60 días", importe: 680_000, clientes: 3 },
   { tramo: "Más de 60 días", importe: 415_000, clientes: 2 },
 ];
+
+/* Reparto de métodos de cobro, en la misma proporción que `REPARTO_METODOS`:
+   Nequi 4 de cada 10, Transferencia 3, Efectivo 2 y Tarjeta 1. Va como patrón
+   fijo y no aleatorio porque el panel se prerenderiza: con `Math.random()`,
+   cada build daría un libro distinto. */
+const CICLO_METODOS: MetodoPago[] = [
+  "Nequi",
+  "Transferencia",
+  "Nequi",
+  "Efectivo",
+  "Nequi",
+  "Transferencia",
+  "Tarjeta",
+  "Nequi",
+  "Transferencia",
+  "Efectivo",
+];
+
+/**
+ * Libro de pagos, **derivado de `CLIENTES`**.
+ *
+ * Cada entrada es el cobro que puso en marcha la membresía vigente de un
+ * cliente: mismo plan y mismo importe que su ficha, y fecha = su vencimiento
+ * menos la vigencia del plan. Así, abrir la ficha de alguien y buscarlo en el
+ * libro nunca puede dar dos cifras distintas.
+ *
+ * ⚠️ **Su suma NO es `MESES[].ingresos`, y no debe leerse como si lo fuera.**
+ * Los ingresos mensuales están escritos a mano en `MESES` e incluyen cobros de
+ * meses anteriores; este libro solo contiene la última renovación de cada
+ * cliente vigente. El día que haya base de datos, la relación se invierte: el
+ * ingreso del mes se CALCULARÁ sumando pagos, y `MESES` desaparece.
+ *
+ * Los clientes con membresía vencida también aparecen: pagaron en su momento,
+ * y su deuda actual es lo que cuenta `CARTERA`.
+ *
+ * ⚠️ **Se descartan los pagos que caerían en el futuro, y no es un capricho.**
+ * `generarClientes` reparte el vencimiento por ESTADO (una membresía activa
+ * vence dentro de 16 a 120 días) sin mirar la vigencia del plan, así que una
+ * «Clase suelta» —que dura 1 día— puede acabar con vencimiento a cuatro meses.
+ * Restarle su vigencia da una fecha de cobro posterior a hoy, y un pago futuro
+ * no existe: sería el primero de la lista al ordenar por fecha.
+ *
+ * La alternativa era acotar la fecha a hoy, pero eso amontonaría decenas de
+ * cobros en el mismo día y el libro parecería un error distinto. Con base de
+ * datos el problema desaparece: el pago será un hecho registrado y el
+ * vencimiento se calculará A PARTIR de él, nunca al revés.
+ */
+export const PAGOS: Pago[] = CLIENTES.map((c, i) => ({
+  id: `p-${c.id}`,
+  clienteId: c.id,
+  cliente: c.nombre,
+  plan: c.plan,
+  metodo: CICLO_METODOS[i % CICLO_METODOS.length],
+  fecha: sumarDias(c.vencimiento, -VIGENCIA_PLAN[c.plan]),
+  importe: c.importeRenovacion,
+}))
+  .filter((p) => p.fecha <= HOY)
+  .sort((a, b) => b.fecha.localeCompare(a.fecha));
 
 /**
  * Instantánea del mes en curso.
