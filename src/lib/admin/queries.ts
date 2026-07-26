@@ -55,6 +55,24 @@ export function getEquipo(): MiembroEquipo[] {
   return [...EQUIPO].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
+/** Un cliente por su id, o `undefined` si no existe (→ 404 en la ficha). */
+export function getCliente(id: string): Cliente | undefined {
+  return CLIENTES.find((c) => c.id === id);
+}
+
+/**
+ * Los ids de todos los clientes, para `generateStaticParams`.
+ *
+ * ⚠️ Existe para que la ficha se prerenderice y la ruta siga saliendo
+ * `○ Static` como las demás. El día que haya base de datos con miles de
+ * clientes, prerenderizarlos todos deja de tener sentido: ahí esta función se
+ * cambia por las fichas más visitadas (o por ninguna, aceptando que la ruta
+ * pase a dinámica).
+ */
+export function getClienteIds(): string[] {
+  return CLIENTES.map((c) => c.id);
+}
+
 /**
  * Cuántos clientes hay en cada estado, más el total.
  *

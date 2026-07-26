@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SUBSECCIONES, seccionActual } from "./secciones";
+import { seccionActual, subseccionDe } from "./secciones";
 
 /**
  * Cabecera de contenido del panel.
@@ -20,7 +20,7 @@ export default function AdminTopbar() {
   const seccion = seccionActual(pathname);
   /* Una subsección titula por sí misma: en `/admin/usuarios/nuevo` el menú marca
      «Usuarios» (bien, es donde estás), pero titular «Usuarios» sería falso. */
-  const sub = SUBSECCIONES[pathname];
+  const sub = subseccionDe(pathname);
 
   return (
     <div className="border-b border-beige/70 bg-arena/85 backdrop-blur lg:sticky lg:top-0 lg:z-20">

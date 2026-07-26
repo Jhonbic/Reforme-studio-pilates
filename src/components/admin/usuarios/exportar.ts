@@ -74,6 +74,36 @@ export function csvEquipo(equipo: MiembroEquipo[]): string {
 }
 
 /**
+ * La ficha de UN cliente del listado, en dos columnas.
+ *
+ * ⚠️ No es `csvClientes` con una sola fila. Un listado se abre para ordenar,
+ * filtrar y sumar —por eso va en columnas—, mientras que la ficha de una
+ * persona se abre para leerla: en horizontal habría que ir arrastrando la barra
+ * lateral para ver los diez campos. Es la misma decisión, y por el mismo
+ * motivo, que ya tomó `csvFicha`.
+ *
+ * Fechas en ISO e importe sin `$`, como en todo este archivo: formateados,
+ * Excel los tomaría por texto.
+ */
+export function csvCliente(c: Cliente): string {
+  return aCsv(
+    ["Campo", "Valor"],
+    [
+      ["Nombre", c.nombre],
+      ["Identificación", c.identificacion],
+      ["Correo", c.correo],
+      ["Teléfono", c.telefono],
+      ["Plan", c.plan],
+      ["Estado", c.estado],
+      ["Vencimiento", c.vencimiento],
+      ["Alta", c.alta],
+      ["Última asistencia", c.ultimaAsistencia],
+      ["Importe renovación", c.importeRenovacion],
+    ],
+  );
+}
+
+/**
  * La ficha de un alta recién rellenada.
  *
  * ⚠️ **No añade columnas a `csvClientes`.** Son dos cosas distintas: una ficha de

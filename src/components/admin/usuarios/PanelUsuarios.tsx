@@ -17,6 +17,7 @@ import FilaMiembro from "./FilaMiembro";
 import Paginacion from "./Paginacion";
 import type { Cliente, MiembroEquipo } from "@/lib/admin/types";
 import { normalizar, soloDigitos } from "@/lib/validacion";
+import { useToast } from "@/context/ToastContext";
 
 const POR_PAGINA = 12;
 
@@ -62,10 +63,13 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
   const [plan, setPlan] = useState<FiltroPlan>("Todos");
   const [orden, setOrden] = useState<Orden>("nombre");
   const [pagina, setPagina] = useState(1);
-  /* Un solo aviso para las dos acciones de la cabecera: nunca hay dos a la vez,
-     y con dos regiones `role="status"` un lector de pantalla anunciaría la
-     anterior otra vez al cambiar la otra. */
-  const [aviso, setAviso] = useState("");
+  /* Los avisos de las acciones de cabecera eran un `<p role="status">` fijo bajo
+     las pestañas. Se van al sistema de avisos flotantes por dos motivos: el
+     texto se quedaba ahí para siempre —una hora después seguía diciendo «se
+     descargaron 118 clientes»— y ocupaba una línea de alto permanente aunque
+     estuviera vacío. La región `aria-live` sigue siendo una sola, ahora en el
+     contenedor de la pila. */
+  const { mostrarAviso } = useToast();
   const refsPestanas = useRef<(HTMLButtonElement | null)[]>([]);
 
   const esClientes = pestana === "clientes";
@@ -163,7 +167,7 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
       hechos.push(`${listaEquipo.length} miembros del equipo`);
     }
 
-    setAviso(`Se descargaron ${hechos.join(" y ")}.`);
+    mostrarAviso(`Se descargaron ${hechos.join(" y ")}.`, "success");
   }
 
   function irAPestana(i: number) {
@@ -251,7 +255,10 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
               type="button"
               aria-disabled="true"
               onClick={() =>
-                setAviso("El alta de equipo llegará cuando haya base de datos.")
+                mostrarAviso(
+                  "El alta de equipo llegará cuando haya base de datos.",
+                  "info",
+                )
               }
               className={BOTON_CABECERA}
             >
@@ -262,12 +269,6 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
           )}
         </div>
       </div>
-
-      {/* El aviso va en su propia línea y no junto al botón: en la esquina
-          derecha no le queda ancho, y empujaría las pestañas al recolocarse. */}
-      <p role="status" className="text-sm text-verde-300">
-        {aviso}
-      </p>
 
       {/* El `tabpanel` va en un `<div>` propio y no en la `Card`: las props de
           `Card` son cerradas a propósito (tono, densidad, fx, sheen…) y abrirla

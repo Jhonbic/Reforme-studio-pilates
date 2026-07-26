@@ -89,6 +89,40 @@ export const SUBSECCIONES: Record<string, Subseccion> = {
   },
 };
 
+/** `/admin/usuarios/<id>`: un segmento más, sin barras dentro. */
+const RUTA_FICHA = /^\/admin\/usuarios\/([^/]+)$/;
+
+/**
+ * La subsección de una ruta, si la tiene.
+ *
+ * ⚠️ No basta con mirar `SUBSECCIONES[pathname]`: la ficha de cliente lleva un
+ * id en la ruta, así que nunca coincidiría con una clave fija. Las rutas con
+ * parámetro se reconocen por patrón.
+ *
+ * ⚠️ El patrón excluye `nuevo` explícitamente. En el enrutador de Next el
+ * segmento estático gana al dinámico, así que `/admin/usuarios/nuevo` ya va a
+ * su página; pero aquí las dos reglas se evalúan sobre el mismo texto, y sin la
+ * exclusión el alta se titularía «Ficha del cliente». Por eso el mapa fijo se
+ * consulta primero: es el que manda.
+ */
+export function subseccionDe(pathname: string): Subseccion | undefined {
+  const exacta = SUBSECCIONES[pathname];
+  if (exacta) return exacta;
+
+  if (RUTA_FICHA.test(pathname)) {
+    return {
+      /* El nombre de la persona NO se puede poner aquí: la topbar solo conoce
+         la ruta, y el id no es el nombre. El nombre lo pone la propia ficha,
+         que sí tiene el dato. */
+      label: "Ficha del cliente",
+      volverA: "/admin/usuarios",
+      volverLabel: "Usuarios",
+    };
+  }
+
+  return undefined;
+}
+
 /** `/admin` exacto; el resto por prefijo, para que las subrutas futuras marquen. */
 export function esSeccionActiva(href: string, pathname: string) {
   return href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
