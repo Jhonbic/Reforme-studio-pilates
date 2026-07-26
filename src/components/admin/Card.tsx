@@ -33,6 +33,13 @@ type Props = {
    * tarjetas con tooltip o contenido que se salga del marco.
    */
   sheen?: boolean;
+  /**
+   * Encender el borde en dorado al `hover` / `focus-within`. Se apaga en las
+   * tarjetas GRANDES que ocupan casi toda la pantalla —el listado de Usuarios—:
+   * ahí no hay nada que señalar (el cursor está siempre dentro) y un marco
+   * dorado de 1400px pasa de acento a caja de regalo.
+   */
+  resalte?: boolean;
   as?: "section" | "div" | "article";
   className?: string;
   id?: string;
@@ -61,6 +68,7 @@ export default function Card({
   id,
   fx = false,
   sheen = false,
+  resalte: conResalte = true,
   children,
 }: Props) {
   const relleno =
@@ -87,8 +95,9 @@ export default function Card({
      del borde en hover desplazaría 1px todo el contenido de la tarjeta y se
      vería como un temblor al pasar por encima. El `ring` es una sombra, no
      ocupa espacio. Por eso la transición incluye `box-shadow`. */
-  const resalte =
-    "transition-[border-color,box-shadow] duration-300 hover:border-dorado hover:ring-2 hover:ring-dorado/45 focus-within:border-dorado focus-within:ring-2 focus-within:ring-dorado/45";
+  const resalte = conResalte
+    ? "transition-[border-color,box-shadow] duration-300 hover:border-dorado hover:ring-2 hover:ring-dorado/45 focus-within:border-dorado focus-within:ring-2 focus-within:ring-dorado/45"
+    : "";
 
   return (
     <Etiqueta
