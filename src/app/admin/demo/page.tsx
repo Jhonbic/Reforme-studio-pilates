@@ -1,203 +1,168 @@
 "use client";
 
 import { useState } from "react";
-import Modal from "@/components/admin/Modal";
+import Card from "@/components/admin/Card";
+import CardHeader from "@/components/admin/CardHeader";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
-import Dropdown, { DropdownItem, DropdownDivider } from "@/components/admin/Dropdown";
+import Dropdown, {
+  DropdownDivider,
+  DropdownItem,
+} from "@/components/admin/Dropdown";
+import Modal from "@/components/admin/Modal";
 import { useToast } from "@/context/ToastContext";
 
+const BOTON =
+  "control-fx relative inline-flex min-h-[44px] items-center gap-2 overflow-hidden rounded-full border border-verde/40 px-5 text-sm text-verde-700 transition-colors duration-300 hover:border-dorado hover:text-verde";
+
+function Boton({
+  children,
+  onClick,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" onClick={onClick} className={BOTON}>
+      <span className="control-sheen" aria-hidden="true" />
+      {children}
+    </button>
+  );
+}
+
+/**
+ * Banco de pruebas de los componentes transversales del panel.
+ *
+ * No es una sección del producto: no está en `SECCIONES`, así que no aparece en
+ * la navegación. Sirve para ver los cuatro componentes juntos y comprobar a
+ * mano el teclado (`Tab`, `Escape`) sin depender de una pantalla real que
+ * todavía no los usa.
+ */
 export default function DemoPage() {
-  const { showToast } = useToast();
-  const [modalOpen, setModalOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const { mostrarAviso } = useToast();
+  const [modalAbierto, setModalAbierto] = useState(false);
+  const [confirmAbierto, setConfirmAbierto] = useState(false);
+  const [borrando, setBorrando] = useState(false);
 
   return (
-    <div className="space-y-8 max-w-4xl">
-      <div>
-        <h1 className="sr-only">Demo de componentes Fase 2</h1>
-        <p className="eyebrow text-dorado-dark">Demo</p>
-        <h2 className="mt-1.5 font-display text-3xl text-verde">
-          Componentes Fase 2
-        </h2>
-      </div>
+    <div className="mx-auto w-full max-w-3xl space-y-5">
+      <h1 className="sr-only">Componentes del panel</h1>
 
-      {/* Toast Demo */}
-      <section className="space-y-4">
-        <h3 className="font-display text-xl text-verde">Toast Notifications</h3>
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={() => showToast("¡Operación exitosa!", "success")}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+      <Card>
+        <CardHeader titulo="Avisos flotantes" />
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Boton onClick={() => mostrarAviso("Cliente guardado", "success")}>
+            Éxito
+          </Boton>
+          <Boton
+            onClick={() => mostrarAviso("La membresía vence en 3 días", "warning")}
           >
-            Toast Success
-          </button>
-          <button
-            onClick={() =>
-              showToast("Algo salió mal", "error")
-            }
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            Aviso
+          </Boton>
+          <Boton
+            onClick={() => mostrarAviso("No se pudo guardar el cliente", "error")}
           >
-            Toast Error
-          </button>
-          <button
-            onClick={() =>
-              showToast("Ten cuidado con esto", "warning")
-            }
-            className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
-          >
-            Toast Warning
-          </button>
-          <button
-            onClick={() =>
-              showToast("Información importante", "info")
-            }
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Toast Info
-          </button>
+            Error
+          </Boton>
+          <Boton onClick={() => mostrarAviso("Exportando 118 clientes", "info")}>
+            Información
+          </Boton>
         </div>
-      </section>
+        <p className="mt-4 text-sm text-verde-300">
+          El error no se cierra solo: uno que desaparece a los 4 s es uno que
+          nadie llega a leer. El resto sí.
+        </p>
+      </Card>
 
-      {/* Modal Demo */}
-      <section className="space-y-4">
-        <h3 className="font-display text-xl text-verde">Modal Dialog</h3>
-        <button
-          onClick={() => setModalOpen(true)}
-          className="px-4 py-2 bg-dorado text-verde-900 rounded-lg hover:bg-dorado-dark transition-colors font-medium"
-        >
-          Abrir Modal
-        </button>
+      <Card>
+        <CardHeader titulo="Diálogo" />
+        <div className="mt-4">
+          <Boton onClick={() => setModalAbierto(true)}>Abrir diálogo</Boton>
+        </div>
 
         <Modal
-          isOpen={modalOpen}
-          onClose={() => setModalOpen(false)}
-          title="Modal de ejemplo"
-          footer={
+          abierto={modalAbierto}
+          onCerrar={() => setModalAbierto(false)}
+          titulo="Diálogo de ejemplo"
+          pie={
             <>
               <button
-                onClick={() => setModalOpen(false)}
-                className="px-4 py-2 border border-beige/50 text-verde rounded-lg hover:bg-arena/50"
+                type="button"
+                onClick={() => setModalAbierto(false)}
+                className={BOTON}
               >
-                Cancelar
+                <span className="control-sheen" aria-hidden="true" />
+                Cerrar
               </button>
               <button
+                type="button"
                 onClick={() => {
-                  showToast("Modal cerrado con éxito", "success");
-                  setModalOpen(false);
+                  mostrarAviso("Hecho", "success");
+                  setModalAbierto(false);
                 }}
-                className="px-4 py-2 bg-dorado text-verde-900 rounded-lg hover:bg-dorado-dark"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-dorado px-5 text-sm font-medium text-verde-900 transition-colors duration-300 hover:bg-dorado-dark"
               >
-                Confirmar
+                Guardar
               </button>
             </>
           }
         >
-          <p className="text-verde/70">
-            Este es un modal reutilizable con gestión de foco, cierre por Escape, y backdrop clickeable.
+          <p className="text-verde-700">
+            Con el diálogo abierto, el tabulador da vueltas dentro y no se
+            escapa a la página de detrás. <kbd>Esc</kbd> cierra, y el foco vuelve
+            al botón que lo abrió.
           </p>
         </Modal>
-      </section>
+      </Card>
 
-      {/* ConfirmDialog Demo */}
-      <section className="space-y-4">
-        <h3 className="font-display text-xl text-verde">Confirm Dialog</h3>
-        <button
-          onClick={() => setConfirmOpen(true)}
-          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-        >
-          Confirmar acción destructiva
-        </button>
+      <Card>
+        <CardHeader titulo="Confirmación" />
+        <div className="mt-4">
+          <Boton onClick={() => setConfirmAbierto(true)}>
+            Eliminar algo importante
+          </Boton>
+        </div>
 
         <ConfirmDialog
-          isOpen={confirmOpen}
-          title="¿Estás seguro?"
-          message="Esta acción no se puede deshacer. ¿Quieres continuar?"
-          confirmText="Eliminar"
-          cancelText="Cancelar"
-          variant="danger"
-          onConfirm={async () => {
-            showToast("Acción confirmada", "success");
-            setConfirmOpen(false);
+          abierto={confirmAbierto}
+          titulo="¿Eliminar el cliente?"
+          mensaje="Se borrarán también sus pagos y su historial de clases. Esta acción no se puede deshacer."
+          textoConfirmar="Eliminar"
+          variante="peligro"
+          cargando={borrando}
+          onConfirmar={async () => {
+            setBorrando(true);
+            await new Promise((r) => setTimeout(r, 1200));
+            setBorrando(false);
+            setConfirmAbierto(false);
+            mostrarAviso("Cliente eliminado", "success");
           }}
-          onCancel={() => setConfirmOpen(false)}
+          onCancelar={() => setConfirmAbierto(false)}
         />
-      </section>
+      </Card>
 
-      {/* Dropdown Demo */}
-      <section className="space-y-4">
-        <h3 className="font-display text-xl text-verde">Dropdown Menu</h3>
-        <Dropdown
-          trigger={
-            <button className="px-4 py-2 bg-verde text-arena rounded-lg hover:bg-verde-700 transition-colors font-medium">
-              Abrir menú
-            </button>
-          }
-          align="left"
-        >
-          <DropdownItem
-            onClick={() => showToast("Opción 1 seleccionada", "info")}
+      <Card>
+        <CardHeader titulo="Desplegable" />
+        <div className="mt-4">
+          <Dropdown
+            claseBoton={BOTON}
+            etiqueta={
+              <>
+                <span className="control-sheen" aria-hidden="true" />
+                Acciones
+              </>
+            }
           >
-            ✏️ Opción 1
-          </DropdownItem>
-          <DropdownItem
-            onClick={() => showToast("Opción 2 seleccionada", "info")}
-          >
-            📋 Opción 2
-          </DropdownItem>
-          <DropdownDivider />
-          <DropdownItem disabled>🔒 Opción 3 (deshabilitada)</DropdownItem>
-          <DropdownItem
-            onClick={() => showToast("Opción 4 seleccionada", "info")}
-          >
-            ⚙️ Opción 4
-          </DropdownItem>
-        </Dropdown>
-      </section>
-
-      {/* Feature Summary */}
-      <section className="border-t border-beige/50 pt-8">
-        <h3 className="font-display text-xl text-verde mb-4">
-          Características implementadas
-        </h3>
-        <ul className="space-y-3 text-verde/70">
-          <li className="flex gap-3">
-            <span>✅</span>
-            <span>
-              <strong>Modal.tsx:</strong> Portal con backdrop, gestión de foco,
-              cierre por Escape y click-fuera, accesibilidad `aria-modal`
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <span>✅</span>
-            <span>
-              <strong>Toast + ToastContext:</strong> Sistema de notificaciones
-              flotantes apilables con auto-dismiss
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <span>✅</span>
-            <span>
-              <strong>Dropdown.tsx:</strong> Menú reutilizable con cierre por
-              Escape y click-fuera, `aria-haspopup`, roles semánticos
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <span>✅</span>
-            <span>
-              <strong>ConfirmDialog.tsx:</strong> Modal preconfigurado para
-              confirmaciones destructivas con 3 variantes de estilo
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <span>✅</span>
-            <span>
-              <strong>AppHeader mejorado:</strong> Ahora usa Dropdown component,
-              mejor accesibilidad y consistencia visual
-            </span>
-          </li>
-        </ul>
-      </section>
+            <DropdownItem onClick={() => mostrarAviso("Editar", "info")}>
+              Editar
+            </DropdownItem>
+            <DropdownItem onClick={() => mostrarAviso("Duplicar", "info")}>
+              Duplicar
+            </DropdownItem>
+            <DropdownDivider />
+            <DropdownItem deshabilitado>Archivar</DropdownItem>
+          </Dropdown>
+        </div>
+      </Card>
     </div>
   );
 }

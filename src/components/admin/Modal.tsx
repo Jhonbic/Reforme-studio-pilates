@@ -1,104 +1,169 @@
 "use client";
 
-import { ReactNode, useEffect, useRef, useCallback } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 
-interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
+const TAMANOS = {
+  sm: "max-w-md",
+  md: "max-w-lg",
+  lg: "max-w-2xl",
+} as const;
+
+/** Lo que el navegador considera tabulable dentro del diálogo. */
+const FOCUSABLES =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+type Props = {
+  abierto: boolean;
+  onCerrar: () => void;
+  titulo: string;
   children: ReactNode;
-  footer?: ReactNode;
-  size?: "sm" | "md" | "lg";
-  closeButton?: boolean;
-}
+  /** Fila de acciones al pie, separada por una línea. */
+  pie?: ReactNode;
+  tamano?: keyof typeof TAMANOS;
+  /**
+   * A `false` desaparecen las tres salidas a la vez (✕, `Escape` y clic en el
+   * fondo). Para mientras una acción está en vuelo: cerrar a medias dejaría a
+   * la persona sin saber si llegó a ejecutarse.
+   */
+  cerrable?: boolean;
+};
 
+/**
+ * Diálogo modal del panel.
+ *
+ * Va por `createPortal` a `document.body` y no en su sitio del árbol: dentro de
+ * la columna de contenido heredaría su `overflow-y-auto` y su contexto de
+ * apilado, y quedaría recortado o por debajo de la cabecera.
+ */
 export default function Modal({
-  isOpen,
-  onClose,
-  title,
+  abierto,
+  onCerrar,
+  titulo,
   children,
-  footer,
-  size = "md",
-  closeButton = true,
-}: ModalProps) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const previousActiveElement = useRef<HTMLElement | null>(null);
+  pie,
+  tamano = "md",
+  cerrable = true,
+}: Props) {
+  const dialogoRef = useRef<HTMLDivElement>(null);
+  const focoPrevio = useRef<HTMLElement | null>(null);
 
-  const sizeClasses = {
-    sm: "max-w-sm",
-    md: "max-w-md",
-    lg: "max-w-lg",
-  };
+  /* El portal necesita `document`, que no existe al prerenderizar, y las rutas
+     del panel salen `○ Static`: se prerenderizan en el build aunque el
+     componente sea de cliente.
 
-  const handleEscape = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.key === "Escape" && isOpen) {
-        event.preventDefault();
-        onClose();
-      }
-    },
-    [isOpen, onClose]
+     ⚠️ `useSyncExternalStore` y NO `useState` + `useEffect`: el lint de React 19
+     prohíbe llamar a `setState` dentro de un efecto (renders en cascada). Es el
+     mismo motivo por el que `FormularioAlta` obtiene así la fecha de hoy.
+     `subscribe` devuelve una función vacía porque esto no cambia nunca: se pasa
+     de servidor a cliente una sola vez, en la hidratación. */
+  const montado = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
   );
 
-  const handleBackdropClick = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      if (event.target === event.currentTarget) {
-        onClose();
+  const alPulsarTecla = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape" && cerrable) {
+        e.preventDefault();
+        onCerrar();
+        return;
+      }
+
+      /* Trampa de foco. Sin esto, tabular desde el último control se va a la
+         página de detrás —que para quien ve la pantalla sigue tapada por el
+         fondo—, y `aria-modal` estaría prometiendo un aislamiento que no
+         existe. */
+      if (e.key !== "Tab") return;
+      const foco = dialogoRef.current?.querySelectorAll<HTMLElement>(FOCUSABLES);
+      if (!foco?.length) return;
+
+      const primero = foco[0];
+      const ultimo = foco[foco.length - 1];
+      const activo = document.activeElement;
+
+      if (e.shiftKey && activo === primero) {
+        e.preventDefault();
+        ultimo.focus();
+      } else if (!e.shiftKey && activo === ultimo) {
+        e.preventDefault();
+        primero.focus();
       }
     },
-    [onClose]
+    [cerrable, onCerrar],
   );
+
+  /* ⚠️ DOS efectos y no uno, y la razón es sutil: `alPulsarTecla` depende de
+     `onCerrar`, que casi siempre llega como una función anónima nueva en cada
+     render del padre. Si el foco viviera en este mismo efecto, se reengancharía
+     con cada render y **devolvería el foco al contenedor del diálogo**, con lo
+     que sería imposible escribir en un campo de dentro. El teclado se puede
+     reenganchar sin coste; el foco solo puede moverse al abrir y al cerrar. */
+  useEffect(() => {
+    if (!abierto) return;
+    document.addEventListener("keydown", alPulsarTecla);
+    return () => document.removeEventListener("keydown", alPulsarTecla);
+  }, [abierto, alPulsarTecla]);
 
   useEffect(() => {
-    if (isOpen) {
-      previousActiveElement.current = document.activeElement as HTMLElement;
-      document.addEventListener("keydown", handleEscape);
-      document.body.style.overflow = "hidden";
+    if (!abierto) return;
 
-      setTimeout(() => {
-        const firstFocusable = dialogRef.current?.querySelector(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        ) as HTMLElement;
-        firstFocusable?.focus();
-      }, 0);
+    focoPrevio.current = document.activeElement as HTMLElement | null;
 
-      return () => {
-        document.removeEventListener("keydown", handleEscape);
-        document.body.style.overflow = "";
-        previousActiveElement.current?.focus();
-      };
-    }
-  }, [isOpen, handleEscape]);
+    /* Bloquea el scroll de detrás: sin esto, la rueda sobre el fondo desplaza
+       la página y al cerrar el modal se ha movido todo. */
+    const overflowPrevio = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
-  if (!isOpen) return null;
+    /* El foco entra al propio diálogo, no a su primer botón: si entrara al
+       primero —que suele ser la ✕ o «Cancelar»— un lector empezaría por la
+       salida en vez de por el título y el mensaje. Desde el contenedor, la
+       primera tabulación llega al primer control igualmente. */
+    dialogoRef.current?.focus();
+
+    return () => {
+      document.body.style.overflow = overflowPrevio;
+      focoPrevio.current?.focus();
+    };
+  }, [abierto]);
+
+  if (!abierto || !montado) return null;
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      onClick={handleBackdropClick}
-      role="presentation"
-    >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
-
-      {/* Modal */}
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
       <div
-        ref={dialogRef}
-        className={`relative z-10 w-full mx-4 rounded-lg bg-white shadow-lift ${sizeClasses[size]}`}
+        className="absolute inset-0 bg-verde-900/50"
+        aria-hidden="true"
+        onClick={cerrable ? onCerrar : undefined}
+      />
+
+      <div
+        ref={dialogoRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby="modal-titulo"
+        tabIndex={-1}
+        className={`relative z-10 w-full rounded-2xl border border-beige bg-white shadow-lift focus:outline-none ${TAMANOS[tamano]}`}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-beige/50 px-6 py-4">
-          <h2 id="modal-title" className="font-display text-lg text-verde">
-            {title}
+        <div className="flex items-start justify-between gap-4 border-b border-beige px-5 py-4 sm:px-6">
+          <h2
+            id="modal-titulo"
+            className="font-display text-xl text-verde"
+          >
+            {titulo}
           </h2>
-          {closeButton && (
+          {cerrable && (
             <button
-              onClick={onClose}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-verde/60 transition-colors hover:bg-arena/50 hover:text-verde focus-visible:outline-2 focus-visible:outline-dorado"
+              type="button"
+              onClick={onCerrar}
+              className="-mr-2 -mt-1 inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full text-verde-300 transition-colors duration-300 hover:text-verde focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dorado"
               aria-label="Cerrar"
             >
               <svg
@@ -106,6 +171,7 @@ export default function Modal({
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
+                aria-hidden="true"
               >
                 <path
                   strokeLinecap="round"
@@ -118,17 +184,19 @@ export default function Modal({
           )}
         </div>
 
-        {/* Content */}
-        <div className="px-6 py-4">{children}</div>
+        {/* Alto máximo para que un contenido largo scrollee DENTRO del modal y
+            no empuje el pie fuera de la pantalla en móvil. */}
+        <div className="max-h-[70svh] overflow-y-auto px-5 py-5 sm:px-6">
+          {children}
+        </div>
 
-        {/* Footer */}
-        {footer && (
-          <div className="border-t border-beige/50 bg-arena/20 px-6 py-4 flex gap-3 justify-end">
-            {footer}
+        {pie && (
+          <div className="flex flex-col-reverse gap-3 border-t border-beige bg-arena/40 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+            {pie}
           </div>
         )}
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
