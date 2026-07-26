@@ -1,6 +1,8 @@
 import { calcularVariacion } from "./format";
 import {
   CARTERA,
+  CLIENTES,
+  EQUIPO,
   GASTOS,
   MEMBRESIAS_POR_VENCER,
   MESES,
@@ -9,7 +11,7 @@ import {
   REPARTO_PLANES,
   RESUMEN,
 } from "./mock";
-import type { Indicador } from "./types";
+import type { Cliente, EstadoMembresia, Indicador, MiembroEquipo } from "./types";
 
 /**
  * Única puerta de entrada a los datos del panel.
@@ -41,6 +43,34 @@ export function getMovimientoClientes() {
 
 export function getCartera() {
   return CARTERA;
+}
+
+/** La base de clientes, ordenada alfabéticamente. Es el orden por defecto de
+ *  `/admin/usuarios`; los demás criterios los aplica la propia pantalla. */
+export function getClientes(): Cliente[] {
+  return [...CLIENTES].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
+export function getEquipo(): MiembroEquipo[] {
+  return [...EQUIPO].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
+/**
+ * Cuántos clientes hay en cada estado, más el total.
+ *
+ * Va aquí y no en la pantalla porque es un dato del dominio: los recuentos que
+ * se enseñan dentro de los filtros son los mismos que alimentan el dashboard.
+ */
+export function getConteoEstados(): Record<EstadoMembresia | "Todas", number> {
+  const conteo: Record<EstadoMembresia | "Todas", number> = {
+    Todas: CLIENTES.length,
+    Activa: 0,
+    "Por vencer": 0,
+    Vencida: 0,
+    Inactiva: 0,
+  };
+  for (const c of CLIENTES) conteo[c.estado] += 1;
+  return conteo;
 }
 
 /**

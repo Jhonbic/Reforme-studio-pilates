@@ -235,6 +235,38 @@ body {
   transform: translateX(170%);
 }
 
+/* Dash diagonal dorado de los CONTROLES del panel (pastillas, pestañas,
+   paginación). Es el gesto de `.card-sheen` sustituyendo al relleno de fondo
+   como respuesta al hover.
+
+   Dos diferencias con el de las tarjetas, y las dos por el tamaño: **0.55s en
+   vez de 1.3s** —una pastilla mide 100px, a 1.3s el barrido se arrastraría
+   mucho después de haber movido el cursor— y **0.28 de opacidad en vez de
+   0.22**, porque en tan poco recorrido un dorado más tenue no se llega a ver.
+
+   `.control-fx` va en el propio control, no en un `.group` ancestro: si el
+   disparador fuera el grupo, pasar por CUALQUIER pastilla barrería las cinco. */
+.control-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    120deg,
+    transparent 35%,
+    rgba(190, 155, 105, 0.28) 50%,
+    transparent 65%
+  );
+  transform: translateX(-160%);
+  transition: transform 0.55s var(--ease-smooth);
+}
+/* `focus-visible` y no `focus`: al pulsar con el ratón el botón también recibe
+   foco, y el barrido se dispararía dos veces por un solo clic. */
+.control-fx:hover .control-sheen,
+.control-fx:focus-visible .control-sheen {
+  transform: translateX(160%);
+}
+
 .btn-ripple {
   position: absolute;
   z-index: 0;
@@ -273,7 +305,8 @@ body {
     animation: none;
   }
   .btn-sheen,
-  .card-sheen {
+  .card-sheen,
+  .control-sheen {
     transition: none;
     display: none;
   }

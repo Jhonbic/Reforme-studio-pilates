@@ -1,16 +1,17 @@
-import SeccionPendiente from "@/components/admin/SeccionPendiente";
+import PanelUsuarios from "@/components/admin/usuarios/PanelUsuarios";
+import { getClientes, getConteoEstados, getEquipo } from "@/lib/admin/queries";
 
 export default function UsuariosPage() {
   return (
-    <SeccionPendiente
-      descripcion="Gestión de las personas que entran al estudio: clientes y equipo."
-      puntos={[
-        "Listado de clientes con buscador, estado de membresía y filtro por plan",
-        "Ficha individual: datos de contacto, historial de pagos y de asistencia",
-        "Alta y edición manual de clientes (los que se apuntan en recepción)",
-        "Clientes inactivos: sin reservar en 30 días, para recuperarlos",
-        "Equipo del estudio: instructoras y personal administrativo, con sus permisos",
-      ]}
-    />
+    <div className="mx-auto w-full max-w-[1440px]">
+      {/* El <h1> visible lo pone AdminTopbar desde la ruta; este solo evita
+          dejar huérfano el árbol de encabezados de la página. */}
+      <h1 className="sr-only">Usuarios</h1>
+      <PanelUsuarios
+        clientes={getClientes()}
+        equipo={getEquipo()}
+        conteos={getConteoEstados()}
+      />
+    </div>
   );
 }

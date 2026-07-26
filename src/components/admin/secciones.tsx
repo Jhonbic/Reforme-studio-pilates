@@ -71,6 +71,24 @@ export const SECCIONES: Seccion[] = [
   { href: "/admin/finanzas", label: "Finanzas", icono: IconoFinanzas },
 ];
 
+/**
+ * Rutas hijas con título propio.
+ *
+ * ⚠️ **Fuera de `SECCIONES` a propósito**: no son entradas de menú, y meterlas
+ * ahí pintaría una quinta pastilla en la navegación. Van aparte para que
+ * `esSeccionActiva` siga marcando la sección padre —`/admin/usuarios/nuevo`
+ * resalta «Usuarios»— y solo cambie el título.
+ */
+export type Subseccion = { label: string; volverA: string; volverLabel: string };
+
+export const SUBSECCIONES: Record<string, Subseccion> = {
+  "/admin/usuarios/nuevo": {
+    label: "Nuevo cliente",
+    volverA: "/admin/usuarios",
+    volverLabel: "Usuarios",
+  },
+};
+
 /** `/admin` exacto; el resto por prefijo, para que las subrutas futuras marquen. */
 export function esSeccionActiva(href: string, pathname: string) {
   return href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
