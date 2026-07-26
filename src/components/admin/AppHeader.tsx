@@ -1,13 +1,12 @@
 "use client";
 
 import { useSidebar } from "@/context/SidebarContext";
+import Dropdown, { DropdownItem, DropdownDivider } from "./Dropdown";
 import { useRef, useState, useEffect } from "react";
 
 export default function AppHeader() {
   const { toggleSidebar, toggleMobileSidebar, isMobileOpen } = useSidebar();
   const [searchFocus, setSearchFocus] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -73,72 +72,76 @@ export default function AppHeader() {
         {/* Controles derechos */}
         <div className="flex items-center gap-2">
           {/* Notificaciones */}
-          <div className="relative">
-            <button
-              onClick={() => {
-                setNotificationsOpen(!notificationsOpen);
-                setProfileOpen(false);
-              }}
-              className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-beige/50 text-verde transition-colors hover:bg-arena/50"
-              aria-label="Notificaciones"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-dorado" />
-            </button>
-
-            {notificationsOpen && (
-              <div className="absolute right-0 mt-2 w-80 rounded-lg border border-beige/50 bg-white shadow-lg">
-                <div className="border-b border-beige/50 px-4 py-3">
-                  <h3 className="font-semibold text-verde">Notificaciones</h3>
-                </div>
-                <div className="max-h-96 overflow-y-auto">
-                  <div className="border-b border-beige/30 px-4 py-3 hover:bg-arena/30">
-                    <p className="text-sm font-medium text-verde">Nuevo cliente registrado</p>
-                    <p className="text-xs text-verde/60">Hace 5 minutos</p>
-                  </div>
-                  <div className="border-b border-beige/30 px-4 py-3 hover:bg-arena/30">
-                    <p className="text-sm font-medium text-verde">Membresía por vencer</p>
-                    <p className="text-xs text-verde/60">5 clientes hoy</p>
-                  </div>
-                </div>
+          <Dropdown
+            trigger={
+              <button className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-beige/50 text-verde transition-colors hover:bg-arena/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dorado">
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                  />
+                </svg>
+                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-dorado" />
+              </button>
+            }
+            align="right"
+            className="w-80"
+          >
+            <div className="max-h-96 overflow-y-auto">
+              <div className="border-b border-beige/30 px-4 py-3 hover:bg-arena/30">
+                <p className="text-sm font-medium text-verde">
+                  Nuevo cliente registrado
+                </p>
+                <p className="text-xs text-verde/60">Hace 5 minutos</p>
               </div>
-            )}
-          </div>
+              <div className="px-4 py-3 hover:bg-arena/30">
+                <p className="text-sm font-medium text-verde">
+                  Membresía por vencer
+                </p>
+                <p className="text-xs text-verde/60">5 clientes hoy</p>
+              </div>
+            </div>
+          </Dropdown>
 
           {/* Perfil usuario */}
-          <div className="relative">
-            <button
-              onClick={() => {
-                setProfileOpen(!profileOpen);
-                setNotificationsOpen(false);
-              }}
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-beige/50 px-3 text-verde transition-colors hover:bg-arena/50"
-            >
-              <div className="h-6 w-6 rounded-full bg-gradient-to-br from-dorado to-dorado-dark flex items-center justify-center text-xs font-bold text-white">
-                AD
-              </div>
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-              </svg>
-            </button>
-
-            {profileOpen && (
-              <div className="absolute right-0 mt-2 w-48 rounded-lg border border-beige/50 bg-white shadow-lg">
-                <div className="px-4 py-3 border-b border-beige/50">
-                  <p className="text-sm font-medium text-verde">Administrador</p>
-                  <p className="text-xs text-verde/60">admin@reforme.com</p>
+          <Dropdown
+            trigger={
+              <button className="inline-flex h-10 items-center gap-2 rounded-lg border border-beige/50 px-3 text-verde transition-colors hover:bg-arena/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dorado">
+                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-dorado to-dorado-dark flex items-center justify-center text-xs font-bold text-white">
+                  AD
                 </div>
-                <button className="w-full px-4 py-2 text-left text-sm text-verde hover:bg-arena/30 transition-colors">
-                  ⚙️ Configuración
-                </button>
-                <button className="w-full px-4 py-2 text-left text-sm text-verde hover:bg-arena/30 transition-colors border-t border-beige/50">
-                  🚪 Cerrar sesión
-                </button>
-              </div>
-            )}
-          </div>
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                  />
+                </svg>
+              </button>
+            }
+            align="right"
+          >
+            <div className="px-4 py-3 border-b border-beige/50">
+              <p className="text-sm font-medium text-verde">Administrador</p>
+              <p className="text-xs text-verde/60">admin@reforme.com</p>
+            </div>
+            <DropdownItem>⚙️ Configuración</DropdownItem>
+            <DropdownDivider />
+            <DropdownItem>🚪 Cerrar sesión</DropdownItem>
+          </Dropdown>
         </div>
       </div>
     </header>
