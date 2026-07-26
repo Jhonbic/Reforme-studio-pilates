@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { seccionActual, subseccionDe } from "./secciones";
+import { SUBSECCIONES, seccionActual } from "./secciones";
 
 /**
  * Cabecera de contenido del panel.
@@ -15,7 +15,12 @@ import { seccionActual, subseccionDe } from "./secciones";
  * navegación (`secciones.tsx`), así que menú y título no se pueden
  * desincronizar.
  */
-export default function AdminTopbar() {
+type Props = {
+  usuario: UsuarioActual;
+  avisos: Notificacion[];
+};
+
+export default function AdminTopbar({ usuario, avisos }: Props) {
   const pathname = usePathname();
   const seccion = seccionActual(pathname);
   /* Una subsección titula por sí misma: en `/admin/usuarios/nuevo` el menú marca
@@ -26,24 +31,38 @@ export default function AdminTopbar() {
     <div className="border-b border-beige/70 bg-arena/85 backdrop-blur lg:sticky lg:top-0 lg:z-20">
       {/* Mismo ancho máximo que el contenido: el título queda a plomo con la
           primera tarjeta de la rejilla. */}
-      <div className="mx-auto w-full max-w-[1440px] px-4 py-4 sm:px-6 lg:px-6 lg:py-5 xl:px-8">
-        {/* En una subsección el eyebrow deja de ser decorativo y pasa a ser la
-            salida: es el único «volver» que hay, porque el panel no tiene migas
-            de pan. */}
-        {sub ? (
-          <Link
-            href={sub.volverA}
-            className="eyebrow inline-flex items-center gap-1.5 text-dorado-dark transition-colors duration-300 hover:text-verde"
-          >
-            <span aria-hidden="true">←</span>
-            {sub.volverLabel}
-          </Link>
-        ) : (
-          <p className="eyebrow text-dorado-dark">Panel administrativo</p>
-        )}
-        <h1 className="mt-1.5 font-display text-2xl text-verde sm:text-3xl">
-          {sub ? sub.label : seccion.label}
-        </h1>
+      {/* La cuenta va en ESTA esquina y no en una franja propia arriba: una
+          barra entera para dos datos se come ~64px de alto en todas las
+          pantallas, y aquí el hueco a la derecha del título estaba vacío.
+          `min-w-0` en el bloque del título para que un título largo se recorte
+          él en vez de empujar el menú fuera de la pantalla. */}
+      <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-6 lg:py-5 xl:px-8">
+        <div className="min-w-0">
+          {/* En una subsección el eyebrow deja de ser decorativo y pasa a ser la
+              salida: es el único «volver» que hay, porque el panel no tiene
+              migas de pan. */}
+          {sub ? (
+            <Link
+              href={sub.volverA}
+              className="eyebrow inline-flex items-center gap-1.5 text-dorado-dark transition-colors duration-300 hover:text-verde"
+            >
+              <span aria-hidden="true">←</span>
+              {sub.volverLabel}
+            </Link>
+          ) : (
+            <p className="eyebrow text-dorado-dark">Panel administrativo</p>
+          )}
+          <h1 className="mt-1.5 truncate font-display text-2xl text-verde sm:text-3xl">
+            {sub ? sub.label : seccion.label}
+          </h1>
+        </div>
+
+        {/* Campana y cuenta forman un solo bloque en la esquina: son «quién
+            soy y qué me ha pasado», no dos herramientas distintas. */}
+        <div className="flex shrink-0 items-center gap-2">
+          <Campana avisos={avisos} />
+          <MenuCuenta usuario={usuario} />
+        </div>
       </div>
     </div>
   );

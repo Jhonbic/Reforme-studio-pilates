@@ -127,7 +127,18 @@ En `src/components/`:
   mudó a `TablaDeDatos.tsx`.
 - `secciones.tsx` — las 4 secciones del panel con sus iconos, en un solo sitio.
   Sin `"use client"` (SVG puro), así lo consumen igual `AdminNav` (cliente) y
-  `AdminTopbar`.
+  `AdminTopbar`. Exporta además `SUBSECCIONES`, las rutas hijas con título propio
+  (hoy solo `/admin/usuarios/nuevo`): van **aparte de `SECCIONES`** para no pintar
+  una quinta pastilla en el menú.
+- `admin/campos/` — **el juego de campos de formulario del panel**, nacido con el
+  alta de cliente: `CampoTexto`, `CampoSelect`, `CampoCheck`, `Seccion` y
+  `estilos.ts` (clases + `idsDeCampo()`/`describedBy()`). ⚠️ **No reutiliza
+  `auth/TextField.tsx`**: ese lo usan `/login` y `/registro`, así que tocarlo para
+  meter select, casillas y `ref` sería tocar la web pública por un formulario del
+  panel — la misma razón por la que `/admin` no usa Navbar ni Footer. Además su
+  estética es la pública (`rounded-xl`, `bg-white/60`) y aquí manda la del panel
+  (`rounded-full`, `min-h-[44px]`). Vive en `admin/` y no en `admin/usuarios/`
+  porque Planes y Finanzas van a necesitar formularios.
 - `AdminNav.tsx` (cliente, estado activo por `usePathname`), `AdminTopbar.tsx`
   (cliente, titula la página desde la ruta), `StatTile.tsx`,
   `TarjetaIngresos.tsx` (la tarjeta héroe), `SeccionPendiente.tsx`.
@@ -204,6 +215,28 @@ Fase 3 arrancada. **Solo UI con datos de ejemplo**, sin backend.
     (`components/admin/secciones.tsx`) que pinta la navegación: así el menú y el
     título no se pueden desincronizar. Por eso `SeccionPendiente` ya no lleva
     `titulo` — salían dos encabezados iguales, uno encima de otro.
+  - **La cuenta (`MenuCuenta.tsx`) vive en la esquina derecha de esa misma
+    cabecera**, a la altura del título (decisión del usuario). ⚠️ **No en una
+    franja propia arriba del todo:** una barra entera para dos datos se come
+    ~64px de alto en todas las pantallas del panel, y en móvil ya hay cabecera
+    de marca y pastillas de navegación por encima. Aquí ocupa un hueco vacío.
+    - **Sigue sin haber buscador global ni campana** (el usuario pidió
+      explícitamente quitar el buscador). No hay backend al que buscar ni
+      notificaciones que contar, y un punto rojo sobre una campana que nunca
+      cambia es una mentira pequeña que se paga cuando llegue una de verdad.
+    - Desplegable con el mismo patrón que `MenuExportar`: `absolute` para no
+      empujar el título, cierre al pulsar fuera y con `Escape`, foco de vuelta
+      al botón. Dentro: nombre, correo, rol, «Ver la web pública» y «Cerrar
+      sesión».
+    - ⚠️ **«Cerrar sesión» lleva a `/login` pero no cierra nada**, y el propio
+      menú lo dice: no hay sesión. Misma regla que el alta de cliente, que
+      tampoco disimula que no guarda.
+    - El usuario sale de **`getUsuarioActual()`** (`queries.ts` → `mock.ts`), y
+      se resuelve en el **layout, que es servidor**, bajando como prop:
+      `AdminTopbar` es cliente por `usePathname` y no podría esperar a una
+      versión `async` de esa función el día que haya BD.
+    - El bloque del título lleva `min-w-0` + `truncate`: un título largo se
+      recorta él en vez de empujar el menú fuera de la pantalla.
 - **Acceso por rol desde el `/login` existente** (decisión del usuario, frente a
   un `/admin/login` aparte). Provisional: el rol se deduce del dominio del correo
   (`@reforme.com`) porque no hay auth. ⚠️ **El panel NO está protegido** hasta que
@@ -216,6 +249,20 @@ Fase 3 arrancada. **Solo UI con datos de ejemplo**, sin backend.
   estas funciones pasan a `async` y las pantallas no se tocan.
 - `format.ts` — moneda COP con locale fijo `es-CO` (si se dejara al navegador, el
   HTML del servidor y el del cliente no coincidirían → error de hidratación).
+- `catalogos.ts` — listas cerradas del **dominio**: tipos de documento, EPS y
+  `URL_TERMINOS`. **No van en `mock.ts`** porque `mock.ts` se tira el día que haya
+  BD y estas sobreviven.
+
+Y fuera de `admin/`, porque no es solo del panel:
+- `src/lib/validacion.ts` — funciones **puras, sin React**: `esCorreo`,
+  `soloDigitos`, `sinDigitos`, `soloAlfanumerico`, `normalizar`, `claveNombre`,
+  `edad`, `hoyLocalIso`, `normalizarTelefonoPegado`, `esMovilCO`. Aquí dejaron de
+  estar duplicadas la regex de correo (estaba inline en `/registro`) y
+  `normalizar`/`soloDigitos` (estaban dentro de `PanelUsuarios`).
+  ⚠️ **`hoyLocalIso()` no usa `toISOString()`**: da UTC, y en Colombia (UTC−5) a
+  partir de las 19:00 devolvería ya mañana. Y **`edad()` compara mes y día**, no
+  milisegundos partidos por 365,25, que falla con los bisiestos justo el día del
+  cumpleaños.
 
 **Gráficos — SVG propio, sin dependencias** (`components/admin/charts/`):
 `LineChart` (cruceta + tooltip), `GroupedBars`, `Donut`, `HBars`.
@@ -230,8 +277,10 @@ Fase 3 arrancada. **Solo UI con datos de ejemplo**, sin backend.
 **Organización del dashboard — rejilla bento.** Se reorganizó a partir de una
 referencia que trajo el usuario, adaptando **solo la organización**: jerarquía por
 tamaño y contraste en vez de por títulos de sección. Se usan **únicamente los
-módulos que ya existían** — nada de buscador, campana, avatar, feed de actividad ni
-agenda: no hay datos para eso y no se inventan.
+módulos que ya existían** — nada de buscador, campana, feed de actividad ni
+agenda: no hay datos para eso y no se inventan. (El **avatar sí llegó después**,
+pero como menú de cuenta en la cabecera, no como bloque del dashboard: ver
+`MenuCuenta` más arriba.)
 - Rejilla única `grid-cols-1 md:grid-cols-6 xl:grid-cols-12`. ⚠️ **12 columnas
   solo en `xl`, saltándose `lg` a propósito:** en `lg` ya está la lateral de 256px
   y al contenido le quedan ~700px — el tramo más estrecho de todo el escritorio.
@@ -268,7 +317,7 @@ agenda: no hay datos para eso y no se inventan.
   (un filtro, un desplegable, un enlace) y una onda decorativa encima confunde
   sobre si la acción se registró. La web pública (landing, `AuthShell`,
   `Footer`) mantiene el goteo.
-- **Todas las tarjetas encienden el borde en dorado** al `hover` y al
+- **Las tarjetas encienden el borde en dorado** al `hover` y al
   `focus-within` (para quien navega con teclado). ⚠️ El grosor extra lo pone un
   **`ring`, no un `border-2`**: cambiar el ancho del borde en hover desplazaría
   1px todo el contenido y se vería como un temblor. Por eso la transición es
@@ -385,8 +434,39 @@ que hoy dan 404.
   versiones con `hidden`/`md:block` — duplicar el marcado duplicaría el
   contenido para los lectores de pantalla.
 - **La fila entera es un `<Link>`**, no una fila con un botón dentro: evita
-  interactivos anidados y da un objetivo táctil enorme en móvil. Como `Card` ya
-  enciende el borde con `focus-within`, tabular por la lista resalta la tarjeta.
+  interactivos anidados y da un objetivo táctil enorme en móvil.
+- ⚠️ **La tarjeta del listado va con `resalte={false}`** (decisión del usuario):
+  es la única `Card` del panel que no enciende el borde en dorado al hover.
+  Ocupa casi toda la pantalla y el cursor está siempre dentro, así que no
+  señalaba nada — solo enmarcaba la página entera en dorado. `Card` estrena esa
+  prop, `true` por defecto: el resto del panel no cambia.
+- ⚠️ **La paginación NO pinta números en móvil**, solo `‹ 4 / 10 ›`. El motivo es
+  aritmético, no estético: con 10 páginas son **nueve objetivos táctiles de 44px
+  = ~430px**, y un móvil tiene 375 — se desbordaba con scroll horizontal. No se
+  arregla apretando los botones, porque 44px es el mínimo táctil del panel; se
+  arregla quitando lo que sobra. **No se pierde información**: el «Mostrando
+  37–48 de 118» de al lado ya dice dónde estás. En `sm` y arriba vuelven los
+  números (`hidden sm:flex`), y ahí van apretados a propósito (`gap-0.5`,
+  `px-2`): con nueve botones, cada 4px de más son 36px de fila.
+- ⚠️ **La tira de números tiene SIEMPRE el mismo ancho: 7 ranuras fijas**
+  (`RANURAS` en `Paginacion.tsx`). Antes crecía y encogía al cambiar de página
+  —en la 1 salían 5 huecos (`1 2 … 10`) y en la 3 salían 7 (`1 2 3 4 … 10`)—, y
+  como la barra alinea a la derecha, los botones **se desplazaban bajo el cursor
+  justo después de pulsar**: se leía como que la barra «se expandía». Cerca de
+  los extremos la ventana no se recorta, se **desplaza**.
+  - La **elipsis mide lo mismo que un botón** (`min-w-[44px]`). Es la otra mitad
+    del arreglo: con ella más estrecha, cambiar un `…` por un número seguiría
+    moviendo la fila aunque el número de ranuras fuera el mismo.
+  - El «n / N» compacto de móvil lleva `min-w-[76px]` por lo mismo: «1 / 10» y
+    «10 / 10» tienen que ocupar igual o las flechas bailan.
+  - Los botones de número llevan **`border border-transparent` siempre** y solo
+    cambian de color al hover: encender un borde que antes no ocupaba sitio
+    movería la tira 1px. Misma regla que las tarjetas y las pestañas.
+  - ⚠️ **Se evaluó y se DESCARTÓ un selector de filas por página (12/24/48)**
+    para acortar la tira (decisión del usuario). El problema nunca fue la
+    longitud, sino que la tira cambiaba de tamaño; con las ranuras fijas, un
+    control más que mantener no aporta nada. `POR_PAGINA = 12` sigue siendo una
+    constante.
 - ⚠️ **`CLIENTES` (en `mock.ts`) es ahora la fuente de verdad** de lo que ya
   pintaba el dashboard: `MEMBRESIAS_POR_VENCER` y los dos recuentos de `RESUMEN`
   **se derivan** de él. Si fueran listas aparte, el dashboard y Usuarios
@@ -439,6 +519,21 @@ que hoy dan 404.
     frente a 0,22.** Es cuestión de tamaño: una pastilla mide ~100px, y a 1,3 s el
     barrido se arrastraría mucho después de haber movido el cursor; en tan poco
     recorrido, en cambio, un dorado más tenue no se llega a ver.
+  - ⚠️ **El dash NO basta como respuesta al hover: es un gesto que pasa y se va,
+    no un estado.** Las pestañas Clientes/Equipo eran solo texto sin borde y no
+    se leían como controles (feedback del usuario: «pasa muy rápido y no se
+    bordea ni se preselecciona»). Ahora la pestaña inactiva lleva **borde
+    permanente** (`border-beige`) que **se enciende en dorado + `ring-2
+    ring-dorado/25`** al hover y al `focus-visible`, y su texto sube de
+    `verde-300` a `verde-700`. El grosor del borde no cambia nunca —lo que se
+    añade es un `ring`—, por la misma razón que en las tarjetas: pasar a
+    `border-2` movería 1px el texto y se vería como un temblor.
+  - **`.control-sheen--lento` (1 s) para los controles GRANDES**: pestañas y
+    botones de cabecera («Exportar», «Nuevo cliente»). La duración se fija con
+    la variable `--sheen-control`, que la clase base deja en 0,55 s. En un
+    control de 120-160px el recorrido es más largo y a 0,55 s el barrido termina
+    antes de que el ojo lo registre; las pastillas y la paginación, más
+    pequeñas, se quedan en 0,55 s.
   - ⚠️ **El disparador `.control-fx` va en el propio control, no en un `.group`
     ancestro.** Con el grupo, pasar por *cualquier* pastilla barrería las cinco.
   - `:hover` y **`:focus-visible`**, no `:focus`: al pulsar con el ratón el botón
@@ -518,7 +613,8 @@ que hoy dan 404.
   en el `role="status"`. Ese aviso va **en su propia línea** bajo la fila: en la
   esquina no le queda ancho y al aparecer empujaría las pestañas.
 - ⚠️ **`Card` no acepta atributos ARIA arbitrarios** (sus props son `tono`,
-  `densidad`, `fx`, `sheen`, `as`, `className`, `id`). El `role="tabpanel"` va en
+  `densidad`, `fx`, `sheen`, `resalte`, `as`, `className`, `id`). El
+  `role="tabpanel"` va en
   un `<div>` que la envuelve, en vez de abrir su API por un solo uso.
 
 #### Alta de cliente (`/admin/usuarios/nuevo`) — construido jul 2026
@@ -571,6 +667,20 @@ sirviera: además de la página, funda el vocabulario de formularios del panel.
   - ⚠️ **El estado guarda dígitos crudos, sin formato.** Formatear dentro de un
     input controlado descoloca el cursor al editar por el medio. El formato va en
     el eco de debajo (`documento()`) y al guardar (`telefonoCO()`).
+- **Lo mismo al revés en los NOMBRES: `sinDigitos()` los filtra al teclear**, en
+  los tres campos (cliente, contacto de emergencia y acudiente). Antes solo el
+  nombre del cliente rechazaba números **y solo al enviar**; el del contacto de
+  emergencia no validaba nada y se guardaba con dígitos — era un fallo. Al
+  filtrar, el mensaje «el nombre no lleva números» pasó a ser **código muerto y
+  se borró**: no hay forma de llegar a ese estado.
+- ⚠️ **Documento repetido = ERROR que bloquea. Nombre repetido = AVISO que no
+  bloquea.** No es una incoherencia: dos clientes con la misma cédula son la
+  misma persona metida dos veces, pero **dos personas distintas sí pueden
+  llamarse igual** —en Florencia habrá más de una María Rodríguez—, así que
+  bloquear por nombre impediría dar de alta a alguien real. El aviso dice a quién
+  se parece y deja decidir. La comparación usa `claveNombre()`: sin tildes, sin
+  mayúsculas y con los espacios colapsados, para que «laura gutierrez» y «Laura
+  Gutiérrez» sean la misma.
 - **Validación híbrida: «premia pronto, castiga tarde».** `onChange` solo QUITA
   errores, nunca los pone; `onBlur` solo saca errores de formato **y solo si el
   campo tiene contenido** (tabular por un campo vacío que ibas a rellenar luego no
@@ -610,15 +720,36 @@ sirviera: además de la página, funda el vocabulario de formularios del panel.
 - **Términos SIEMPRE**, cambiando la redacción según firme el cliente o su
   acudiente (decisión del usuario, frente a pedirlos solo a los menores): un
   adulto también debe aceptarlos, y así ningún alta queda sin constancia.
-- **Contenedor `max-w-3xl`, no el `max-w-[1440px]` del resto del panel:** el panel
-  es ancho porque son tarjetas de datos, y un campo de texto de 1300px es
-  ilegible. **Una `Card` por sección**, no una tarjeta con separadores, porque
+  - **«términos y condiciones» es un enlace** al PDF (`URL_TERMINOS` en
+    `catalogos.ts`), en **azul** por decisión del usuario. ⚠️ Es el **único azul
+    de todo el sitio** y rompe la paleta —los demás enlaces sobre claro usan
+    `dorado-dark`—, pero tiene un argumento a favor: `dorado-dark` da **3,81:1**
+    sobre blanco y **no llega al 4,5 de AA**, mientras el `blue-700` da 6,70:1.
+    Si algún día se unifica, lo correcto es llevar el de `/registro` a azul, no
+    este a dorado.
+  - ⚠️ **El `<a>` va DENTRO del `<label>` y aun así no marca la casilla.** El
+    estándar excluye del comportamiento de la etiqueta los clics sobre contenido
+    interactivo descendiente, así que **no hace falta parar la propagación** — no
+    «arreglarlo» luego.
+  - `target="_blank"` y no `download`: así no se pierde un formulario a medio
+    llenar, y desde el visor del PDF se puede guardar igual.
+  - ⚠️ **El PDF no existe todavía**: el enlace da 404 hasta que se deje el
+    archivo en `public/terminos-y-condiciones.pdf`. No se inventa: es un
+    documento legal del estudio.
+- **Contenedor `max-w-5xl`** (1024px). Ni el `max-w-[1440px]` del resto del panel
+  —ahí es ancho porque son tarjetas de datos, y un campo de texto de 1300px es
+  ilegible— ni el `max-w-3xl` que tuvo primero, con el que sobraba tanto margen a
+  los lados que la pantalla parecía vacía. A 1024px los campos emparejados miden
+  ~490px. **Una `Card` por sección**, no una tarjeta con separadores, porque
   `Card` ya enciende el borde con `focus-within`: la sección que se edita se
   resalta sola.
 - ⚠️ **La rejilla es de 2 columnas pero casi todos los campos ocupan las dos.** Un
   formulario a dos columnas de verdad rompe el recorrido vertical: al terminar el
   campo 1 el ojo no sabe si sigue por el 2 o por el 3. Solo se emparejan los
   campos que son un mismo dato (tipo y número de documento) o que se leen juntos.
+  La **fecha de nacimiento va a media columna**: un calendario ocupa poco y a
+  ancho completo se veía desproporcionado; el hueco de la derecha es donde caben
+  el eco de la edad y la pista del tipo de documento sin apretar nada.
 - **`autoComplete="off"` en los campos del cliente**, al revés que en `/registro`
   y a propósito: allí cada quien escribe sus datos y el autofill ayuda; aquí una
   recepcionista escribe los de **otra persona** y el navegador le metería los
@@ -708,11 +839,18 @@ flex). Breakpoint por sección: hero `sm`, tarjetas de pilares y footer `md`, re
 Excepción deliberada: las **etiquetas y campos de formulario siguen alineados a la
 izquierda** (legibilidad); solo se centra su encabezado.
 
-## 7. Panel Administrativo
+## 7. Fases del proyecto
 
-En `/admin` (ruta protegida en fase 2). Dashboard y gestión de usuarios construidos con datos de ejemplo.
+- **Fase 1 (hecha, jul 2026):** landing + UI de login/registro, sin backend.
+- **Fase 2 (pendiente):** auth real (p. ej. Supabase), imágenes reales del estudio.
+- **Fase 3 (en curso):** panel administrativo. Dashboard y listado de Usuarios
+  hechos con datos de ejemplo; faltan la ficha `/admin/usuarios/[id]`, Planes y
+  Finanzas.
 
-**Ojo al orden:** la fase 3 se adelantó a la 2. Se está maquetando el panel antes de que exista backend ni autenticación, a propósito, para decidir el diseño con algo delante. **`/admin` está abierto a cualquiera** y todos sus datos son inventados.
+> Ojo al orden: la fase 3 **se adelantó a la 2**. Se está maquetando el panel
+> antes de que exista backend ni autenticación, a propósito, para decidir el
+> diseño con algo delante. Consecuencia directa: **`/admin` está abierto a
+> cualquiera** y todos sus datos son inventados.
 
 **Dashboard construido:** Estadísticas principales (usuarios, clientes activos, instructores), tarjeta de ingresos del mes con selector de período, reparto por planes, tasa de renovación, métodos de pago, altas y bajas. Rejilla bento con 12 columnas en XL.
 
@@ -750,7 +888,19 @@ En `/admin` (ruta protegida en fase 2). Dashboard y gestión de usuarios constru
       dan 404. ⚠️ Al crearla, que `generateStaticParams` **no emita `"nuevo"`**
       (el segmento estático gana igualmente, pero conviene excluirlo).
 - [ ] Construir Planes y Finanzas (hoy son marcadores).
-- [ ] Sustituir `src/lib/admin/mock.ts` por datos reales cuando haya BD.
+- [ ] Sustituir `src/lib/admin/mock.ts` por datos reales cuando haya BD. Ese día,
+      `crearCliente(ficha)` mapea `FichaAlta` → `Cliente` y es donde se asigna el
+      plan (el alta no lo pregunta). Ojo: `mock.ts` congela `HOY = "2026-07-25"`
+      pero el formulario usa la fecha **real**; cuando ambos escriban en el mismo
+      almacén, `diasHasta()` daría valores raros para los clientes nuevos.
+
+**Documentos y contenido pendiente de aportar**
+- [ ] **Dejar el PDF de términos y condiciones** en
+      `public/terminos-y-condiciones.pdf`. ⚠️ Hasta que esté, el enlace del alta
+      **da 404**. La ruta está en `URL_TERMINOS` (`lib/admin/catalogos.ts`), en un
+      solo sitio. No se redacta desde la web: es un documento legal del estudio.
+- [ ] Apuntar ahí también los dos enlaces de `/registro`, que siguen con
+      `href="#"` muertos desde la fase 1 (términos y política de privacidad).
 
 **Marca e imagen**
 - [x] Logo oficial en el hero (`public/logo-reforme.png`).
@@ -763,4 +913,3 @@ En `/admin` (ruta protegida en fase 2). Dashboard y gestión de usuarios constru
 
 **Validación**
 - [ ] Validar en dispositivo real el drawer móvil y las páginas de auth (capturas pendientes).
-- [ ] Mirar la rejilla bento del admin renderizada a 375 / 768 / 1280 / 1920.

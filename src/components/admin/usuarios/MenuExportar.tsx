@@ -84,7 +84,7 @@ export default function MenuExportar({
         aria-haspopup="true"
         className={className}
       >
-        <span className="control-sheen" aria-hidden="true" />
+        <span className="control-sheen control-sheen--lento" aria-hidden="true" />
         <span aria-hidden="true">↓</span>
         Exportar
       </button>

@@ -209,3 +209,42 @@ export type Indicador = {
   /** Aclaración corta bajo el número */
   detalle: string;
 };
+
+/**
+ * Quién ha entrado al panel.
+ *
+ * ⚠️ **Hoy es un dato inventado, no una sesión.** `/admin` no está protegido y
+ * el reparto por rol del login (dominio `@reforme.com`) es un marcador, no
+ * autenticación. Existe como tipo para que el día que haya auth real solo
+ * cambie de dónde sale, no quién lo consume.
+ */
+export type UsuarioActual = {
+  nombre: string;
+  correo: string;
+  /** Lo que se enseña bajo el nombre: «Administradora», «Recepción»… */
+  rol: string;
+};
+
+/**
+ * Aviso de la campana de la cabecera.
+ *
+ * ⚠️ **`tipo` no es el color, es el MOTIVO.** El color lo decide la cabecera a
+ * partir de él: si el tipo fuera un color, cambiar la paleta obligaría a tocar
+ * los datos. Y nunca va solo — cada aviso lleva también su texto.
+ */
+export type TipoNotificacion = "aviso" | "info" | "ok";
+
+export type Notificacion = {
+  id: string;
+  tipo: TipoNotificacion;
+  titulo: string;
+  detalle: string;
+  /** Cuándo pasó, ya redactado («hace 2 h», «ayer»). ⚠️ Texto y no fecha a
+   *  propósito mientras no haya backend: con una fecha habría que calcular el
+   *  «hace tanto» en cliente, y el panel se prerenderiza en el build — el
+   *  servidor y el navegador dirían cosas distintas (error de hidratación). */
+  cuando: string;
+  leida: boolean;
+  /** A dónde lleva al pulsarla. */
+  href: string;
+};

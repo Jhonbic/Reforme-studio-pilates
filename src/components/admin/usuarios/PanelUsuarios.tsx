@@ -192,6 +192,13 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
         {PESTANAS.map((p, i) => {
           const activa = p.id === pestana;
           return (
+            /* ⚠️ La pestaña inactiva lleva BORDE siempre, no solo al hover. Sin
+               él no se leía como un control: no había nada que «se encendiera»
+               al acercar el cursor, solo un barrido que pasaba y se iba. El
+               grosor no cambia nunca —lo que se enciende es el color del borde
+               más un `ring`—, por la misma razón que en las tarjetas: pasar de
+               `border` a `border-2` movería 1px el texto y se vería como un
+               temblor. */
             <button
               key={p.id}
               ref={(el) => {
@@ -211,17 +218,20 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
                 if (e.key === "ArrowRight") irAPestana(i + 1);
                 if (e.key === "ArrowLeft") irAPestana(i - 1);
               }}
-              className={`control-fx relative min-h-[44px] overflow-hidden rounded-full px-5 font-display text-lg transition-colors duration-300 ${
+              className={`control-fx relative min-h-[44px] overflow-hidden rounded-full border px-5 font-display text-lg transition-[color,background-color,border-color,box-shadow] duration-300 ${
                 activa
-                  ? "bg-dorado text-verde-900"
-                  : "text-verde-300 hover:text-verde"
+                  ? "border-dorado bg-dorado text-verde-900"
+                  : "border-beige text-verde-700 hover:border-dorado hover:text-verde hover:ring-2 hover:ring-dorado/25 focus-visible:border-dorado focus-visible:ring-2 focus-visible:ring-dorado/25"
               }`}
             >
               {/* Solo en la inactiva: sobre el dorado de la activa un dorado al
                   28 % no se ve, y la pestaña activa ya está señalada por su
                   relleno — no necesita respuesta al hover. */}
               {!activa && (
-                <span className="control-sheen" aria-hidden="true" />
+                <span
+                  className="control-sheen control-sheen--lento"
+                  aria-hidden="true"
+                />
               )}
               {p.etiqueta}
             </button>
@@ -246,7 +256,7 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
               llegaría a leer el porqué). */}
           {esClientes ? (
             <Link href="/admin/usuarios/nuevo" className={BOTON_CABECERA}>
-              <span className="control-sheen" aria-hidden="true" />
+              <span className="control-sheen control-sheen--lento" aria-hidden="true" />
               <span aria-hidden="true">+</span>
               Nuevo cliente
             </Link>
@@ -262,7 +272,7 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
               }
               className={BOTON_CABECERA}
             >
-              <span className="control-sheen" aria-hidden="true" />
+              <span className="control-sheen control-sheen--lento" aria-hidden="true" />
               <span aria-hidden="true">+</span>
               Nuevo miembro
             </button>
@@ -278,7 +288,12 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
         id="panel-lista"
         aria-labelledby={`pestana-${pestana}`}
       >
-      <Card densidad="plana">
+      {/* ⚠️ `resalte={false}`: esta tarjeta ocupa casi toda la pantalla y el
+          cursor está siempre dentro, así que el borde dorado del resto del
+          panel no señalaba nada — solo enmarcaba la página entera en dorado
+          (decisión del usuario). El foco del teclado se sigue viendo en cada
+          fila, que es donde importa. */}
+      <Card densidad="plana" resalte={false}>
         <BarraFiltros
           busqueda={busqueda}
           onBusqueda={filtrar(setBusqueda)}

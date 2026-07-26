@@ -258,7 +258,15 @@ body {
     transparent 65%
   );
   transform: translateX(-160%);
-  transition: transform 0.55s var(--ease-smooth);
+  transition: transform var(--sheen-control, 0.55s) var(--ease-smooth);
+}
+/* Variante lenta para los controles GRANDES —las pestañas, los botones de la
+   cabecera—, donde el barrido de 0.55s se leía como un parpadeo: en un control
+   de 120-160px el recorrido es más largo y a esa velocidad termina antes de que
+   el ojo lo registre. No es un valor suelto: es la misma escala de `card-sheen`
+   (1.3s) acercándose al tamaño del control. */
+.control-sheen--lento {
+  --sheen-control: 1s;
 }
 /* `focus-visible` y no `focus`: al pulsar con el ratón el botón también recibe
    foco, y el barrido se dispararía dos veces por un solo clic. */

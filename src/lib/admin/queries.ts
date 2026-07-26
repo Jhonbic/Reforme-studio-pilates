@@ -1,4 +1,4 @@
-import { calcularVariacion } from "./format";
+import { calcularVariacion, moneda } from "./format";
 import {
   CARTERA,
   CLIENTES,
@@ -7,11 +7,20 @@ import {
   MEMBRESIAS_POR_VENCER,
   MESES,
   MOVIMIENTO_CLIENTES,
+  NOTIFICACIONES,
   REPARTO_METODOS,
   REPARTO_PLANES,
   RESUMEN,
+  USUARIO_ACTUAL,
 } from "./mock";
-import type { Cliente, EstadoMembresia, Indicador, MiembroEquipo } from "./types";
+import type {
+  Cliente,
+  EstadoMembresia,
+  Indicador,
+  MiembroEquipo,
+  Notificacion,
+  UsuarioActual,
+} from "./types";
 
 /**
  * Única puerta de entrada a los datos del panel.
@@ -189,4 +198,48 @@ export function getTasaRenovacion() {
       RESUMEN.tasaRenovacionMesAnterior,
     ),
   };
+}
+
+/**
+ * Quién está usando el panel.
+ *
+ * ⚠️ **No lee ninguna sesión: devuelve el dato fijo de `mock.ts`.** El día que
+ * haya autenticación, esta función es el único sitio donde hay que ir a buscar
+ * al usuario de verdad — la cabecera no se entera.
+ */
+export function getUsuarioActual(): UsuarioActual {
+  return USUARIO_ACTUAL;
+}
+
+/**
+ * Avisos de la campana, del más reciente al más viejo.
+ *
+ * ⚠️ **El primero se DERIVA de las membresías por vencer**, no está escrito en
+ * `mock.ts`: si fuera un texto suelto podría decir «5 vencen» mientras la cifra
+ * de cabecera del dashboard dice otra cosa. Es la misma regla por la que
+ * `MEMBRESIAS_POR_VENCER` sale de `CLIENTES`.
+ *
+ * Los otros dos sí son de ejemplo: no hay ningún sistema de notificaciones
+ * detrás todavía.
+ */
+export function getNotificaciones(): Notificacion[] {
+  const porVencer = getMembresiasPorVencer(DIAS_POR_VENCER);
+
+  return [
+    {
+      id: "n1",
+      tipo: "aviso",
+      titulo: `${porVencer.length} membresías vencen esta semana`,
+      detalle: `${moneda(getIngresoEnRiesgo(DIAS_POR_VENCER))} en renovaciones por confirmar`,
+      cuando: "hoy",
+      leida: false,
+      href: "/admin/usuarios",
+    },
+    ...NOTIFICACIONES,
+  ];
+}
+
+/** Cuántos avisos sin leer. Lo consume el punto de la campana. */
+export function getNoLeidas(): number {
+  return getNotificaciones().filter((n) => !n.leida).length;
 }
