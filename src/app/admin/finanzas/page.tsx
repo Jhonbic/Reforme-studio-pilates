@@ -1,14 +1,9 @@
 import Card from "@/components/admin/Card";
 import CardHeader from "@/components/admin/CardHeader";
 import StatTile from "@/components/admin/StatTile";
-import Cartera from "@/components/admin/finanzas/Cartera";
 import LibroPagos from "@/components/admin/finanzas/LibroPagos";
 import { HOY } from "@/lib/admin/mock";
-import {
-  getCartera,
-  getIndicadoresFinanzas,
-  getPagos,
-} from "@/lib/admin/queries";
+import { getIndicadoresFinanzas, getPagos } from "@/lib/admin/queries";
 
 /* Lo que sigue faltando. Todo lo que queda pide ESCRIBIR —registrar un gasto,
    cerrar la caja, guardar un comprobante—, y eso no se puede hacer sin base de
@@ -35,7 +30,6 @@ const PREVISTO = [
 export default function FinanzasPage() {
   const indicadores = getIndicadoresFinanzas();
   const pagos = getPagos();
-  const cartera = getCartera();
 
   return (
     <div className="mx-auto w-full max-w-[1440px]">
@@ -53,9 +47,10 @@ export default function FinanzasPage() {
           ))}
         </section>
 
-        {/* El libro es ahora el cuerpo de la pantalla, no un bloque más:
-            ocupa ocho columnas y la cartera acompaña a un lado. */}
-        <Card densidad="plana" className="md:col-span-6 xl:col-span-8">
+        {/* El libro es LA pantalla, a ancho completo. Con la tabla a cinco
+            columnas —fecha, cliente, plan, método e importe— una columna
+            estrecha obligaba a recortar el nombre del cliente casi siempre. */}
+        <Card densidad="plana" className="md:col-span-6 xl:col-span-12">
           <div className="p-5 sm:p-6">
             <CardHeader
               titulo="Libro de movimientos"
@@ -65,33 +60,23 @@ export default function FinanzasPage() {
           <LibroPagos pagos={pagos} hoy={HOY} />
         </Card>
 
-        <div className="flex flex-col gap-4 md:col-span-6 xl:col-span-4 xl:gap-5">
-          {/* ⚠️ Deuda REAL, no la «Cartera por vencer» del Dashboard, que es
-              dinero que aún no se debe. Se llaman parecido y son opuestas. */}
-          <Card>
-            <CardHeader
-              titulo="Cartera vencida"
-              descripcion="Membresías ya caducadas y sin renovar, por antigüedad de la deuda."
-            />
-            <Cartera tramos={cartera} />
-          </Card>
-
-          <Card tono="acento">
-            <h2 className="font-display text-lg">Pendiente en esta sección</h2>
-            <ul className="mt-3 space-y-2 text-sm">
-              {PREVISTO.map((p) => (
-                <li key={p} className="flex gap-2.5">
-                  <span aria-hidden="true">◆</span>
-                  <span>{p}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-3 text-sm">
-              Las tres necesitan base de datos: hoy Finanzas se lee, no se
-              escribe.
-            </p>
-          </Card>
-        </div>
+        {/* Los pendientes van al final y en horizontal: son una nota al pie de
+            la sección, no un bloque que compita con el libro. */}
+        <Card tono="acento" className="md:col-span-6 xl:col-span-12">
+          <h2 className="font-display text-lg">Pendiente en esta sección</h2>
+          <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+            {PREVISTO.map((p) => (
+              <li key={p} className="flex gap-2.5">
+                <span aria-hidden="true">◆</span>
+                <span>{p}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-sm">
+            Las tres necesitan base de datos: hoy Finanzas se lee, no se
+            escribe.
+          </p>
+        </Card>
       </div>
     </div>
   );

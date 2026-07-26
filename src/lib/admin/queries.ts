@@ -86,11 +86,6 @@ export function getCartera() {
   return CARTERA;
 }
 
-/** Clientes con deuda, sumando los tres tramos de antigüedad. */
-export function getClientesEnMora(): number {
-  return CARTERA.reduce((t, c) => t + c.clientes, 0);
-}
-
 /**
  * Los últimos pagos cobrados, del más reciente al más antiguo.
  *
