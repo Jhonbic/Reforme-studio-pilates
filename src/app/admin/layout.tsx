@@ -4,6 +4,7 @@ import Logo from "@/components/Logo";
 import AdminNav from "@/components/admin/AdminNav";
 import AdminTopbar from "@/components/admin/AdminTopbar";
 import HeroFX from "@/components/fx/HeroFX";
+import { getNotificaciones, getUsuarioActual } from "@/lib/admin/queries";
 
 export const metadata: Metadata = {
   title: "Panel administrativo · Reforme Studio Pilates",
@@ -76,7 +77,14 @@ export default function AdminLayout(props: LayoutProps<"/admin">) {
           <AdminNav variante="movil" />
         </header>
 
-        <AdminTopbar />
+        {/* El usuario se resuelve AQUÍ, en el servidor, y baja como prop:
+            `AdminTopbar` es cliente por `usePathname`, y el día que
+            `getUsuarioActual()` pase a ser `async` contra la base de datos, un
+            componente de cliente no podría esperarlo. */}
+        <AdminTopbar
+          usuario={getUsuarioActual()}
+          avisos={getNotificaciones()}
+        />
 
         <main className="flex-1 px-4 py-5 sm:px-6 lg:px-6 lg:py-6 xl:px-8">
           {props.children}

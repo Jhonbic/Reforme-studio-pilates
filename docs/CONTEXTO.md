@@ -215,6 +215,28 @@ Fase 3 arrancada. **Solo UI con datos de ejemplo**, sin backend.
     (`components/admin/secciones.tsx`) que pinta la navegación: así el menú y el
     título no se pueden desincronizar. Por eso `SeccionPendiente` ya no lleva
     `titulo` — salían dos encabezados iguales, uno encima de otro.
+  - **La cuenta (`MenuCuenta.tsx`) vive en la esquina derecha de esa misma
+    cabecera**, a la altura del título (decisión del usuario). ⚠️ **No en una
+    franja propia arriba del todo:** una barra entera para dos datos se come
+    ~64px de alto en todas las pantallas del panel, y en móvil ya hay cabecera
+    de marca y pastillas de navegación por encima. Aquí ocupa un hueco vacío.
+    - **Sigue sin haber buscador global ni campana** (el usuario pidió
+      explícitamente quitar el buscador). No hay backend al que buscar ni
+      notificaciones que contar, y un punto rojo sobre una campana que nunca
+      cambia es una mentira pequeña que se paga cuando llegue una de verdad.
+    - Desplegable con el mismo patrón que `MenuExportar`: `absolute` para no
+      empujar el título, cierre al pulsar fuera y con `Escape`, foco de vuelta
+      al botón. Dentro: nombre, correo, rol, «Ver la web pública» y «Cerrar
+      sesión».
+    - ⚠️ **«Cerrar sesión» lleva a `/login` pero no cierra nada**, y el propio
+      menú lo dice: no hay sesión. Misma regla que el alta de cliente, que
+      tampoco disimula que no guarda.
+    - El usuario sale de **`getUsuarioActual()`** (`queries.ts` → `mock.ts`), y
+      se resuelve en el **layout, que es servidor**, bajando como prop:
+      `AdminTopbar` es cliente por `usePathname` y no podría esperar a una
+      versión `async` de esa función el día que haya BD.
+    - El bloque del título lleva `min-w-0` + `truncate`: un título largo se
+      recorta él en vez de empujar el menú fuera de la pantalla.
 - **Acceso por rol desde el `/login` existente** (decisión del usuario, frente a
   un `/admin/login` aparte). Provisional: el rol se deduce del dominio del correo
   (`@reforme.com`) porque no hay auth. ⚠️ **El panel NO está protegido** hasta que
@@ -255,8 +277,10 @@ Y fuera de `admin/`, porque no es solo del panel:
 **Organización del dashboard — rejilla bento.** Se reorganizó a partir de una
 referencia que trajo el usuario, adaptando **solo la organización**: jerarquía por
 tamaño y contraste en vez de por títulos de sección. Se usan **únicamente los
-módulos que ya existían** — nada de buscador, campana, avatar, feed de actividad ni
-agenda: no hay datos para eso y no se inventan.
+módulos que ya existían** — nada de buscador, campana, feed de actividad ni
+agenda: no hay datos para eso y no se inventan. (El **avatar sí llegó después**,
+pero como menú de cuenta en la cabecera, no como bloque del dashboard: ver
+`MenuCuenta` más arriba.)
 - Rejilla única `grid-cols-1 md:grid-cols-6 xl:grid-cols-12`. ⚠️ **12 columnas
   solo en `xl`, saltándose `lg` a propósito:** en `lg` ya está la lateral de 256px
   y al contenido le quedan ~700px — el tramo más estrecho de todo el escritorio.

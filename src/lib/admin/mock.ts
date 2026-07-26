@@ -7,9 +7,11 @@ import type {
   MesFinanciero,
   MiembroEquipo,
   MovimientoClientes,
+  Notificacion,
   RepartoMetodoPago,
   RepartoPlan,
   TipoPlan,
+  UsuarioActual,
 } from "./types";
 
 /**
@@ -340,3 +342,46 @@ export const RESUMEN = {
   tasaRenovacion: 78.5,
   tasaRenovacionMesAnterior: 74.2,
 };
+
+/**
+ * Quién ha entrado al panel. **No hay sesión**: es un dato fijo como el resto
+ * de este archivo. Cuando haya auth, `getUsuarioActual()` leerá la sesión real
+ * y esta constante desaparece con el resto de `mock.ts`.
+ */
+export const USUARIO_ACTUAL: UsuarioActual = {
+  nombre: "Administrador",
+  correo: "admin@reforme.com",
+  rol: "Administrador",
+};
+
+/**
+ * Avisos de ejemplo de la campana.
+ *
+ * ⚠️ **No hay ningún sistema de notificaciones detrás**: son maqueta para
+ * decidir cómo se ven. Cuando lo haya, esto lo sustituye una consulta y
+ * `getNotificaciones()` no cambia de forma.
+ *
+ * El primero de la lista **no está aquí**: lo compone `getNotificaciones()` a
+ * partir de las membresías por vencer de verdad, para que no pueda decir «5
+ * vencen» mientras el dashboard dice otra cosa.
+ */
+export const NOTIFICACIONES: Notificacion[] = [
+  {
+    id: "n2",
+    tipo: "ok",
+    titulo: "Laura Gutiérrez renovó su plan",
+    detalle: "Trimestral · $510.000 · pago por Nequi",
+    cuando: "hace 3 h",
+    leida: false,
+    href: "/admin/usuarios",
+  },
+  {
+    id: "n3",
+    tipo: "info",
+    titulo: "2 clientes nuevos esta semana",
+    detalle: "Diego Villamil y Esteban Escobar",
+    cuando: "ayer",
+    leida: true,
+    href: "/admin/usuarios",
+  },
+];
