@@ -1,4 +1,4 @@
-import type { Cliente, FichaAlta, MiembroEquipo } from "@/lib/admin/types";
+import type { Cliente, FichaAlta, MiembroEquipo, Pago } from "@/lib/admin/types";
 
 /**
  * Exportación del listado a CSV.
@@ -100,6 +100,19 @@ export function csvCliente(c: Cliente): string {
       ["Última asistencia", c.ultimaAsistencia],
       ["Importe renovación", c.importeRenovacion],
     ],
+  );
+}
+
+/**
+ * El libro de pagos, para la contadora.
+ *
+ * Va en columnas —y no en dos, campo y valor, como las fichas— porque es
+ * justamente lo que se abre para ordenar, sumar y hacer tablas dinámicas.
+ */
+export function csvPagos(pagos: Pago[]): string {
+  return aCsv(
+    ["Fecha", "Cliente", "Plan", "Método", "Importe"],
+    pagos.map((p) => [p.fecha, p.cliente, p.plan, p.metodo, p.importe]),
   );
 }
 

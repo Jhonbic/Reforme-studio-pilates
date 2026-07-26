@@ -103,6 +103,18 @@ export function getUltimosPagos(cuantos = 8): Pago[] {
   return PAGOS.slice(0, cuantos);
 }
 
+/**
+ * El libro completo, del pago más reciente al más antiguo.
+ *
+ * Sin filtros de servidor a propósito: son ~100 registros que ya viajan al
+ * navegador, así que filtrarlos allí es instantáneo y evita que la ruta deje de
+ * prerenderizarse. Con base de datos y miles de pagos, esto pasará a recibir
+ * periodo y método y a paginar en servidor.
+ */
+export function getPagos(): Pago[] {
+  return PAGOS;
+}
+
 /** La base de clientes, ordenada alfabéticamente. Es el orden por defecto de
  *  `/admin/usuarios`; los demás criterios los aplica la propia pantalla. */
 export function getClientes(): Cliente[] {

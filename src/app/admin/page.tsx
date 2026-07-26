@@ -1,5 +1,6 @@
 import Card from "@/components/admin/Card";
 import ChartCard from "@/components/admin/ChartCard";
+import GraficaContable from "@/components/admin/GraficaContable";
 import StatTile from "@/components/admin/StatTile";
 import TarjetaIngresos from "@/components/admin/TarjetaIngresos";
 import Variacion from "@/components/admin/Variacion";
@@ -8,6 +9,7 @@ import GroupedBars from "@/components/admin/charts/GroupedBars";
 import HBars from "@/components/admin/charts/HBars";
 import { moneda, monedaCorta, numero, porcentaje } from "@/lib/admin/format";
 import {
+  getGastos,
   getIndicadores,
   getMesesFinancieros,
   getMovimientoClientes,
@@ -28,6 +30,7 @@ export default function DashboardPage() {
   const metodos = getRepartoMetodos();
   const movimiento = getMovimientoClientes();
   const renovacion = getTasaRenovacion();
+  const gastos = getGastos();
 
   const totalPlanes = planes.reduce((t, p) => t + p.importe, 0);
   const totalMetodos = metodos.reduce((t, m) => t + m.importe, 0);
@@ -141,6 +144,17 @@ export default function DashboardPage() {
             formatoEje="numero"
           />
         </ChartCard>
+
+        {/* ---------- G · Vista contable, alternable ----------
+            Las dos series contables vuelven al dashboard, pero en UNA tarjeta
+            con desplegable en vez de dos: responden a la misma pregunta y
+            juntas obligaban a cruzar cuatro series a ojo. Va al final porque
+            es detalle: lo primero que se mira son las cifras de cabecera. */}
+        <GraficaContable
+          meses={meses}
+          gastos={gastos}
+          className="md:col-span-6 xl:col-span-12"
+        />
       </div>
     </div>
   );
