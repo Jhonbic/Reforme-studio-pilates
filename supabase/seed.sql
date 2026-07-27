@@ -4,15 +4,20 @@
 -- ⚠️ **La relación va al revés que en el mock, y es el arreglo de un bug.**
 -- Allí el cliente tenía un vencimiento y el pago se deducía restándole la
 -- vigencia; como el vencimiento se repartía sin mirar el plan, salían cobros
--- fechados en el futuro. Aquí se genera el INICIO (un hecho pasado) y el
--- vencimiento sale de sumarle la vigencia del plan. Es imposible que un pago
--- caiga por delante de hoy.
+-- fechados en el futuro. Aquí se decide el VENCIMIENTO y el inicio sale de
+-- restarle la vigencia, con la garantía de que nunca queda por delante de hoy.
 --
 -- Determinista a propósito: nada de `random()`. Dos ejecuciones dan la misma
 -- base, así que un fallo se puede reproducir.
 --
--- Ejecutar con:  npx supabase db reset
+-- Ejecutar con:  npx supabase db push --include-seed --linked
 -- =============================================================================
+
+-- Idempotente: la semilla se puede volver a lanzar sin duplicar.
+-- `restart identity cascade` limpia también lo que cuelga por clave foránea.
+truncate table pagos, membresias, clientes, gastos, presupuestos, equipo, planes
+  restart identity cascade;
+
 
 -- Planes ---------------------------------------------------------------------
 -- Los mismos precios y condiciones que `PRECIO_PLAN` y `CONDICIONES_PLANES`.
@@ -55,8 +60,7 @@ insert into equipo (nombre, correo, telefono, rol, clases_semana, alta) values
   ('Juliana Cardona',   'juliana@reforme.com',  '3205678901', 'Administración',  0, current_date - 900);
 
 
--- Presupuesto del mes en curso -----------------------------------------------
--- `date_trunc` al primer día del mes, que es lo que exige el CHECK.
+-- Presupuesto y gastos del mes en curso --------------------------------------
 
 insert into presupuestos (categoria, mes, importe) values
   ('Arriendo',      date_trunc('month', current_date)::date, 4200000),
@@ -65,109 +69,134 @@ insert into presupuestos (categoria, mes, importe) values
   ('Mantenimiento', date_trunc('month', current_date)::date,  600000),
   ('Marketing',     date_trunc('month', current_date)::date,  500000);
 
-
--- Gastos del mes -------------------------------------------------------------
-
+-- `least(..., current_date)` porque el trigger rechaza gastos futuros: si la
+-- semilla corre el día 3 del mes, «día 1 + 9» caería por delante de hoy.
 insert into gastos (categoria, concepto, importe, fecha, metodo) values
-  ('Arriendo',      'Arriendo del local',            4200000, date_trunc('month', current_date)::date + 1,  'Transferencia'),
-  ('Nómina',        'Nómina de instructoras',        4600000, date_trunc('month', current_date)::date + 4,  'Transferencia'),
-  ('Servicios',     'Energía, agua e internet',       850000, date_trunc('month', current_date)::date + 6,  'Transferencia'),
-  ('Mantenimiento', 'Revisión de reformers',          780000, date_trunc('month', current_date)::date + 9,  'Efectivo'),
-  ('Marketing',     'Pauta en redes',                 370000, date_trunc('month', current_date)::date + 2,  'Tarjeta');
+  ('Arriendo',      'Arriendo del local',      4200000, least(date_trunc('month', current_date)::date + 1, current_date), 'Transferencia'),
+  ('Nómina',        'Nómina de instructoras',  4600000, least(date_trunc('month', current_date)::date + 4, current_date), 'Transferencia'),
+  ('Servicios',     'Energía, agua e internet', 850000, least(date_trunc('month', current_date)::date + 6, current_date), 'Transferencia'),
+  ('Mantenimiento', 'Revisión de reformers',    780000, least(date_trunc('month', current_date)::date + 9, current_date), 'Efectivo'),
+  ('Marketing',     'Pauta en redes',           370000, least(date_trunc('month', current_date)::date + 2, current_date), 'Tarjeta');
 
 
--- Clientes -------------------------------------------------------------------
--- 118, repartidos en cuatro bandas de antigüedad de la membresía para que
--- aparezcan los cuatro estados sin escribirlos: el estado lo calcula
--- `estado_de_membresia()` a partir de las fechas.
+-- =============================================================================
+-- Clientes, membresías y pagos
+--
+-- ⚠️ Se parte del ESTADO que se quiere y se calcula la fecha hacia atrás, no al
+-- revés. El primer intento repartía «días desde el inicio» en bandas fijas, y
+-- no funcionaba porque **la vigencia cambia según el plan**: 40 días desde el
+-- inicio deja vencido un Mensual (30 días) pero vigente un Trimestral (90).
+--
+-- ⚠️ Y por eso «Clase suelta» solo aparece entre las vencidas: dura UN día, así
+-- que su vencimiento nunca puede caer a más de 15 días vista y no puede estar
+-- «Activa». No es un apaño, es lo que significa una clase suelta.
+--
+-- Reparto, el mismo que documenta el mock: 87 activas · 7 por vencer ·
+-- 12 vencidas · 12 inactivas = 118.
+-- =============================================================================
 
-with nombres as (
-  select array[
-    'Laura','Andrés','Valentina','Camila','Santiago','Daniela','Mateo','Sofía',
-    'Juan','Isabella','Sebastián','Mariana','Nicolás','Gabriela','Felipe',
-    'Catalina','Alejandra','Tomás','Natalia','Esteban'
-  ] as n,
-  array[
-    'Gutiérrez','Rodríguez','Martínez','Vargas','Cárdenas','Restrepo','Quintero',
-    'Salazar','Escobar','Arboleda','Calderón','Cifuentes','Ospina','Muñoz',
-    'Torres','Cardona','Mejía','Zapata','Naranjo','Duque'
-  ] as a
-),
-generados as (
+with base as (
   select
     i,
-    (select n[1 + (i * 7) % 20] from nombres) || ' ' ||
-    (select a[1 + (i * 13) % 20] from nombres)              as nombre,
-    -- Cédulas de 10 dígitos, únicas por construcción.
-    (1000000000 + i * 4517)::text                            as identificacion,
-    -- El plan rota, como en el mock.
-    (array['Mensual','Trimestral','Pack 10 clases','Clase suelta'])[1 + (i * 3) % 4] as plan,
-    /*  Banda de antigüedad. El inicio es SIEMPRE pasado; el estado sale solo:
-          i < 12  → venció hace tiempo            → Vencida
-          i < 19  → vence dentro de pocos días    → Por vencer
-          i < 31  → vigente pero sin venir a clase → Inactiva
-          resto   → vigente y viniendo             → Activa                    */
+    -- El estado objetivo de cada fila.
     case
-      when i < 12 then 40 + (i * 3) % 50
-      when i < 19 then 24 + (i % 6)
-      when i < 31 then 5  + (i % 20)
-      else 1 + (i * 11) % 25
-    end                                                      as dias_desde_inicio,
-    case
-      when i between 19 and 30 then current_date - (35 + (i % 25))
-      when i < 12              then current_date - (45 + (i % 40))
-      else current_date - ((i * 3) % 12)
-    end                                                      as ultima_asistencia
+      when i < 12 then 'Vencida'
+      when i < 19 then 'Por vencer'
+      when i < 31 then 'Inactiva'
+      else 'Activa'
+    end as objetivo
   from generate_series(0, 117) as i
+),
+asignado as (
+  select
+    b.i,
+    b.objetivo,
+    -- Solo las vencidas admiten «Clase suelta»; el resto rota entre los tres
+    -- planes que duran lo suficiente para estar vigentes.
+    case
+      when b.objetivo = 'Vencida'
+        then (array['Mensual','Trimestral','Pack 10 clases','Clase suelta'])[1 + (b.i % 4)]
+      else (array['Mensual','Trimestral','Pack 10 clases'])[1 + (b.i % 3)]
+    end as nombre_plan
+  from base b
+),
+persona as (
+  select
+    a.*,
+    (array['Laura','Andrés','Valentina','Camila','Santiago','Daniela','Mateo',
+           'Sofía','Juan','Isabella','Sebastián','Mariana','Nicolás','Gabriela',
+           'Felipe','Catalina','Alejandra','Tomás','Natalia','Esteban']
+    )[1 + (a.i * 7) % 20] || ' ' ||
+    (array['Gutiérrez','Rodríguez','Martínez','Vargas','Cárdenas','Restrepo',
+           'Quintero','Salazar','Escobar','Arboleda','Calderón','Cifuentes',
+           'Ospina','Muñoz','Torres','Cardona','Mejía','Zapata','Naranjo','Duque']
+    )[1 + (a.i * 13) % 20]                          as nombre,
+    -- Diez dígitos, únicos por construcción y ordenables como texto (todos
+    -- tienen la misma longitud), que es de lo que depende el reparto de abajo.
+    (1000000000 + a.i * 4517)::text                 as identificacion
+  from asignado a
+),
+fechas as (
+  select
+    p.*,
+    pl.id           as plan_id,
+    pl.precio,
+    pl.vigencia_dias,
+    /*  El vencimiento, en días desde hoy:
+          Vencida    → ya pasó
+          Por vencer → dentro de 1 a 13 días (≤ 15)
+          resto      → más de 15 días, y nunca más allá de la vigencia del plan,
+                       porque `inicio = vencimiento - vigencia` tiene que caer
+                       en el pasado o el trigger de pagos lo rechaza.          */
+    case p.objetivo
+      when 'Vencida'    then -(5 + (p.i * 7) % 40)
+      when 'Por vencer' then 1 + (p.i - 12) * 2
+      else 16 + (p.i * 7) % greatest(pl.vigencia_dias - 15, 1)
+    end::int                                        as dias_hasta_vencimiento
+  from persona p
+  join planes pl on pl.nombre = p.nombre_plan
+),
+nuevos as (
+  insert into clientes
+    (nombre, identificacion, correo, telefono, alta, ultima_asistencia, acepta_terminos)
+  select
+    f.nombre,
+    f.identificacion,
+    lower(translate(split_part(f.nombre, ' ', 1), 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU')) || '.' ||
+    lower(translate(split_part(f.nombre, ' ', 2), 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU')) || '@correo.com',
+    '3' || lpad(((f.i * 7919) % 1000000000)::text, 9, '0'),
+    current_date - (60 + (f.i * 23) % 840),
+    -- Las inactivas llevan más de 30 días sin aparecer; el resto, poco.
+    case when f.objetivo = 'Inactiva'
+      then current_date - (35 + f.i % 25)
+      else current_date - (f.i % 20)
+    end,
+    true
+  from fechas f
+  returning id, identificacion
 )
-insert into clientes (nombre, identificacion, correo, telefono, alta, ultima_asistencia, acepta_terminos)
-select
-  g.nombre,
-  g.identificacion,
-  lower(translate(split_part(g.nombre, ' ', 1), 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU')) || '.' ||
-  lower(translate(split_part(g.nombre, ' ', 2), 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU')) || '@correo.com',
-  '3' || lpad(((g.i * 7919) % 1000000000)::text, 9, '0'),
-  current_date - (60 + (g.i * 23) % 840),
-  g.ultima_asistencia,
-  true
-from generados g;
-
-
--- Membresías -----------------------------------------------------------------
--- Una por cliente: la vigente. El vencimiento SALE del inicio más la vigencia
--- del plan, nunca al revés.
-
+-- Una membresía por cliente: la vigente. El vencimiento manda y el inicio se
+-- calcula restándole la vigencia del plan.
 insert into membresias (cliente_id, plan_id, inicio, vencimiento, importe)
 select
-  c.id,
-  p.id,
-  ini.inicio,
-  ini.inicio + p.vigencia_dias,
-  p.precio
-from clientes c
-cross join lateral (
-  select (row_number() over (order by c.identificacion) - 1)::int as i
-) rn
-cross join lateral (
-  select (array['Mensual','Trimestral','Pack 10 clases','Clase suelta'])[1 + (rn.i * 3) % 4] as nombre_plan
-) pl
-join planes p on p.nombre = pl.nombre_plan
-cross join lateral (
-  select current_date - (
-    case
-      when rn.i < 12 then 40 + (rn.i * 3) % 50
-      when rn.i < 19 then 24 + (rn.i % 6)
-      when rn.i < 31 then 5  + (rn.i % 20)
-      else 1 + (rn.i * 11) % 25
-    end
-  )::int as inicio
-) ini;
+  n.id,
+  f.plan_id,
+  current_date + f.dias_hasta_vencimiento - f.vigencia_dias,
+  current_date + f.dias_hasta_vencimiento,
+  f.precio
+from nuevos n
+join fechas f on f.identificacion = n.identificacion;
 
 
 -- Pagos ----------------------------------------------------------------------
--- Un cobro por membresía, el día en que empezó. El método sigue la misma
--- proporción que `REPARTO_METODOS`: Nequi 4 de cada 10, Transferencia 3,
--- Efectivo 2, Tarjeta 1.
+-- Un cobro por membresía, el día en que empezó. El método sigue la proporción
+-- de `REPARTO_METODOS`: Nequi 4 de cada 10, Transferencia 3, Efectivo 2,
+-- Tarjeta 1.
+--
+-- ⚠️ El `row_number()` va aquí, en una consulta sobre TODA la tabla, y no
+-- dentro de un `cross join lateral` como en el primer intento: un lateral solo
+-- ve una fila cada vez, así que `row_number()` devolvía 1 siempre y los 118
+-- clientes acababan con el mismo plan y la misma fecha.
 
 insert into pagos (cliente_id, membresia_id, metodo, fecha, importe)
 select
@@ -175,7 +204,11 @@ select
   m.id,
   (array['Nequi','Transferencia','Nequi','Efectivo','Nequi',
          'Transferencia','Tarjeta','Nequi','Transferencia','Efectivo']
-  )[1 + (row_number() over (order by m.inicio) - 1)::int % 10]::metodo_pago,
+  )[1 + (n.fila % 10)]::metodo_pago,
   m.inicio,
   m.importe
-from membresias m;
+from membresias m
+join (
+  select id, (row_number() over (order by inicio, id) - 1)::int as fila
+  from membresias
+) n on n.id = m.id;

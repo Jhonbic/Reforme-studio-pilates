@@ -1,19 +1,56 @@
 # Base de datos — Supabase
 
-> ⚠️ **Este SQL no se ha ejecutado todavía.** Se escribió sin Docker ni proyecto
-> de Supabase disponibles, así que está revisado a mano pero **no probado**.
-> Espera encontrar algún error la primera vez que lo corras; la sección
-> «Verificar» de abajo dice cómo.
+> ✅ **Aplicado y verificado** contra el proyecto `gdmxiqvmtegusevkqtgt`
+> (Postgres 17, región `ca-central-1`). Las cuatro migraciones pasan, la semilla
+> carga 118 clientes y `supabase db advisors --type security` sale con **0
+> errores**.
 
 ## Qué hay aquí
 
 ```
 supabase/
   migrations/
-    20260727120000_esquema.sql   Tablas, enums, vistas, triggers
-    20260727120100_rls.sql       Row Level Security + Storage + roles
-  seed.sql                       118 clientes de ejemplo, deterministas
+    20260727120000_esquema.sql                     Tablas, enums, vista, triggers
+    20260727120100_rls.sql                         RLS + Storage + roles
+    20260727130000_seguridad_vista_y_funciones.sql Cierra el fallo de la vista
+    20260727130100_revocar_execute_public.sql      Quita EXECUTE a PUBLIC
+  seed.sql                                         118 clientes, determinista
 ```
+
+## Dos fallos que salieron al ejecutarlo
+
+Los dos se encontraron **verificando**, no leyendo. Quedan documentados porque
+son fáciles de repetir.
+
+### 1. La vista se saltaba RLS (grave)
+
+En Postgres una vista se ejecuta con los permisos de **quien la creó**, no de
+quien la consulta. `clientes_vigentes` la creó la migración (superusuario), así
+que devolvía las 118 filas a cualquiera — incluido el rol `anon`, que es el de
+la clave pública **que viaja en el navegador**. Nombre, cédula, teléfono y
+correo de todos los clientes, legibles sin autenticarse.
+
+```
+antes:  select count(*) from clientes           con anon →   0  ✅
+        select count(*) from clientes_vigentes  con anon → 118  ❌
+después: las dos → 0
+```
+
+Lo arregla `alter view ... set (security_invoker = on)`. **Cualquier vista nueva
+sobre tablas con RLS necesita esa opción**, o abre el mismo agujero.
+
+### 2. Revocar permisos a `anon` no sirve de nada
+
+Postgres concede `EXECUTE` a **`PUBLIC`** al crear una función. Revocárselo a
+`anon` y `authenticated` no quita nada: heredaban el de `PUBLIC`. Hay que
+revocar a `PUBLIC` y volver a conceder solo a quien deba tenerlo.
+
+Y todo lo que vive en `public` queda publicado como endpoint REST en
+`/rest/v1/rpc/<nombre>`, funciones de trigger incluidas.
+
+> Revocar `EXECUTE` **no rompe los triggers**: Postgres no comprueba ese permiso
+> cuando un trigger se dispara. Verificado intentando insertar un pago con fecha
+> futura después de revocar — lo sigue rechazando.
 
 ## Puesta en marcha
 
@@ -134,30 +171,35 @@ datos reales, no algo de Supabase.
 
 ## Verificar
 
-Sin Docker no se puede probar en local. Dos caminos:
+Sin Docker no hay entorno local, pero el CLI consulta el proyecto remoto:
 
-**Con Docker** (lo mejor):
 ```bash
-npx supabase start      # levanta Postgres + Auth + Storage en local
-npx supabase db reset   # aplica migraciones y seed, y FALLA si hay error de SQL
+npx supabase db query --linked "<sql>"     # una consulta
+npx supabase db query --linked -f fichero.sql
+npx supabase db advisors --linked --type security
 ```
 
-**Sin Docker**: pega el contenido de cada migración en el SQL Editor de un
-proyecto de Supabase gratuito, en orden. Los errores salen ahí con su línea.
+⚠️ **`db push --include-seed` no vuelve a ejecutar la semilla si ya corrió
+antes**: detecta que el hash cambió, lo actualiza y no hace nada más. Para
+recargarla de verdad, `db query -f supabase/seed.sql`. La semilla empieza con un
+`truncate`, así que es idempotente.
 
-Después, comprobaciones que valen la pena:
+Estado verificado hoy:
 
 ```sql
--- ¿Cuadran los estados con lo que espera el dashboard?
+-- Reparto de estados → 87 Activa · 12 Inactiva · 12 Vencida · 7 Por vencer = 118
 select estado, count(*) from clientes_vigentes group by estado order by 2 desc;
 
--- ¿Algún pago en el futuro? Debe dar 0.
+-- Pagos en el futuro → 0
 select count(*) from pagos where fecha > current_date;
 
--- ¿Alguna membresía que venza antes de empezar? Debe dar 0.
+-- Membresías que vencen antes de empezar → 0
 select count(*) from membresias where vencimiento < inicio;
 
--- RLS: sin perfil no se ve nada. Debe dar 0 filas.
-set role authenticated;
-select count(*) from clientes;
+-- RLS con la clave del navegador → 0 filas, tabla y vista
+set local role anon; select count(*) from clientes;
+set local role anon; select count(*) from clientes_vigentes;
 ```
+
+El único aviso que deja el analizador es **deliberado**: `mi_rol()` se concede a
+`authenticated` porque la UI necesita saber el rol de quien ha entrado.
