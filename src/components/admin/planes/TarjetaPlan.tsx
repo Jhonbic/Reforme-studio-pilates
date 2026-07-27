@@ -56,14 +56,23 @@ export default function TarjetaPlan({
           >
             {plan.nombreVisible}
           </h3>
-          {destacado && (
-            <p className="eyebrow mt-1 text-dorado-light">El más contratado</p>
-          )}
-          {!plan.seVende && (
-            <span className="mt-2 inline-flex rounded-full border border-beige bg-beige/40 px-2.5 py-1 text-xs text-verde-300">
-              ○ No se vende
-            </span>
-          )}
+
+          {/* ⚠️ Ranura de altura fija para el distintivo, aunque no haya
+              ninguno. Antes el eyebrow solo existía en la tarjeta destacada, y
+              eso empujaba su precio una línea por debajo del de las otras
+              tres: en una tabla de precios, donde se compara en horizontal,
+              basta ese desfase para que se lea como un error de maquetación. */}
+          <div className="mt-1 min-h-[1.5rem]">
+            {destacado ? (
+              <p className="eyebrow text-dorado-light">El más contratado</p>
+            ) : (
+              !plan.seVende && (
+                <span className="inline-flex rounded-full border border-beige bg-beige/40 px-2.5 py-0.5 text-xs text-verde-300">
+                  ○ No se vende
+                </span>
+              )
+            )}
+          </div>
         </div>
 
         <Dropdown
@@ -110,8 +119,13 @@ export default function TarjetaPlan({
         </span>
       </p>
 
+      {/* ⚠️ Dos líneas fijas: `line-clamp-2` recorta si sobra y `min-h` rellena
+          si falta. Las descripciones van de una línea a dos, y sin esto todo lo
+          que viene debajo —clases, características, pie— arranca a distinta
+          altura en cada tarjeta. El formulario ya pide «una línea», así que
+          recortar a dos no esconde nada en la práctica. */}
       <p
-        className={`mt-3 text-sm ${
+        className={`mt-3 line-clamp-2 min-h-[2.5rem] text-sm ${
           destacado ? "text-beige/85" : "text-verde-700"
         }`}
       >
