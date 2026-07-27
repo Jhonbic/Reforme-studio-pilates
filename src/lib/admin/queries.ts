@@ -1,10 +1,10 @@
 import { calcularVariacion, moneda } from "./format";
 import {
-  CARTERA,
   CLIENTES,
   CONDICIONES_PLANES,
   EQUIPO,
   GASTOS,
+  HOY,
   MEMBRESIAS_POR_VENCER,
   MESES,
   MOVIMIENTO_CLIENTES,
@@ -82,22 +82,6 @@ export function getMovimientoClientes() {
   return MOVIMIENTO_CLIENTES;
 }
 
-export function getCartera() {
-  return CARTERA;
-}
-
-/**
- * Los últimos pagos cobrados, del más reciente al más antiguo.
- *
- * ⚠️ Devuelve una **ventana**, no el libro entero: son 118 pagos y la pantalla
- * enseña los últimos. Cuando exista el libro de ingresos completo con su propia
- * paginación, esta función crecerá con filtros de periodo — hoy no los tiene
- * porque no hay nada que filtrar más allá de "los últimos".
- */
-export function getUltimosPagos(cuantos = 8): Pago[] {
-  return PAGOS.slice(0, cuantos);
-}
-
 /**
  * El libro completo, del pago más reciente al más antiguo.
  *
@@ -108,6 +92,19 @@ export function getUltimosPagos(cuantos = 8): Pago[] {
  */
 export function getPagos(): Pago[] {
   return PAGOS;
+}
+
+/**
+ * La fecha que el panel considera «hoy».
+ *
+ * ⚠️ Existe para que las pantallas **no importen `HOY` de `mock.ts`**: la regla
+ * del proyecto es que la UI llame siempre a esta capa, y Finanzas se la estaba
+ * saltando. Hoy devuelve la constante congelada del mock —necesaria para que el
+ * prerenderizado sea reproducible—; con base de datos pasará a ser la fecha
+ * real del servidor y ninguna pantalla se enterará del cambio.
+ */
+export function getHoy(): string {
+  return HOY;
 }
 
 /** La base de clientes, ordenada alfabéticamente. Es el orden por defecto de
@@ -193,23 +190,11 @@ export function getMembresiasPorVencer(dias = 15) {
   );
 }
 
-export function getTotalCartera() {
-  return CARTERA.reduce((t, c) => t + c.importe, 0);
-}
-
 export function getIngresoEnRiesgo(dias = 7) {
   return getMembresiasPorVencer(dias).reduce(
     (t, m) => t + m.importeRenovacion,
     0,
   );
-}
-
-/** Utilidad = ingresos − gastos, mes a mes. */
-export function getUtilidadMensual() {
-  return MESES.map((m) => ({
-    mes: m.mes,
-    utilidad: m.ingresos - m.gastos,
-  }));
 }
 
 /**
@@ -393,9 +378,4 @@ export function getNotificaciones(): Notificacion[] {
     },
     ...NOTIFICACIONES,
   ];
-}
-
-/** Cuántos avisos sin leer. Lo consume el punto de la campana. */
-export function getNoLeidas(): number {
-  return getNotificaciones().filter((n) => !n.leida).length;
 }

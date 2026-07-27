@@ -5,9 +5,14 @@ import Link from "next/link";
 import AuthShell from "@/components/auth/AuthShell";
 import TextField from "@/components/auth/TextField";
 import { Button } from "@/components/ui/Button";
-import { esCorreo } from "@/lib/validacion";
+import { esCorreo, esMovilCO, soloDigitos } from "@/lib/validacion";
 
-type Errors = Partial<Record<"nombre" | "email" | "password" | "confirm" | "terms", string>>;
+type Errors = Partial<
+  Record<
+    "nombre" | "email" | "telefono" | "password" | "confirm" | "terms",
+    string
+  >
+>;
 
 export default function RegistroPage() {
   const [showPass, setShowPass] = useState(false);
@@ -32,6 +37,13 @@ export default function RegistroPage() {
     if (values.nombre.trim().length < 2) e.nombre = "Cuéntanos tu nombre.";
     if (!esCorreo(values.email))
       e.email = "Introduce un correo válido.";
+    /* El teléfono es OPCIONAL: se valida solo si lo han escrito. Es un dato de
+       cortesía para avisar de cambios de horario, no un requisito para abrir
+       cuenta — exigirlo perdería registros por nada. `esMovilCO` ya existía en
+       `lib/validacion`, usado por el alta del panel; aquí no se usaba pese a
+       tener el campo. */
+    if (values.telefono && !esMovilCO(soloDigitos(values.telefono)))
+      e.telefono = "Un móvil colombiano son 10 dígitos y empieza por 3.";
     if (values.password.length < 8)
       e.password = "Mínimo 8 caracteres.";
     if (values.confirm !== values.password)
@@ -122,6 +134,7 @@ export default function RegistroPage() {
               placeholder="+57 320 000 0000"
               value={values.telefono}
               onChange={(e) => set("telefono", e.target.value)}
+              error={errors.telefono}
             />
 
             <TextField

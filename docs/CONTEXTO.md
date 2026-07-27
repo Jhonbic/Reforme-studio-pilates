@@ -197,8 +197,8 @@ En `src/components/`:
 
 Fase 3 arrancada. **Solo UI con datos de ejemplo**, sin backend.
 
-- Secciones: **Dashboard** (construido), **Usuarios**, **Planes**, **Finanzas**
-  (marcadores con lo previsto en cada una, para que la navegación no dé 404).
+- Secciones: **Dashboard**, **Usuarios**, **Planes** y **Finanzas**, las cuatro
+  construidas. Lo que falta en ellas no es pantalla, es persistencia.
 - `app/admin/layout.tsx` — armazón propio: barra lateral verde en escritorio,
   cabecera fija + pastillas con scroll horizontal en móvil. **No usa el Navbar ni
   el Footer públicos**: son dos productos distintos, y aquí los efectos
@@ -220,10 +220,14 @@ Fase 3 arrancada. **Solo UI con datos de ejemplo**, sin backend.
     franja propia arriba del todo:** una barra entera para dos datos se come
     ~64px de alto en todas las pantallas del panel, y en móvil ya hay cabecera
     de marca y pastillas de navegación por encima. Aquí ocupa un hueco vacío.
-    - **Sigue sin haber buscador global ni campana** (el usuario pidió
-      explícitamente quitar el buscador). No hay backend al que buscar ni
-      notificaciones que contar, y un punto rojo sobre una campana que nunca
-      cambia es una mentira pequeña que se paga cuando llegue una de verdad.
+    - **Sigue sin haber buscador global**: el usuario pidió quitarlo, y no hay
+      backend al que buscar. Hubo un buscador decorativo en la cabecera durante
+      una fase y se retiró por eso mismo.
+    - **La campana SÍ existe** (`Campana.tsx`), y es la excepción razonada a lo
+      anterior: su primer aviso se **deriva** de las membresías por vencer, así
+      que cuenta algo real. Los otros dos son de ejemplo y el propio menú lo
+      dice. Un punto rojo que nunca cambia sería una mentira pequeña; este
+      cambia con los datos.
     - Desplegable con el mismo patrón que `MenuExportar`: `absolute` para no
       empujar el título, cierre al pulsar fuera y con `Escape`, foco de vuelta
       al botón. Dentro: nombre, correo, rol, «Ver la web pública» y «Cerrar
@@ -386,9 +390,10 @@ pero como menú de cuenta en la cabecera, no como bloque del dashboard: ver
 
 #### Usuarios (`/admin/usuarios`) — construido jul 2026
 
-Listado de personas del estudio. **Solo el listado**: la ficha individual será
-`/admin/usuarios/[id]`, que **todavía no existe** — las filas ya enlazan ahí, así
-que hoy dan 404.
+Listado de personas del estudio. La ficha individual (`/admin/usuarios/[id]`)
+**ya existe**: durante un tiempo las filas enlazaban a una ruta inexistente y
+los 118 clientes daban 404. Hoy se prerenderizan las 118 con
+`generateStaticParams`, que excluye `"nuevo"` a propósito.
 
 - **Dos pestañas, Clientes y Equipo, como estado de cliente y NO como ruta.**
   Podrían vivir en la URL, pero leer `searchParams` volvería la página dinámica y
@@ -822,8 +827,9 @@ Implementado en la constante `PALETA` de `charts/LineChart.tsx` (prop `tono`), q
 **solo cambia colores, nunca la geometría**. Los estados tienen su par claro para
 fondo oscuro: `--color-estado-ok-claro` / `--color-estado-grave-claro`.
 
-Build y lint verificados: `/`, `/login`, `/registro`, `/admin`, `/admin/usuarios`,
-`/admin/planes`, `/admin/finanzas` — las 7 siguen saliendo `○ Static`.
+Build y lint verificados. Ocho rutas: las siete anteriores más
+`/admin/usuarios/[id]`, que sale `● SSG` con 118 fichas prerenderizadas. Ninguna
+es dinámica.
 
 ## Mobile-first (dispositivo principal de los usuarios)
 
@@ -839,77 +845,87 @@ flex). Breakpoint por sección: hero `sm`, tarjetas de pilares y footer `md`, re
 Excepción deliberada: las **etiquetas y campos de formulario siguen alineados a la
 izquierda** (legibilidad); solo se centra su encabezado.
 
+
 ## 7. Fases del proyecto
 
-- **Fase 1 (hecha, jul 2026):** landing + UI de login/registro, sin backend.
-- **Fase 2 (pendiente):** auth real (p. ej. Supabase), imágenes reales del estudio.
-- **Fase 3 (en curso):** panel administrativo. Dashboard y listado de Usuarios
-  hechos con datos de ejemplo; faltan la ficha `/admin/usuarios/[id]`, Planes y
-  Finanzas.
+> Antes había **dos** secciones de fases, contradictorias entre sí, y ambas
+> afirmaban que la ficha `[id]`, Planes y Finanzas estaban sin construir. Se
+> fusionaron en esta al hacer limpieza (jul 2026).
 
-> Ojo al orden: la fase 3 **se adelantó a la 2**. Se está maquetando el panel
-> antes de que exista backend ni autenticación, a propósito, para decidir el
-> diseño con algo delante. Consecuencia directa: **`/admin` está abierto a
-> cualquiera** y todos sus datos son inventados.
+- **Fase 1 — landing (hecha).** Landing + UI de `/login` y `/registro`. Sin backend.
+- **Fase 1.5 — panel, solo lectura (hecha).** Dashboard, Usuarios (listado, alta,
+  ficha), Planes y Finanzas. Todo con `mock.ts`.
+- **Fase 2 — datos reales (siguiente).** Autenticación y base de datos. Es lo que
+  desbloquea los formularios, que hoy validan pero no guardan.
+- **Fase 3 — más módulos.** Clases y reservas, informes.
 
-**Dashboard construido:** Estadísticas principales (usuarios, clientes activos, instructores), tarjeta de ingresos del mes con selector de período, reparto por planes, tasa de renovación, métodos de pago, altas y bajas. Rejilla bento con 12 columnas en XL.
+> Ojo al orden: **la 1.5 se adelantó a la 2 a propósito**, para decidir el diseño
+> con algo delante. La consecuencia es que `/admin` está abierto y todos sus
+> datos son inventados.
 
-**Gestión de usuarios construida:** Listado de clientes y equipo con pestañas, búsqueda, filtros por estado, paginación (12 por página), exportación a CSV con dos opciones (clientes/equipo). Alta de cliente con formulario validado (nombre, email, teléfono, documento, EPS, acudiente si es menor).
+### Qué está construido (jul 2026)
 
-**Estructura:** Barra lateral fija (verde) en escritorio, cabecera expandible en móvil. Componentes en `src/components/admin/` + datos de ejemplo en `src/lib/admin/mock.ts`.
+Ocho rutas, todas `○ Static` o `● SSG`:
 
-**Diseño:** Paleta de marca (verde, dorado, beige), Cormorant + Lato, efectos suaves (motas + estela, sin goteo), mobile-first, dark mode NO (panel de trabajo).
+| Ruta | Estado |
+|---|---|
+| `/` | Landing completa |
+| `/login`, `/registro` | Solo UI, no envían a ningún sitio |
+| `/admin` | Dashboard bento + vista contable alternable |
+| `/admin/usuarios` | Listado, filtros, paginación, export CSV **real** |
+| `/admin/usuarios/nuevo` | Formulario validado · **no guarda** |
+| `/admin/usuarios/[id]` | Ficha de solo lectura (118 prerenderizadas) |
+| `/admin/planes` | Catálogo en tarjetas + CRUD · **no guarda** |
+| `/admin/finanzas` | Libro de movimientos con filtros + alta de gasto · **no guarda** |
 
-## 8. Fases del proyecto
+**Lo único que funciona de verdad** sin backend: la exportación a CSV, los
+filtros y búsquedas (en cliente) y el selector de periodo del dashboard.
 
-- **Fase 1 (landing, jul 2026):** landing + UI de login/registro, sin backend. ✅
-- **Fase 1.5 (admin, jul 2026):** panel administrativo (usuarios), mock data. ✅
-- **Fase 2 (siguiente):** auth real (Supabase u otro), backend para admin, imágenes reales.
-- **Fase 3:** módulos de clases, planes, reportes analíticos.
+## 8. Pendientes
 
-## 9. Pendientes inmediatos
+### Bloqueante
 
-**Bloqueantes / de riesgo**
-- [ ] **Proteger `/admin`.** Hoy entra cualquiera escribiendo la URL, y el reparto
-      por rol del login (dominio `@reforme.com`) **no es seguridad**, es un
-      marcador. No desplegar el panel de cara al público hasta resolverlo.
-- [ ] Conectar auth real (fase 2). El login ya no ofrece Google; decidir proveedor.
+- [ ] **`/admin` no tiene ninguna protección.** No hay `middleware.ts`, ni sesión,
+      ni dependencia de auth en `package.json`. `/login` **ni lee la contraseña**:
+      es una regex sobre el correo (`/@reforme\.(com|co)$/`). Y ni eso hace falta,
+      basta escribir la URL. **Está desplegado en público.**
+- [ ] **Nada de lo que se escribe se guarda.** No existe `src/app/api/`. Alta de
+      cliente, CRUD de planes y registro de gasto validan y avisan honestamente
+      de que no persisten.
+- [ ] **Falta `public/terminos-y-condiciones.pdf`.** El alta enlaza ahí
+      (`URL_TERMINOS` en `lib/admin/catalogos.ts`) → 404 en un documento legal.
+      No se redacta desde la web: lo aporta el estudio.
 
-**Panel administrativo**
-- [ ] **Mirar la rejilla bento renderizada** a 375 / 768 / 1280 / 1920. Compila y
-      pasa lint, pero la reorganización **no se ha validado a ojo**. Qué mirar:
-      que no haya scroll horizontal a 1920 (prueba del `min-w-0`), que las alturas
-      de los gráficos sigan siendo 200/240/280 al redimensionar (que no vuelva el
-      estiramiento), la legibilidad del `<details>` en las tarjetas oscuras, y que
-      a 375px la columna única cuente la historia en orden.
-- [x] **Usuarios: listado construido** (clientes + equipo).
-- [x] **Alta de cliente `/admin/usuarios/nuevo`** construida (solo UI: no guarda).
-- [ ] **Ficha individual `/admin/usuarios/[id]`**: las filas ya enlazan ahí y hoy
-      dan 404. ⚠️ Al crearla, que `generateStaticParams` **no emita `"nuevo"`**
-      (el segmento estático gana igualmente, pero conviene excluirlo).
-- [ ] Construir Planes y Finanzas (hoy son marcadores).
-- [ ] Sustituir `src/lib/admin/mock.ts` por datos reales cuando haya BD. Ese día,
-      `crearCliente(ficha)` mapea `FichaAlta` → `Cliente` y es donde se asigna el
-      plan (el alta no lo pregunta). Ojo: `mock.ts` congela `HOY = "2026-07-25"`
-      pero el formulario usa la fecha **real**; cuando ambos escriban en el mismo
-      almacén, `diasHasta()` daría valores raros para los clientes nuevos.
+### Contenido que falta aportar
 
-**Documentos y contenido pendiente de aportar**
-- [ ] **Dejar el PDF de términos y condiciones** en
-      `public/terminos-y-condiciones.pdf`. ⚠️ Hasta que esté, el enlace del alta
-      **da 404**. La ruta está en `URL_TERMINOS` (`lib/admin/catalogos.ts`), en un
-      solo sitio. No se redacta desde la web: es un documento legal del estudio.
-- [ ] Apuntar ahí también los dos enlaces de `/registro`, que siguen con
-      `href="#"` muertos desde la fase 1 (términos y política de privacidad).
+- [ ] Fotos reales del estudio. Hoy la única imagen del sitio es el logo; donde
+      iría la foto hay una tarjeta de degradado.
+- [ ] **Favicon real**: el actual es el de `create-next-app`, sin tocar desde el
+      commit inicial.
+- [ ] SVG oficial del logo. El que hay es PNG y solo está en el hero; Navbar,
+      Footer y AuthShell siguen con el isotipo recreado a mano (`Logo.tsx`).
+- [ ] Destino para los tres `href="#"`: recuperar contraseña en `/login`, y
+      términos y política de privacidad en `/registro`.
 
-**Marca e imagen**
-- [x] Logo oficial en el hero (`public/logo-reforme.png`).
-- [x] Panel administrativo fase 1 (usuarios) con mock data.
-- [ ] Unificar logo: Navbar, Footer y AuthShell siguen con el isotipo recreado (`Logo.tsx`). Conseguir un **SVG** oficial (el que hay es PNG) + favicon real.
-- [ ] Imágenes reales del estudio.
-- [ ] Conectar auth real (fase 2, Supabase u otro). El login ya no ofrece Google.
-- [ ] Backend para admin (endpoints `/api/usuarios`, conexión a base de datos).
-- [ ] Proteger rutas `/admin` con autenticación.
+### Calidad
 
-**Validación**
-- [ ] Validar en dispositivo real el drawer móvil y las páginas de auth (capturas pendientes).
+- [ ] **Cero tests y cero CI.** No hay `.github/`, ni Vitest/Playwright, ni script
+      de `typecheck`. Todo el CI es el auto-deploy de Vercel al hacer push.
+- [ ] **La rejilla bento sigue sin validarse a ojo** a 375 / 768 / 1280 / 1920.
+      Qué mirar: que no haya scroll horizontal a 1920 (prueba del `min-w-0`), que
+      los gráficos no se estiren al redimensionar, y que a 375px la columna única
+      cuente la historia en orden.
+- [ ] Sin `robots.ts`, `sitemap.ts` ni imagen Open Graph: al compartir el enlace
+      por WhatsApp sale sin miniatura.
+
+### Al conectar la base de datos
+
+- `mock.ts` es **el único archivo a sustituir**. Toda la UI pasa por
+  `queries.ts`, así que el cambio es volver esas funciones `async`.
+- ⚠️ `HOY = "2026-07-25"` está **congelado** para que el prerenderizado sea
+  reproducible. Se lee con `getHoy()`; ese es el único sitio a tocar.
+- ⚠️ `PAGOS` se **deriva** de `CLIENTES`. Con base de datos la relación se
+  invierte: el pago pasa a ser el hecho registrado y el vencimiento se calcula a
+  partir de él.
+- ⚠️ `crearCliente(ficha)` mapeará `FichaAlta` → `Cliente`, y es ahí donde se
+  asigna el plan (el alta no lo pregunta).

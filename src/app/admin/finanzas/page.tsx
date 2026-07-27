@@ -3,8 +3,11 @@ import CardHeader from "@/components/admin/CardHeader";
 import StatTile from "@/components/admin/StatTile";
 import LibroPagos from "@/components/admin/finanzas/LibroPagos";
 import RegistrarGasto from "@/components/admin/finanzas/RegistrarGasto";
-import { HOY } from "@/lib/admin/mock";
-import { getIndicadoresFinanzas, getPagos } from "@/lib/admin/queries";
+import {
+  getHoy,
+  getIndicadoresFinanzas,
+  getPagos,
+} from "@/lib/admin/queries";
 
 /**
  * Finanzas.
@@ -24,6 +27,7 @@ import { getIndicadoresFinanzas, getPagos } from "@/lib/admin/queries";
 export default function FinanzasPage() {
   const indicadores = getIndicadoresFinanzas();
   const pagos = getPagos();
+  const hoy = getHoy();
 
   return (
     <div className="mx-auto w-full max-w-[1440px]">
@@ -54,9 +58,9 @@ export default function FinanzasPage() {
               titulo="Libro de movimientos"
               descripcion="Todos los cobros, con su plan y su método. Cada fila lleva a la ficha del cliente."
             />
-            <RegistrarGasto hoy={HOY} />
+            <RegistrarGasto hoy={hoy} />
           </div>
-          <LibroPagos pagos={pagos} hoy={HOY} />
+          <LibroPagos pagos={pagos} hoy={hoy} />
         </Card>
       </div>
     </div>

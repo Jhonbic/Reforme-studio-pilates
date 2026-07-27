@@ -33,7 +33,8 @@ y entra a `http://<IP-de-tu-PC>:3000` (la IP la da `ipconfig`).
 | `npm run dev` | Servidor de desarrollo |
 | `npm run build` | Build de producción |
 | `npm start` | Sirve el build |
-| `npx eslint src --ext .ts,.tsx` | Linter |
+| `npm run lint` | Linter |
+| `npx tsc --noEmit` | Comprobación de tipos |
 
 ## Rutas
 
@@ -41,9 +42,17 @@ y entra a `http://<IP-de-tu-PC>:3000` (la IP la da `ipconfig`).
 - `/` — landing
 - `/login`, `/registro` — solo UI, sin backend
 
-**Panel administrativo**
-- `/admin` — dashboard (datos de ejemplo)
-- `/admin/usuarios`, `/admin/planes`, `/admin/finanzas` — aún sin construir
+**Panel administrativo** — construido, con datos de ejemplo
+- `/admin` — dashboard
+- `/admin/usuarios` — listado con filtros y export CSV
+- `/admin/usuarios/nuevo` — alta de cliente (valida, **no guarda**)
+- `/admin/usuarios/[id]` — ficha de cliente (solo lectura)
+- `/admin/planes` — catálogo con crear/editar/eliminar (**no guardan**)
+- `/admin/finanzas` — libro de movimientos y alta de gasto (**no guarda**)
+
+> Lo único que funciona de verdad sin backend: la exportación a CSV, los filtros
+> y búsquedas (en cliente) y el selector de periodo del dashboard. El resto de
+> acciones validan y avisan de que no persisten.
 
 > ⚠️ **`/admin` no está protegido.** No hay autenticación todavía: entra cualquiera
 > que escriba la URL, y todas sus cifras son inventadas

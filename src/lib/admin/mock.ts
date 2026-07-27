@@ -1,5 +1,4 @@
 import type {
-  CarteraVencida,
   Cliente,
   CondicionesPlan,
   EstadoMembresia,
@@ -394,11 +393,10 @@ export const MEMBRESIAS_POR_VENCER: MembresiaPorVencer[] = CLIENTES.filter(
   }))
   .sort((a, b) => a.diasRestantes - b.diasRestantes);
 
-export const CARTERA: CarteraVencida[] = [
-  { tramo: "1-30 días", importe: 1_240_000, clientes: 7 },
-  { tramo: "31-60 días", importe: 680_000, clientes: 3 },
-  { tramo: "Más de 60 días", importe: 415_000, clientes: 2 },
-];
+/* `CARTERA` (deuda vencida por tramos de antigüedad) vivía aquí y se borró con
+   la tarjeta que la pintaba. Los 12 clientes con membresía vencida siguen en
+   `CLIENTES`, así que el dato se puede reconstruir el día que vuelva a hacer
+   falta — y entonces derivándolo de ahí, no escrito a mano como estaba. */
 
 /* Reparto de métodos de cobro, en la misma proporción que `REPARTO_METODOS`:
    Nequi 4 de cada 10, Transferencia 3, Efectivo 2 y Tarjeta 1. Va como patrón
