@@ -7,7 +7,8 @@ import { SECCIONES, esSeccionActiva } from "./secciones";
 /**
  * Navegación del panel. En escritorio vive en la barra lateral; en móvil es una
  * fila de pastillas con scroll horizontal — un cajón desplegable sería un clic
- * de más para solo cuatro secciones.
+ * de más para cinco secciones. Ese es más o menos el techo: si algún día son
+ * ocho, el raíl deja de leerse y toca replantear el móvil.
  */
 export default function AdminNav({
   variante,

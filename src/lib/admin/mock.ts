@@ -1,4 +1,7 @@
+import { CUPOS_SUGERIDOS } from "./catalogos";
+import { diaSemana, diasEntre, sumarDias } from "./horario";
 import type {
+  Clase,
   Cliente,
   CondicionesPlan,
   EstadoMembresia,
@@ -12,6 +15,7 @@ import type {
   Pago,
   RepartoMetodoPago,
   RepartoPlan,
+  TipoClase,
   TipoPlan,
   UsuarioActual,
 } from "./types";
@@ -83,19 +87,16 @@ export const MOVIMIENTO_CLIENTES: MovimientoClientes[] = [
  */
 export const HOY = "2026-07-25";
 
-/** Suma (o resta, con negativos) días a una fecha ISO corta. En UTC, para que
- *  el huso horario no desplace nunca el día. */
-export function sumarDias(iso: string, dias: number): string {
-  const [anio, mes, dia] = iso.split("-").map(Number);
-  return new Date(Date.UTC(anio, mes - 1, dia + dias))
-    .toISOString()
-    .slice(0, 10);
-}
+/* `sumarDias` vivía aquí y se mudó a `horario.ts` (misma implementación, en
+   UTC). ⚠️ No es una mudanza cosmética: `mock.ts` es **el único archivo que se
+   tira** el día que haya base de datos, y un ayudante de fechas que usan la
+   agenda y media docena de pantallas no puede irse con él. `HOY` sí se queda:
+   eso es un dato, no una función. */
 
-/** Días desde `HOY` hasta la fecha dada. Negativo si ya pasó. */
+/** Días desde `HOY` hasta la fecha dada. Negativo si ya pasó. Se queda aquí
+ *  porque va atada a `HOY`; la versión general es `diasEntre()`. */
 export function diasHasta(iso: string): number {
-  const ms = Date.parse(`${iso}T00:00:00Z`) - Date.parse(`${HOY}T00:00:00Z`);
-  return Math.round(ms / 86_400_000);
+  return diasEntre(HOY, iso);
 }
 
 /** Precio de renovación por modalidad. Son los mismos importes que ya usaban
@@ -517,3 +518,146 @@ export const NOTIFICACIONES: Notificacion[] = [
     href: "/admin/usuarios",
   },
 ];
+
+/* ── Agenda de clases ─────────────────────────────────────────────────────
+   El horario NO está escrito clase a clase: se genera a partir de una plantilla
+   semanal, que es como funciona un estudio de verdad —los mismos huecos todas
+   las semanas— y como acabará funcionando la tabla real (una plantilla que se
+   proyecta a fechas concretas).
+
+   ⚠️ **Nada aquí usa `Math.random()`.** El panel se prerenderiza en el build:
+   con datos aleatorios, cada compilación daría un horario distinto y el HTML del
+   servidor no coincidiría con el del cliente. Lo que parece azar (las reservas,
+   las dos clases anuladas) sale de un hash del id, que es estable para siempre. */
+
+/** Una casilla de la plantilla semanal. */
+type Ranura = { hora: string; tipo: TipoClase; duracionMin: number };
+
+const MANANA: Ranura[] = [
+  { hora: "06:00", tipo: "Reformer", duracionMin: 50 },
+  { hora: "07:00", tipo: "Reformer", duracionMin: 50 },
+  { hora: "09:00", tipo: "Mat", duracionMin: 55 },
+];
+
+/* Las dos de las 18:00 son SIMULTÁNEAS y van a propósito: son la prueba de que
+   «varias clases el mismo día» incluye varias clases a la misma hora, en dos
+   salas y con dos instructoras distintas. Van seguidas en el array porque el
+   reparto de instructoras es por índice (ver `instructoraDeRanura`). */
+const TARDE: Ranura[] = [
+  { hora: "17:00", tipo: "Reformer", duracionMin: 50 },
+  { hora: "18:00", tipo: "Reformer", duracionMin: 50 },
+  { hora: "18:00", tipo: "Mat", duracionMin: 55 },
+  { hora: "19:00", tipo: "Reformer", duracionMin: 50 },
+];
+
+const PRIVADA: Ranura = { hora: "16:00", tipo: "Privada", duracionMin: 55 };
+
+/** Índice = día de la semana con **lunes 0** (ver `diaSemana`). El domingo
+ *  cierra: por eso es un array vacío y no una excepción en el bucle. */
+const HORARIO_SEMANAL: Ranura[][] = [
+  [...MANANA, ...TARDE], // lun
+  [...MANANA, ...TARDE, PRIVADA], // mar
+  [...MANANA, ...TARDE], // mié
+  [...MANANA, ...TARDE, PRIVADA], // jue
+  [...MANANA, ...TARDE], // vie
+  [
+    { hora: "07:00", tipo: "Reformer", duracionMin: 50 },
+    { hora: "08:00", tipo: "Reformer", duracionMin: 50 },
+    { hora: "09:00", tipo: "Mat", duracionMin: 55 },
+  ], // sáb
+  [], // dom — cerrado
+];
+
+/**
+ * Quién puede dar clase.
+ *
+ * ⚠️ **Se DERIVA de `EQUIPO`**, no es una lista aparte. Escrita a mano, dar de
+ * baja a alguien en `/admin/usuarios` la dejaría dando clases aquí — justo el
+ * fallo que ya se corrigió haciendo que `MEMBRESIAS_POR_VENCER` saliera de
+ * `CLIENTES`.
+ */
+const IDS_INSTRUCTORAS = EQUIPO.filter(
+  (m) => m.rol === "Instructora" && m.activo,
+).map((m) => m.id);
+
+/**
+ * Reparto de instructoras por índice de ranura, desplazado un puesto cada día.
+ *
+ * ⚠️ **Que sea por índice es lo que impide generar un horario imposible.** Dos
+ * ranuras consecutivas nunca reciben la misma instructora (hay 3 activas), y las
+ * únicas clases simultáneas de la plantilla —las dos de las 18:00— están
+ * justamente en posiciones consecutivas. Sin esto, los datos de ejemplo podrían
+ * contradecir la validación de solapamiento del propio formulario.
+ */
+function instructoraDeRanura(indice: number, diasDesdeInicio: number): string {
+  return IDS_INSTRUCTORAS[(indice + diasDesdeInicio) % IDS_INSTRUCTORAS.length];
+}
+
+/**
+ * Hash FNV-1a de una cadena.
+ *
+ * Sustituye a `Math.random()` para todo lo que tiene que *parecer* variado sin
+ * *ser* aleatorio: mismo id, mismo resultado, en el build y en el navegador.
+ */
+function siembra(texto: string): number {
+  let h = 2_166_136_261;
+  for (let i = 0; i < texto.length; i++) {
+    h ^= texto.charCodeAt(i);
+    h = Math.imul(h, 16_777_619);
+  }
+  return h >>> 0;
+}
+
+/** Ventana de la agenda: dos semanas atrás (para que «Finalizada» tenga algo que
+ *  enseñar) y tres por delante (que es lo que se programa de verdad). */
+const DIAS_ATRAS = 14;
+const DIAS_ADELANTE = 21;
+
+/**
+ * El horario completo, ordenado por fecha y hora.
+ *
+ * ⚠️ **`reservas` es lo único inventado que dejará de escribirse.** Cuando
+ * exista la vista de cliente será un `COUNT` sobre la tabla de reservas; aquí es
+ * un hash del id acotado para que lo lejano se vea menos lleno que lo inmediato,
+ * que es como se llena una agenda de verdad.
+ */
+export const CLASES: Clase[] = (() => {
+  const clases: Clase[] = [];
+
+  for (let d = -DIAS_ATRAS; d <= DIAS_ADELANTE; d++) {
+    const fecha = sumarDias(HOY, d);
+    const ranuras = HORARIO_SEMANAL[diaSemana(fecha)];
+
+    ranuras.forEach((r, i) => {
+      /* La inicial del tipo entra en el id porque las dos clases de las 18:00
+         comparten fecha y hora: sin ella, tendrían el mismo id. */
+      const id = `c-${fecha}-${r.hora.replace(":", "")}-${r.tipo[0]}`;
+      const cupos = CUPOS_SUGERIDOS[r.tipo];
+
+      /* Una clase a tres semanas vista con 8 de 8 reservas no se cree nadie:
+         más allá de una semana el techo baja a la mitad del aforo. */
+      const techo =
+        diasEntre(HOY, fecha) > 7 ? Math.ceil(cupos / 2) : cupos;
+
+      clases.push({
+        id,
+        tipo: r.tipo,
+        fecha,
+        horaInicio: r.hora,
+        duracionMin: r.duracionMin,
+        instructoraId: instructoraDeRanura(i, d + DIAS_ATRAS),
+        cupos,
+        reservas: siembra(id) % (techo + 1),
+        /* ~2 % de las clases anuladas: las justas para que el estado exista en
+           pantalla sin que la agenda parezca rota. */
+        cancelada: siembra(`${id}-anulada`) % 45 === 0,
+      });
+    });
+  }
+
+  return clases.sort((a, b) =>
+    a.fecha === b.fecha
+      ? a.horaInicio.localeCompare(b.horaInicio)
+      : a.fecha.localeCompare(b.fecha),
+  );
+})();

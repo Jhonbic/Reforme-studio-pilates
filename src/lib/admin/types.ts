@@ -125,6 +125,112 @@ export type FichaAlta = {
   aceptaTerminos: boolean;
 };
 
+/**
+ * Modalidades de clase que se programan en la agenda.
+ *
+ * ⚠️ **Lista cerrada, y provisional**: son las tres que tiene sentido esperar en
+ * un estudio de reformer, pero **las tiene que confirmar el estudio**. Cerrada y
+ * no texto libre por la misma razón que la EPS del alta: escritas a mano, la
+ * base acabaría con «Reformer», «reformer» y «Reformer grupal» como tres
+ * modalidades distintas y no se podría contar por modalidad nunca.
+ */
+export type TipoClase = "Reformer" | "Mat" | "Privada";
+
+/**
+ * Una clase programada en el horario.
+ *
+ * Guarda **solo lo que alguien decide**: qué, cuándo, cuánto dura, quién la da y
+ * cuánta gente cabe. Todo lo demás —cuándo termina, en qué estado está, cuántos
+ * huecos quedan— se deriva; ver `ClaseEnAgenda`.
+ *
+ * ⚠️ **No guarda `instructora` como nombre, sino `instructoraId`.** Con el
+ * nombre copiado, cambiar cómo se llama una miembro del equipo en `/admin/usuarios`
+ * dejaría atrás todas sus clases pasadas diciendo el nombre viejo. Es la misma
+ * regla por la que `Pago` guarda `clienteId`.
+ */
+export type Clase = {
+  id: string;
+  tipo: TipoClase;
+  /** ISO corto, `"2026-07-27"`. */
+  fecha: string;
+  /** 24 h, `"07:00"`. Ver `lib/admin/horario.ts` para el porqué del formato. */
+  horaInicio: string;
+  /** Minutos. La hora de fin se calcula, no se guarda. */
+  duracionMin: number;
+  /** Id de un `MiembroEquipo` con rol `Instructora`. */
+  instructoraId: string;
+  /** Personas que caben. En una `Privada` es 1. */
+  cupos: number;
+  /**
+   * Reservas confirmadas.
+   *
+   * ⚠️ Hoy es un número escrito en el mock. El día que exista la vista de
+   * cliente será un `COUNT` sobre la tabla de reservas y **dejará de poder
+   * escribirse**: por eso no está en `BorradorClase`: nadie teclea cuánta gente
+   * se ha apuntado.
+   */
+  reservas: number;
+  /**
+   * Se anuló después de haberla publicado.
+   *
+   * ⚠️ **Esto sí se guarda y no se deriva**, al revés que el resto del estado:
+   * que una clase se cancelara es un hecho que pasó, y hay gente que la tenía
+   * reservada. Borrarla del horario dejaría a esas personas sin explicación.
+   */
+  cancelada: boolean;
+};
+
+/**
+ * En qué punto está una clase.
+ *
+ * ⚠️ **Se calcula, no se guarda** — misma doctrina que `estado_de_membresia()`
+ * en la base de datos: un estado guardado envejece solo, y una clase «Programada»
+ * de la semana pasada seguiría diciéndolo para siempre.
+ *
+ * ⚠️ **El orden en que se comprueban ES la definición**, y hay dos casos que se
+ * deciden ahí:
+ * 1. `Cancelada` gana a todo, incluso cuando ya pasó la fecha: para quien la
+ *    tenía reservada, lo que importa es que se anuló, no que el día pasó.
+ * 2. `Finalizada` gana a `Llena`: una clase de ayer que estaba llena ya no
+ *    admite reservas porque terminó, no porque esté completa.
+ */
+export type EstadoClase = "Cancelada" | "Finalizada" | "Llena" | "Programada";
+
+/**
+ * Lo que consume la agenda: la clase más todo lo que se deduce de ella.
+ *
+ * La UI **no calcula nada de esto**: recibe el nombre de la instructora ya
+ * resuelto, la hora de fin, el estado y los huecos libres. Así la misma clase no
+ * puede salir «Llena» en un sitio y «Programada» en otro.
+ */
+export type ClaseEnAgenda = Clase & {
+  /** Nombre resuelto desde `EQUIPO` a partir de `instructoraId`. */
+  instructora: string;
+  /** `"07:50"`, calculada con `finDe()`. */
+  horaFin: string;
+  estado: EstadoClase;
+  /** Cupos sin reservar. Nunca negativo. */
+  libres: number;
+};
+
+/**
+ * Una clase que se está creando o editando en el formulario.
+ *
+ * ⚠️ **No es una `Clase`, igual que `FichaAlta` no es un `Cliente`.** Faltan
+ * tres campos y falta cada uno por su motivo: `id` lo pone quien guarda,
+ * `reservas` lo ponen los clientes al reservar y `cancelada` es una acción
+ * aparte con su propia confirmación. Un formulario que pudiera escribir esos
+ * tres permitiría inventarse asistentes.
+ */
+export type BorradorClase = {
+  tipo: TipoClase;
+  fecha: string;
+  horaInicio: string;
+  duracionMin: number;
+  instructoraId: string;
+  cupos: number;
+};
+
 export type RolEquipo = "Instructora" | "Administración" | "Recepción";
 
 export type MiembroEquipo = {

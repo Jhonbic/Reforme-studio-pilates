@@ -1,4 +1,4 @@
-import type { TipoIdentificacion } from "./types";
+import type { TipoClase, TipoIdentificacion } from "./types";
 
 /**
  * Listas cerradas del dominio.
@@ -64,3 +64,59 @@ export const EPS_OTRA = "Otra";
  * del cliente.
  */
 export const URL_TERMINOS = "/terminos-y-condiciones.pdf";
+
+/* ── Agenda de clases ───────────────────────────────────────────────────── */
+
+/** ⚠️ Provisional: las tiene que confirmar el estudio. Ver `TipoClase`. */
+export const TIPOS_CLASE: TipoClase[] = ["Reformer", "Mat", "Privada"];
+
+/**
+ * Cuánta gente cabe en cada modalidad, como valor de partida al crear.
+ *
+ * ⚠️ **Es una sugerencia, no un límite**: el campo queda editable porque el
+ * aforo real depende de cuántas máquinas haya en la sala, y eso no lo sabe el
+ * código. Lo que sí evita es teclear «8» seiscientas veces.
+ *
+ * `Privada` es 1 por definición: si cupieran dos, no sería privada.
+ */
+export const CUPOS_SUGERIDOS: Record<TipoClase, number> = {
+  Reformer: 8,
+  Mat: 12,
+  Privada: 1,
+};
+
+/**
+ * Duraciones que se pueden elegir.
+ *
+ * ⚠️ **Lista cerrada y no un campo numérico**, y esto ahorra una validación
+ * entera: con un `<input>` habría que rechazar el 0, los negativos, el 7 y el
+ * 500. Siendo un `<select>`, **una duración imposible no se puede elegir** — la
+ * misma doctrina que el selector de periodo del dashboard («los rangos
+ * imposibles no se validan: no se pueden elegir»).
+ */
+export const DURACIONES_MIN = [30, 45, 50, 55, 60, 75, 90];
+
+/** Primera y última hora a la que puede empezar una clase, y el salto entre
+ *  horas seleccionables. Fuera de esa franja el estudio está cerrado. */
+const APERTURA = "05:00";
+const CIERRE = "21:00";
+const PASO_MIN = 15;
+
+/**
+ * Las horas de inicio seleccionables, de 05:00 a 21:00 cada cuarto de hora.
+ *
+ * Se generan en vez de escribirse: son 65 y a mano acabarían con un salto o un
+ * duplicado. Por el mismo motivo que las duraciones, esto convierte «la hora no
+ * es válida» en un error que **no puede existir**.
+ */
+export const HORAS_CLASE: string[] = (() => {
+  const [hA, mA] = APERTURA.split(":").map(Number);
+  const [hC, mC] = CIERRE.split(":").map(Number);
+  const horas: string[] = [];
+  for (let m = hA * 60 + mA; m <= hC * 60 + mC; m += PASO_MIN) {
+    horas.push(
+      `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`,
+    );
+  }
+  return horas;
+})();

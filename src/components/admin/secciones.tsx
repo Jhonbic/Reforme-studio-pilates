@@ -41,6 +41,19 @@ function IconoUsuarios() {
   );
 }
 
+/* ⚠️ Un RELOJ y no un calendario, aunque la agenda vaya por días: el calendario
+   ya es el icono de Planes (por la vigencia de la membresía). Dos secciones
+   vecinas con el mismo dibujo se eligen mal en el menú, y en móvil las pastillas
+   se leen de reojo. Lo que distingue a Clases es la hora. */
+function IconoClases() {
+  return (
+    <svg {...svg}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5V12l3 1.8" />
+    </svg>
+  );
+}
+
 function IconoPlanes() {
   return (
     <svg {...svg}>
@@ -64,9 +77,13 @@ export type Seccion = {
   icono: () => React.ReactElement;
 };
 
+/* El orden es el del día de trabajo, no el alfabético: Clases va detrás de
+   Usuarios porque las dos son la operación diaria del estudio (quién viene, qué
+   se da), mientras Planes y Finanzas se miran de vez en cuando. */
 export const SECCIONES: Seccion[] = [
   { href: "/admin", label: "Dashboard", icono: IconoDashboard },
   { href: "/admin/usuarios", label: "Usuarios", icono: IconoUsuarios },
+  { href: "/admin/clases", label: "Clases", icono: IconoClases },
   { href: "/admin/planes", label: "Planes", icono: IconoPlanes },
   { href: "/admin/finanzas", label: "Finanzas", icono: IconoFinanzas },
 ];

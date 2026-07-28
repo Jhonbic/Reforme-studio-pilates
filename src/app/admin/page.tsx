@@ -9,12 +9,14 @@ import GroupedBars from "@/components/admin/charts/GroupedBars";
 import HBars from "@/components/admin/charts/HBars";
 import { moneda, monedaCorta, numero, porcentaje } from "@/lib/admin/format";
 import {
+  SEMANAS_RESERVAS,
   getGastos,
   getIndicadores,
   getMesesFinancieros,
   getMovimientoClientes,
   getRepartoMetodos,
   getRepartoPlanes,
+  getReservasPorDiaSemana,
   getTasaRenovacion,
 } from "@/lib/admin/queries";
 
@@ -31,6 +33,7 @@ export default function DashboardPage() {
   const movimiento = getMovimientoClientes();
   const renovacion = getTasaRenovacion();
   const gastos = getGastos();
+  const porDia = getReservasPorDiaSemana();
 
   const totalPlanes = planes.reduce((t, p) => t + p.importe, 0);
   const totalMetodos = metodos.reduce((t, m) => t + m.importe, 0);
@@ -141,6 +144,54 @@ export default function DashboardPage() {
               { nombre: "Bajas", color: C3 },
             ]}
             formato="clientes"
+            formatoEje="numero"
+          />
+        </ChartCard>
+
+        {/* ---------- Reservas por día de la semana ----------
+            ⚠️ Agrupa por DÍA DE LA SEMANA, no por fecha: un lunes suelto no
+            dice nada y catorce lunes sí. Responde a «¿qué días llena el
+            estudio?», que es lo que decide dónde añadir clases y dónde
+            quitarlas — la primera pregunta del dashboard que no es de plata.
+
+            ⚠️ Son RESERVAS, no asistencias verificadas: no existe todavía el
+            registro de quién apareció. Esta es la tarjeta donde entrará como
+            segunda serie el día que exista, y es lo que hará visible el
+            «reserva y no viene». Ver `getReservasPorDiaSemana()`.
+
+            A ancho completo como la vista contable: siete barras en cuatro
+            columnas de `xl` (~360px) se apelotonan, y el domingo a cero necesita
+            sitio para leerse como «cerramos» y no como un fallo. */}
+        <ChartCard
+          titulo="Reservas por día de la semana"
+          className="md:col-span-6 xl:col-span-12"
+          /* La ventana va en una pastilla y no en `descripcion`: las tarjetas
+             del dashboard van sin párrafo a propósito, pero sin decir «de
+             cuándo» la cifra no se puede interpretar. */
+          accion={
+            <span className="rounded-full border border-beige bg-arena px-3 py-1 text-xs text-verde-700">
+              Últimas {SEMANAS_RESERVAS} semanas
+            </span>
+          }
+          tabla={{
+            cabeceras: ["Día", "Clases", "Reservas", "Cupos", "Ocupación"],
+            filas: porDia.map((d) => [
+              d.dia,
+              numero(d.clases),
+              numero(d.reservas),
+              numero(d.cupos),
+              /* Sin clases no hay ocupación que calcular, y eso NO es «0 %»:
+                 es que la pregunta no aplica. Mismo criterio que el margen de
+                 Finanzas con ingresos a cero. */
+              d.cupos ? porcentaje((d.reservas / d.cupos) * 100, 0) : "—",
+            ]),
+          }}
+        >
+          <GroupedBars
+            datos={porDia.map((d) => ({ label: d.dia, valores: [d.reservas] }))}
+            series={[{ nombre: "Reservas", color: C1 }]}
+            categoria="día de la semana"
+            formato="numero"
             formatoEje="numero"
           />
         </ChartCard>

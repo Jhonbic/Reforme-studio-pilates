@@ -125,11 +125,24 @@ En `src/components/`:
   clases estaba copiado a mano en cinco sitios. `ChartCard.tsx` se monta sobre
   ellos y **conserva su API pública**; re-exporta el tipo `TablaDatos`, que se
   mudó a `TablaDeDatos.tsx`.
-- `secciones.tsx` — las 4 secciones del panel con sus iconos, en un solo sitio.
+- `Pastilla.tsx` — la pastilla de estado (símbolo + texto + color) y el mapa
+  `TONO_ESTADO` con los cuatro pares `ok/aviso/grave/neutro`. Nació dentro de
+  `usuarios/EstadoBadge.tsx` y **subió a `admin/` al aparecer el segundo
+  consumidor**, los estados de clase: `import { Pastilla } from
+  "../usuarios/EstadoBadge"` desde `clases/` habría atado dos módulos que no
+  tienen nada que ver. `EstadoBadge` la sigue re-exportando porque `FilaMiembro`
+  entra por ahí.
+- `secciones.tsx` — las 5 secciones del panel con sus iconos, en un solo sitio.
   Sin `"use client"` (SVG puro), así lo consumen igual `AdminNav` (cliente) y
   `AdminTopbar`. Exporta además `SUBSECCIONES`, las rutas hijas con título propio
   (hoy solo `/admin/usuarios/nuevo`): van **aparte de `SECCIONES`** para no pintar
-  una quinta pastilla en el menú.
+  una pastilla de más en el menú.
+  - El orden es el del **día de trabajo**, no el alfabético: Clases va detrás de
+    Usuarios porque las dos son la operación diaria; Planes y Finanzas se miran
+    de vez en cuando.
+  - ⚠️ **Clases usa un RELOJ y no un calendario**: el calendario ya es el icono
+    de Planes (por la vigencia). Dos secciones vecinas con el mismo dibujo se
+    eligen mal, y en móvil las pastillas se leen de reojo.
 - `admin/campos/` — **el juego de campos de formulario del panel**, nacido con el
   alta de cliente: `CampoTexto`, `CampoSelect`, `CampoCheck`, `Seccion` y
   `estilos.ts` (clases + `idsDeCampo()`/`describedBy()`). ⚠️ **No reutiliza
@@ -139,6 +152,9 @@ En `src/components/`:
   estética es la pública (`rounded-xl`, `bg-white/60`) y aquí manda la del panel
   (`rounded-full`, `min-h-[44px]`). Vive en `admin/` y no en `admin/usuarios/`
   porque Planes y Finanzas van a necesitar formularios.
+- `admin/clases/` — la agenda: `PanelClases` (día, filtro y diálogos),
+  `SelectorDia` (tira de la semana), `FilaClase`, `FormularioClase` y
+  `EstadoClaseBadge`. Ver §6.
 - `AdminNav.tsx` (cliente, estado activo por `usePathname`), `AdminTopbar.tsx`
   (cliente, titula la página desde la ruta), `StatTile.tsx`,
   `TarjetaIngresos.tsx` (la tarjeta héroe), `SeccionPendiente.tsx`.
@@ -203,6 +219,14 @@ Fase 3 arrancada. **Solo UI con datos de ejemplo**, sin backend.
   cabecera fija + pastillas con scroll horizontal en móvil. **No usa el Navbar ni
   el Footer públicos**: son dos productos distintos, y aquí los efectos
   (grano, parallax, smooth scroll) estorbarían.
+  - ⚠️ **`AppSidebar` es verde de marca (`bg-verde`) con `HeroFX`** (motas
+    doradas, `goteo={false}`). Estuvo un tiempo en blanco y se devolvió al verde
+    en jul 2026 (decisión del usuario: «utiliza más el color verde»). Es la
+    única superficie del panel que está **siempre** en pantalla, así que es
+    donde el verde se ve todo el rato sin robarle contraste a las tarjetas de
+    datos, que se quedan blancas. El canvas va a `-z-10` con `isolate` en el
+    `<aside>`, **no envolviendo a los hijos**: envolverlos rompería el
+    `flex-col` y el `flex-1` del `<nav>`. Mismo montaje que `Card` con `fx`.
   - La lateral es `lg:sticky lg:top-0 lg:h-[100svh]`. ⚠️ El **alto explícito no
     es opcional**: como hijo flex, el `stretch` por defecto la haría tan alta como
     toda la página y `sticky` no tendría recorrido por el que pegarse — se quedaba
@@ -309,6 +333,49 @@ pero como menú de cuenta en la cabecera, no como bloque del dashboard: ver
 | 12 | Utilidad del mes · Clientes activos · Cartera por vencer |
 | 8 + 4 | Ingresos del mes (héroe oscuro) · Ingresos por tipo de plan |
 | 4 + 4 + 4 | Tasa de renovación (oscura) · Cómo pagan los clientes · Altas y bajas |
+| 12 | Reservas por día de la semana |
+| 12 | Vista contable, alternable |
+
+**«Reservas por día de la semana»** (jul 2026, a petición del usuario) —
+`getReservasPorDiaSemana()`:
+- ⚠️ **Agrupa por día de la semana, NO por fecha.** Un lunes suelto no dice
+  nada; catorce lunes sí. Responde a «¿qué días llena el estudio?», que es lo
+  que decide dónde añadir clases y dónde quitarlas — y es la primera pregunta
+  del dashboard que no es de plata.
+- ⚠️ **Son RESERVAS, no asistencias verificadas.** No existe el registro de
+  quién apareció: `Clase.reservas` es cuánta gente apartó cupo. El título lo
+  dice con esa palabra a propósito. **Esta es la tarjeta donde entrará la
+  asistencia como segunda serie** el día que el registro exista, y es lo que
+  hará visible el «reserva y no viene», hoy invisible.
+- ⚠️ **Solo cuenta clases ya pasadas** (`fecha < hoy`, la misma frontera que
+  `Finalizada`) **y no canceladas**. Con las futuras dentro, el reparto
+  mezclaría lo ocurrido con lo que aún puede cambiar, y los días que caen más
+  adelante en la ventana saldrían flojos solo por estar más lejos.
+- ⚠️ **Salen los siete días aunque el domingo sea cero.** El hueco es
+  información —el estudio cierra— y quitarlo haría que la gráfica dijera que la
+  semana tiene seis días. En la tabla, su ocupación es «—» y no «0 %»: sin
+  clases la pregunta no aplica. Mismo criterio que el margen de Finanzas con
+  ingresos a cero.
+- `SEMANAS_RESERVAS = 2` **porque son las que hay** (la agenda de ejemplo genera
+  dos semanas de pasado). Con base de datos sube a 8 o 12 —un patrón semanal
+  necesita repeticiones para no ser el ruido de una semana rara— y es el único
+  número que hay que tocar. La ventana se enseña en una **pastilla** en el slot
+  `accion`, no en `descripcion`: las tarjetas del dashboard van sin párrafo,
+  pero sin decir «de cuándo» la cifra no se puede interpretar.
+- **A ancho completo** como la vista contable: siete barras en cuatro columnas
+  de `xl` (~360px) se apelotonan, y el domingo a cero necesita sitio para leerse
+  como «cerramos» y no como un fallo.
+- Verificado contra un recuento independiente sobre la agenda: **79 clases y
+  337 reservas** por los dos caminos.
+
+Dos cambios en `GroupedBars` para poder reutilizarlo aquí, los dos compatibles
+con la llamada que ya existía:
+- ⚠️ **`categoria` (por defecto `"mes"`) parametriza el nombre accesible.**
+  Estaba escrito «por mes» a fuego dentro del `aria-label`: quien usa lector de
+  pantalla habría oído «Reservas por mes» sobre un eje de lunes a domingo.
+- ⚠️ **Con UNA sola serie la leyenda desaparece.** No hay nada que distinguir de
+  nada, y una leyenda de un elemento solo repite el título de la tarjeta. El
+  nombre de la serie no se pierde: sigue en el tooltip y en el `aria-label`.
 
 - **Las dos tarjetas oscuras usan `bg-verde` (`#284435`), el verde de marca.**
   Antes usaban `verde-900` (`#1b2f24`), que es la escala de *profundidad* para
@@ -790,6 +857,164 @@ sirviera: además de la página, funda el vocabulario de formularios del panel.
 - **`normalizar()` y `soloDigitos()` se mudaron** de `PanelUsuarios.tsx` a
   `src/lib/validacion.ts`, y `/registro` dejó de tener su regex de correo inline.
 
+#### Clases (`/admin/clases`) — construido jul 2026
+
+La agenda del estudio: qué se da, cuándo, cuánto dura, quién lo da y cuánta
+gente cabe. Es la pantalla que prepara la **vista de cliente**, donde se
+reservará; por eso el aforo existe desde el primer día aunque todavía no haya
+nadie que reserve.
+
+- **Un día a la vez, no un calendario mensual.** En una casilla de mes no cabe
+  ni la hora ni la instructora, que es justo lo que hay que ver; y con seis
+  clases diarias la casilla se vuelve una lista ilegible dentro de un
+  cuadradito. La tira de la semana (lunes a domingo, con el número de clases de
+  cada día) da el salto rápido; el día abierto da el detalle.
+  - **La semana empieza en LUNES.** `getUTCDay()` devuelve domingo = 0, que es
+    la convención de EE. UU.; `diaSemana()` la traduce. Sin eso, la tira abriría
+    por el domingo, que es el día que el estudio cierra.
+  - Un día sin clases enseña **una raya y no un «0»**: la raya se lee como
+    «nada programado», mientras que un cero invita a buscar qué se rompió.
+- **El día elegido y el filtro de instructora son estado de cliente, no
+  `searchParams`** — mismo motivo que las pestañas de Usuarios: leer la URL
+  volvería la página dinámica y dejaría de compilar `○ Static`. El precio es el
+  mismo: un día concreto no se puede compartir por enlace.
+- ⚠️ **Los números de la tira siguen al filtro.** Si el filtro dijera 7 y el día
+  abierto enseñara 2, el que mentiría sería el número. Las canceladas no se
+  cuentan: no van a ocurrir.
+
+**Lo que no se puede escribir:**
+
+- ⚠️ **La hora de fin NO es un campo: se calcula** (`finDe()`). Editable, inicio,
+  duración y fin podrían contradecirse entre sí.
+- ⚠️ **El estado tampoco se guarda, se deriva** (`estadoDeClase()`) — misma
+  doctrina que `estado_de_membresia()` en la base de datos. **El orden de las
+  comprobaciones ES la definición**: `Cancelada` gana incluso a una fecha pasada
+  (para quien la tenía reservada, lo que cuenta es que se anuló) y `Finalizada`
+  gana a `Llena` (una clase de ayer no admite reservas porque terminó, no porque
+  esté completa). La excepción es `cancelada`, que **sí se guarda**: que algo se
+  anulara es un hecho, y hay gente a la que avisar.
+- ⚠️ **«Finalizada» se decide por FECHA, no por hora.** No hay reloj del que
+  fiarse: `getHoy()` es una constante congelada y el panel se prerenderiza, así
+  que comparar contra la hora real haría que servidor y navegador pintaran
+  estados distintos. Con backend, el reloj del servidor lo afina a la hora.
+- **`reservas` no está en `BorradorClase`**: nadie teclea cuánta gente se ha
+  apuntado. Hoy es un hash del id; mañana, un `COUNT`.
+
+**Lo que impide horarios imposibles:**
+
+- ⚠️ **Una instructora no puede estar en dos sitios a la vez.** Es la validación
+  que da sentido al módulo: al elegir fecha, hora, duración e instructora se
+  busca solapamiento y, si lo hay, se dice **con qué clase choca** y no se deja
+  guardar. `seSolapan()` compara **estricto en los dos extremos**: de 07:00 a
+  07:50 y de 07:50 a 08:40 **no** se pisan — con `<=` nadie podría encadenar dos
+  clases seguidas, que es lo que se hace todo el día.
+- ⚠️ **Ese choque se calcula EN VIVO, no al enviar**, rompiendo a propósito el
+  «premia pronto, castiga tarde» del alta de cliente: los cuatro campos que lo
+  producen son desplegables, así que no hay nada a medio escribir que castigar.
+  En cuanto los cuatro tienen valor, o chocan o no; esconderlo hasta pulsar
+  «Crear» solo retrasa la mala noticia.
+- **Dos clases a la vez con instructoras distintas = aviso ámbar que NO
+  bloquea** (hacen falta dos salas, pero es legítimo). Tercera categoría del
+  proyecto, la misma que «el teléfono de emergencia es el mismo del cliente».
+  Se calla si hay choque: manda el que impide guardar.
+- ⚠️ **El aforo no puede bajar por debajo de las reservas ya hechas.** Esas
+  personas tienen su sitio confirmado y el sistema no puede dejarlas fuera sin
+  que nadie decida a quién.
+- **Hora y duración son `<select>`, no campos numéricos**, y eso **borra una
+  validación entera**: una duración de 0 o de 500 minutos no se puede elegir.
+  Misma doctrina que el selector de periodo del dashboard.
+- **En el desplegable solo hay instructoras EN ACTIVO** (`getInstructoras()`), y
+  la ayuda lo dice: si no, faltar en la lista parece un fallo. Las clases
+  pasadas de quien ya no está se siguen viendo — pasaron de verdad.
+
+**Otras decisiones:**
+
+- ⚠️ **Cancelar y eliminar NO son la misma acción**, y lo que las separa es si
+  hay alguien apuntado. Con reservas se **cancela**: el registro se queda
+  marcado «Cancelada» porque hay personas a las que avisar (y el diálogo dice
+  que hay que llamarlas una a una, porque el sistema no manda nada). Vacía es un
+  error de horario y se **elimina**. Es la misma distinción por la que la base de
+  datos no deja borrar un pago.
+- El botón de cancelar el diálogo dice **«Volver»** y no «Cancelar»: en una
+  pantalla donde «cancelar» es el nombre de la acción destructiva, dos
+  «Cancelar» seguidos son una trampa.
+- **La fila NO es un enlace**, al revés que la de Usuarios: no hay ficha de
+  clase a la que ir y sí hay dos botones dentro. Un `<a>` con botones anidados
+  es marcado inválido y una trampa para el teclado. Un solo DOM para móvil y
+  escritorio, como `FilaCliente`.
+- **En una clase finalizada o cancelada los botones desaparecen**, no se
+  deshabilitan: aquí no hay ningún porqué que leer, a diferencia del alta de
+  cliente. Reprogramar el pasado no significa nada.
+- **El foco al fallar el envío va al primer campo inválido, NO a un resumen de
+  errores** — al revés que el alta. No es incoherencia: el alta son catorce
+  campos en cinco secciones, donde ir de uno en uno es tortura por goteo; esto
+  son seis campos dentro de un diálogo que cabe en pantalla.
+- **La barra de ocupación va `aria-hidden`**: la cifra exacta («6 / 8 reservas»)
+  está justo encima. Codificar la ocupación solo con longitud dejaría fuera a
+  quien no la ve — misma regla que `Variacion` y `EstadoBadge`.
+- ⚠️ **Solo se pintan DOS de los cuatro estados: «Cancelada» y «Finalizada»**
+  (decisión del usuario). «Programada» es lo normal y una pastilla que sale en
+  todas las filas no distingue ninguna; «Llena» ya lo dice el cupo de al lado
+  con todas las letras («8 / 8 reservas · Sin cupos libres»), así que la pastilla
+  decía dos veces lo mismo y gastaba una columna entera en ello. El estado
+  completo sigue existiendo en los datos: es lo que decide si la fila tiene
+  botones. `EstadoClaseBadge` conserva el mapa de los cuatro —`Record` obliga— y
+  `Finalizada` va en neutro, como `Inactiva` en clientes.
+- **La tira de la semana va en VERDE de marca con las motas doradas**
+  (`HeroFX`, `goteo={false}`), y la lista de clases se queda en blanco
+  (decisión del usuario: «utiliza más el verde»). El bloque por el que se navega
+  se separa así del bloque donde está el dato; con toda la tarjeta blanca, el
+  selector y las filas pesaban igual. El recorte lo hace el `overflow-hidden`
+  que ya trae `Card` con `densidad="plana"`.
+  - ⚠️ El **día seleccionado no cambia**: sigue en `bg-dorado text-verde-900`,
+    el mismo par que la sección activa de la lateral y las pastillas de filtro.
+    Lo que cambia es el reposo, de blanco a `verde-700/60` con texto beige.
+  - ⚠️ El recuento pasa a **`dorado-light`**: sobre verde, el `dorado-dark` se
+    apaga hasta confundirse con el fondo. Mismo par que las tarjetas oscuras.
+  - El `<input type="date">` se queda **blanco** a propósito: es un control con
+    calendario nativo, y en oscuro el icono del navegador deja de verse.
+  - ⚠️ **El rótulo «Ir al día» es `sr-only`, no se borró** (decisión del
+    usuario: quitarlo de la vista). Visualmente competía con las flechas de
+    semana y un calendario ya se reconoce solo; pero un campo sin nombre
+    accesible se anuncia como «editar texto» y nadie sabe para qué sirve.
+
+**Datos (`CLASES` en `mock.ts`) — 203 clases:**
+
+- **No están escritas clase a clase: se generan de una plantilla semanal**, que
+  es como funciona un estudio de verdad y como acabará funcionando la tabla real.
+  Ventana de dos semanas atrás (para que «Finalizada» tenga algo que enseñar) y
+  tres por delante. Domingo cerrado.
+- ⚠️ **Nada usa `Math.random()`.** El panel se prerenderiza: con azar, cada build
+  daría un horario distinto y el HTML del servidor no coincidiría con el del
+  cliente. Lo que parece variedad (las reservas, las 4 clases anuladas) sale de
+  un hash FNV-1a del id.
+- ⚠️ **Las instructoras se reparten por índice de ranura**, y eso es lo que
+  impide generar un horario imposible: dos ranuras consecutivas nunca reciben la
+  misma persona, y las únicas clases simultáneas de la plantilla —las dos de las
+  18:00— están justamente en posiciones consecutivas. Sin eso, los datos de
+  ejemplo contradirían la validación del propio formulario. **Verificado**: 0
+  solapamientos, 0 ids repetidos, 0 reservas por encima del aforo.
+- ⚠️ **`IDS_INSTRUCTORAS` se DERIVA de `EQUIPO`**, no es una lista aparte:
+  escrita a mano, dar de baja a alguien en Usuarios la dejaría dando clases
+  aquí. Misma regla que `MEMBRESIAS_POR_VENCER` sobre `CLIENTES`.
+- **Las horas se guardan y se pintan en 24 h** (`"07:00"`). Se descartó el
+  `7:00 a. m.` de `es-CO`: en una agenda que se lee en vertical, `a. m.`/`p. m.`
+  ensancha la columna un 60 % para desambiguar algo que en 24 h no es ambiguo, y
+  `"18:00"` se ordena alfabéticamente igual que cronológicamente.
+- ⚠️ **`TipoClase` (Reformer · Mat · Privada) es PROVISIONAL: lo tiene que
+  confirmar el estudio.** Cerrada y no texto libre por lo mismo que la EPS del
+  alta: a mano, la base acumularía «Reformer», «reformer» y «Reformer grupal»
+  como tres modalidades y no se podría contar por modalidad nunca.
+- **`lib/admin/horario.ts`** — funciones puras de días y horas (`aMinutos`,
+  `finDe`, `seSolapan`, `sumarDias`, `lunesDe`, `diaRelativo`…). ⚠️ `sumarDias`
+  **se mudó aquí desde `mock.ts`**: ese archivo es el único que se tira el día
+  que haya base de datos, y un ayudante de fechas que usan media docena de
+  pantallas no puede irse con él. Todo opera en UTC, como `format.ts`: con los
+  getters locales, `"2026-07-25"` caería en el 24 en Colombia y la semana entera
+  saldría corrida.
+
+⚠️ **Tampoco guarda nada**, y las tres acciones lo dicen con un aviso `warning`.
+
 **⚠️ shadcn/ui se evaluó y se descartó (jul 2026).** Se probó instalar el bloque
 `@efferd/dashboard-3` en la rama `shadcn-dashboard-3`, ya borrada. Qué se aprendió,
 por si se vuelve a plantear:
@@ -827,9 +1052,9 @@ Implementado en la constante `PALETA` de `charts/LineChart.tsx` (prop `tono`), q
 **solo cambia colores, nunca la geometría**. Los estados tienen su par claro para
 fondo oscuro: `--color-estado-ok-claro` / `--color-estado-grave-claro`.
 
-Build y lint verificados. Ocho rutas: las siete anteriores más
-`/admin/usuarios/[id]`, que sale `● SSG` con 118 fichas prerenderizadas. Ninguna
-es dinámica.
+Build y lint verificados. Nueve rutas: las ocho anteriores más `/admin/clases`.
+`/admin/usuarios/[id]` sale `● SSG` con 118 fichas prerenderizadas y el resto
+`○ Static`. Ninguna es dinámica.
 
 ## Mobile-first (dispositivo principal de los usuarios)
 
@@ -854,10 +1079,16 @@ izquierda** (legibilidad); solo se centra su encabezado.
 
 - **Fase 1 — landing (hecha).** Landing + UI de `/login` y `/registro`. Sin backend.
 - **Fase 1.5 — panel, solo lectura (hecha).** Dashboard, Usuarios (listado, alta,
-  ficha), Planes y Finanzas. Todo con `mock.ts`.
+  ficha), Clases, Planes y Finanzas. Todo con `mock.ts`.
 - **Fase 2 — datos reales (siguiente).** Autenticación y base de datos. Es lo que
   desbloquea los formularios, que hoy validan pero no guardan.
-- **Fase 3 — más módulos.** Clases y reservas, informes.
+- **Fase 3 — más módulos.** Reservas (la vista de cliente sobre la agenda que ya
+  existe) e informes.
+
+> ⚠️ **La agenda de clases se adelantó a la fase 3** (jul 2026), igual que la
+> 1.5 se adelantó a la 2: el horario es lo que hay que tener para que la vista
+> de cliente tenga algo que reservar. Lo que falta ahí no es pantalla, es la
+> tabla de reservas.
 
 > Ojo al orden: **la 1.5 se adelantó a la 2 a propósito**, para decidir el diseño
 > con algo delante. La consecuencia es que `/admin` está abierto y todos sus
@@ -865,7 +1096,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 
 ### Qué está construido (jul 2026)
 
-Ocho rutas, todas `○ Static` o `● SSG`:
+Nueve rutas, todas `○ Static` o `● SSG`:
 
 | Ruta | Estado |
 |---|---|
@@ -875,6 +1106,7 @@ Ocho rutas, todas `○ Static` o `● SSG`:
 | `/admin/usuarios` | Listado, filtros, paginación, export CSV **real** |
 | `/admin/usuarios/nuevo` | Formulario validado · **no guarda** |
 | `/admin/usuarios/[id]` | Ficha de solo lectura (118 prerenderizadas) |
+| `/admin/clases` | Agenda por día + alta, edición, cancelación · **no guarda** |
 | `/admin/planes` | Catálogo en tarjetas + CRUD · **no guarda** |
 | `/admin/finanzas` | Libro de movimientos con filtros + alta de gasto · **no guarda** |
 
@@ -890,8 +1122,21 @@ filtros y búsquedas (en cliente) y el selector de periodo del dashboard.
       es una regex sobre el correo (`/@reforme\.(com|co)$/`). Y ni eso hace falta,
       basta escribir la URL. **Está desplegado en público.**
 - [ ] **Nada de lo que se escribe se guarda.** No existe `src/app/api/`. Alta de
-      cliente, CRUD de planes y registro de gasto validan y avisan honestamente
-      de que no persisten.
+      cliente, CRUD de planes, registro de gasto y la agenda de clases validan y
+      avisan honestamente de que no persisten.
+- [ ] **La agenda no tiene reservas todavía.** `Clase.reservas` es un número
+      generado, no un `COUNT`: falta la tabla de reservas y la vista de cliente
+      que las cree. La agenda ya reserva el sitio para ello (aforo, cupos libres,
+      estado «Llena»).
+- [ ] **No hay registro de asistencias.** Se sabe quién apartó cupo, no quién
+      apareció: son dos hechos distintos y hoy solo existe el primero. Hace
+      falta marcar la asistencia clase por clase (una fila por persona y clase,
+      con `asistio`). En cuanto exista, «Reservas por día de la semana» del
+      dashboard pasa a **dos series** —reservado / asistió— y el hueco entre
+      ambas es la tasa de ausencias, que hoy no se puede ni estimar.
+- [ ] **Confirmar con el estudio las modalidades de clase.** `TipoClase`
+      (Reformer · Mat · Privada) y los cupos sugeridos de `catalogos.ts` son una
+      suposición razonable, no un dato del estudio.
 - [ ] **Falta `public/terminos-y-condiciones.pdf`.** El alta enlaza ahí
       (`URL_TERMINOS` en `lib/admin/catalogos.ts`) → 404 en un documento legal.
       No se redacta desde la web: lo aporta el estudio.
@@ -929,3 +1174,14 @@ filtros y búsquedas (en cliente) y el selector de periodo del dashboard.
   partir de él.
 - ⚠️ `crearCliente(ficha)` mapeará `FichaAlta` → `Cliente`, y es ahí donde se
   asigna el plan (el alta no lo pregunta).
+- ⚠️ **El esquema de Supabase todavía NO tiene clases ni reservas** (ver
+  `docs/BASE_DE_DATOS.md`): hoy cubre clientes, membresías, pagos, planes y
+  gastos. La agenda necesita dos tablas más, y `reservas` es la que convierte
+  `Clase.reservas` de número inventado en un `COUNT`. Al escribirlas:
+  - `getClases()` recibirá un **rango de fechas** en vez de devolver la agenda
+    entera (hoy son 203 clases y viajan todas al navegador a propósito);
+  - `CLASES` se genera de una plantilla semanal — esa plantilla es una tabla más
+    el día que el horario se repita solo, y las clases pasan a ser su proyección;
+  - el solapamiento de instructora, que hoy valida el formulario en el
+    navegador, tiene que ser además una **restricción en la base**: un
+    formulario evita el error de quien lo usa, no el de quien llama a la API.

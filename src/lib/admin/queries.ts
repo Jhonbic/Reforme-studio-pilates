@@ -1,5 +1,7 @@
 import { calcularVariacion, moneda } from "./format";
+import { DIAS_CORTOS, diaSemana, finDe, sumarDias } from "./horario";
 import {
+  CLASES,
   CLIENTES,
   CONDICIONES_PLANES,
   EQUIPO,
@@ -17,7 +19,10 @@ import {
   USUARIO_ACTUAL,
 } from "./mock";
 import type {
+  Clase,
+  ClaseEnAgenda,
   Cliente,
+  EstadoClase,
   EstadoMembresia,
   Indicador,
   MiembroEquipo,
@@ -115,6 +120,138 @@ export function getClientes(): Cliente[] {
 
 export function getEquipo(): MiembroEquipo[] {
   return [...EQUIPO].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
+/**
+ * Quién puede dar clase: instructoras **en activo**.
+ *
+ * ⚠️ El filtro por `activo` no es cosmético: es lo que impide programar una
+ * clase con alguien que ya no trabaja en el estudio. Las clases pasadas de una
+ * instructora dada de baja se siguen viendo —pasaron de verdad—, pero su nombre
+ * desaparece del desplegable del formulario.
+ */
+export function getInstructoras(): MiembroEquipo[] {
+  return getEquipo().filter((m) => m.rol === "Instructora" && m.activo);
+}
+
+/**
+ * En qué punto está una clase.
+ *
+ * ⚠️ **El orden de las comprobaciones ES la definición del estado**, igual que
+ * el `CASE` de `estado_de_membresia()` en la base de datos. Cambiarlo cambia lo
+ * que dice la agenda:
+ * - `Cancelada` va primero y gana incluso a una fecha pasada: para quien la
+ *   tenía reservada, lo que cuenta es que se anuló.
+ * - `Finalizada` gana a `Llena`: una clase de ayer no admite reservas porque
+ *   terminó, no porque esté completa.
+ *
+ * ⚠️ **«Finalizada» se decide por FECHA, no por hora**, y es a propósito: no hay
+ * reloj del que fiarse. `getHoy()` devuelve una constante congelada y el panel se
+ * prerenderiza en el build, así que comparar contra la hora real haría que el
+ * servidor y el navegador pintaran estados distintos — el mismo fallo de
+ * hidratación que ya evitan `format.ts` y el alta de cliente. Con backend, el
+ * reloj del servidor afinará esto hasta la hora y ninguna pantalla se enterará.
+ */
+function estadoDeClase(c: Clase, hoy: string): EstadoClase {
+  if (c.cancelada) return "Cancelada";
+  if (c.fecha < hoy) return "Finalizada";
+  if (c.reservas >= c.cupos) return "Llena";
+  return "Programada";
+}
+
+/**
+ * La agenda completa, ya resuelta: cada clase con el nombre de su instructora,
+ * su hora de fin, su estado y los cupos libres.
+ *
+ * ⚠️ **Todo eso se calcula aquí y no en la pantalla.** Si el estado se dedujera
+ * en cada componente, la misma clase podría salir «Llena» en la fila y
+ * «Programada» en el resumen del día. Es la misma regla por la que
+ * `getRepartoPlanes()` cuenta los clientes en un solo sitio.
+ *
+ * Sin filtros de servidor, como el libro de pagos: son unas 250 clases que ya
+ * viajan al navegador, así que cambiar de día allí es instantáneo y la ruta
+ * sigue prerenderizándose. Con base de datos, esto recibirá un rango de fechas.
+ */
+export function getClases(): ClaseEnAgenda[] {
+  const hoy = getHoy();
+  const nombres = new Map(EQUIPO.map((m) => [m.id, m.nombre]));
+
+  return CLASES.map((c) => ({
+    ...c,
+    /* Una instructora borrada del equipo no debe dejar la fila en blanco: se
+       nota que falta el dato en vez de disimularlo. */
+    instructora: nombres.get(c.instructoraId) ?? "Sin asignar",
+    horaFin: finDe(c.horaInicio, c.duracionMin),
+    estado: estadoDeClase(c, hoy),
+    /* Nunca negativo: si alguna vez se recortara el aforo por debajo de las
+       reservas ya hechas, «−2 libres» sería ruido. El formulario, además, no
+       deja llegar ahí. */
+    libres: Math.max(0, c.cupos - c.reservas),
+  }));
+}
+
+/**
+ * Cuántas semanas hacia atrás mira el reparto por día de la semana.
+ *
+ * Dos, porque **son las que hay**: la agenda de ejemplo se genera con dos
+ * semanas de pasado. Con base de datos esto se sube a 8 o 12 (un patrón semanal
+ * necesita repeticiones para no ser el ruido de una semana rara), y es el único
+ * número que hay que tocar.
+ */
+export const SEMANAS_RESERVAS = 2;
+
+export type ReservasPorDia = {
+  /** `"Lun"`, `"Mar"`… empezando en lunes. */
+  dia: string;
+  reservas: number;
+  cupos: number;
+  clases: number;
+};
+
+/**
+ * Reservas acumuladas por día de la semana, de lunes a domingo.
+ *
+ * Responde a «¿qué días llena el estudio?», que es lo que decide dónde añadir
+ * clases y dónde quitarlas. Por eso se agrupa por **día de la semana** y no por
+ * fecha: un lunes suelto no dice nada, catorce lunes sí.
+ *
+ * ⚠️ **Son RESERVAS, no asistencias verificadas.** No existe todavía el
+ * registro de quién apareció: `Clase.reservas` es cuánta gente apartó cupo.
+ * Cuando ese registro exista, esta misma función devuelve un campo más y la
+ * tarjeta pasa a dos series (reservado / asistió) — que es justo lo que hace
+ * visible el problema del «reserva y no viene», hoy invisible.
+ *
+ * ⚠️ **Solo cuenta clases que ya pasaron** (`fecha < hoy`, misma frontera que
+ * `Finalizada`) **y no canceladas**. Con las futuras dentro, el reparto mezclaría
+ * lo que ocurrió con lo que aún puede cambiar, y los días que caen más adelante
+ * en la ventana saldrían artificialmente flojos solo por estar más lejos.
+ *
+ * ⚠️ **Los siete días salen siempre, aunque el domingo sea cero.** Un hueco en
+ * la semana es información —el estudio cierra— y quitarlo haría que la gráfica
+ * dijera que la semana tiene seis días.
+ */
+export function getReservasPorDiaSemana(): ReservasPorDia[] {
+  const hoy = getHoy();
+  const desde = sumarDias(hoy, -7 * SEMANAS_RESERVAS);
+
+  const acumulado: ReservasPorDia[] = DIAS_CORTOS.map((dia) => ({
+    dia,
+    reservas: 0,
+    cupos: 0,
+    clases: 0,
+  }));
+
+  for (const c of CLASES) {
+    if (c.cancelada) continue;
+    if (c.fecha >= hoy || c.fecha < desde) continue;
+
+    const d = acumulado[diaSemana(c.fecha)];
+    d.reservas += c.reservas;
+    d.cupos += c.cupos;
+    d.clases += 1;
+  }
+
+  return acumulado;
 }
 
 /** Un cliente por su id, o `undefined` si no existe (→ 404 en la ficha). */

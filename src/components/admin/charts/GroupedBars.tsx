@@ -16,6 +16,16 @@ type Props = {
   formato: FormatoValor;
   /** Formato de las marcas del eje Y. Por defecto, moneda abreviada. */
   formatoEje?: FormatoValor;
+  /**
+   * Qué es cada grupo del eje X, en singular, para el nombre accesible
+   * («…por **mes**», «…por **día de la semana**»).
+   *
+   * ⚠️ Estaba escrito «por mes» a fuego dentro del `aria-label`. Al reutilizar
+   * el gráfico para el reparto semanal, quien usa lector de pantalla habría
+   * oído «Reservas por mes» sobre un eje de lunes a domingo. Por defecto sigue
+   * siendo `"mes"`, así que la llamada existente no cambia.
+   */
+  categoria?: string;
 };
 
 // Se dibuja en PÍXELES REALES: mismo motivo que en `LineChart`. Con un viewBox
@@ -51,6 +61,7 @@ export default function GroupedBars({
   series,
   formato,
   formatoEje = "monedaCorta",
+  categoria = "mes",
 }: Props) {
   const [activo, setActivo] = useState<{ g: number; s: number } | null>(null);
   const caja = useRef<HTMLDivElement>(null);
@@ -105,20 +116,27 @@ export default function GroupedBars({
 
   return (
     <div>
-      {/* Leyenda: siempre presente con 2+ series, para que la identidad no
-          dependa solo del color */}
-      <ul className="mb-3 flex flex-wrap gap-x-5 gap-y-1.5">
-        {series.map((s) => (
-          <li key={s.nombre} className="flex items-center gap-2 text-xs">
-            <span
-              aria-hidden="true"
-              className="h-2.5 w-2.5 rounded-[2px]"
-              style={{ background: s.color }}
-            />
-            <span className="text-verde-700">{s.nombre}</span>
-          </li>
-        ))}
-      </ul>
+      {/* Leyenda: con 2+ series es obligatoria, para que la identidad de cada
+          una no dependa solo del color.
+
+          ⚠️ Con UNA sola serie desaparece: no hay nada que distinguir de nada,
+          y una leyenda de un elemento solo repite el título de la tarjeta. El
+          nombre de la serie no se pierde — sigue en el tooltip y en el nombre
+          accesible del SVG. */}
+      {series.length > 1 && (
+        <ul className="mb-3 flex flex-wrap gap-x-5 gap-y-1.5">
+          {series.map((s) => (
+            <li key={s.nombre} className="flex items-center gap-2 text-xs">
+              <span
+                aria-hidden="true"
+                className="h-2.5 w-2.5 rounded-[2px]"
+                style={{ background: s.color }}
+              />
+              <span className="text-verde-700">{s.nombre}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div ref={caja} className="relative">
         <svg
@@ -127,7 +145,7 @@ export default function GroupedBars({
           height={H}
           className="block max-w-full"
           role="img"
-          aria-label={`${series.map((s) => s.nombre).join(" y ")} por mes`}
+          aria-label={`${series.map((s) => s.nombre).join(" y ")} por ${categoria}`}
         >
           {ticks.map((t) => (
             <g key={t}>
