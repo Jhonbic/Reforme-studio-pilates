@@ -1,9 +1,9 @@
+import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { calcularVariacion, moneda } from "./format";
 import { DIAS_CORTOS, diaSemana, finDe, sumarDias } from "./horario";
 import {
   CLASES,
   CLIENTES,
-  CONDICIONES_PLANES,
   EQUIPO,
   GASTOS,
   HOY,
@@ -12,11 +12,9 @@ import {
   MOVIMIENTO_CLIENTES,
   NOTIFICACIONES,
   PAGOS,
-  PRECIO_PLAN,
   REPARTO_METODOS,
   REPARTO_PLANES,
   RESUMEN,
-  USUARIO_ACTUAL,
 } from "./mock";
 import type {
   Clase,
@@ -28,6 +26,7 @@ import type {
   MiembroEquipo,
   Notificacion,
   Pago,
+  Plan,
   PlanConMetricas,
   TipoPlan,
   UsuarioActual,
@@ -273,34 +272,93 @@ export function getClienteIds(): string[] {
 }
 
 /**
+ * Las columnas de `planes`, en el orden en que se leen abajo. Se nombran una
+ * sola vez para que la consulta y el mapeo no puedan desincronizarse.
+ */
+const COLUMNAS_PLAN =
+  "id, nombre, precio, vigencia_dias, clases_incluidas, se_vende, destacado, descripcion, caracteristicas";
+
+/** La fila tal y como la devuelve Postgres, en `snake_case`. */
+type FilaPlan = {
+  id: string;
+  nombre: string;
+  precio: number;
+  vigencia_dias: number;
+  clases_incluidas: number | null;
+  se_vende: boolean;
+  destacado: boolean;
+  descripcion: string;
+  caracteristicas: string[];
+};
+
+/**
+ * Fila → `Plan`.
+ *
+ * ⚠️ La traducción `snake_case` → `camelCase` se hace **aquí y en un solo
+ * sitio**. Postgres usa guiones bajos por convención y el resto del proyecto
+ * camelCase; dejar que `vigencia_dias` se colara hasta la UI obligaría a
+ * recordar cuál de las dos formas toca en cada componente.
+ */
+function filaAPlan(f: FilaPlan): Plan {
+  return {
+    id: f.id,
+    nombre: f.nombre,
+    precio: f.precio,
+    vigenciaDias: f.vigencia_dias,
+    clasesIncluidas: f.clases_incluidas,
+    seVende: f.se_vende,
+    destacado: f.destacado,
+    descripcion: f.descripcion,
+    caracteristicas: f.caracteristicas,
+  };
+}
+
+/**
+ * El catálogo de planes, de la base de datos.
+ *
+ * ⚠️ **Es la primera función de este archivo que consulta Postgres de verdad**;
+ * el resto sigue leyendo `mock.ts`. Por eso es `async`: al conectarse una
+ * pantalla, la ruta deja de prerenderizarse y pasa a resolverse por petición.
+ *
+ * ⚠️ **Si no hay sesión, esto devuelve una lista VACÍA, no un error.** La
+ * policy de lectura es `tiene_perfil()`, así que para el rol `anon` la tabla
+ * sencillamente no tiene filas. No es un fallo que haya que capturar: es RLS
+ * haciendo su trabajo. Quien no ha entrado no debería ni llegar aquí — de eso
+ * se encarga `proxy.ts`.
+ *
+ * ⚠️ **`clientes` va a 0 a propósito.** Contarlo exige la
+ * tabla `membresias`, que todavía vive en `mock.ts` y apunta a otro catálogo.
+ * Poner aquí las cifras del mock sería peor que un cero: diría que un plan
+ * recién creado ya tiene 47 clientes. Se vuelven un `COUNT` real cuando se
+ * migren clientes y membresías.
+ */
+export async function getPlanes(): Promise<PlanConMetricas[]> {
+  const supabase = await crearClienteServidor();
+
+  const { data, error } = await supabase
+    .from("planes")
+    .select(COLUMNAS_PLAN)
+    /* De más barato a más caro: es como se lee una tabla de precios. El orden
+       lo decide la base y no la pantalla para que sea el mismo en cualquier
+       sitio donde se pinte el catálogo. */
+    .order("precio", { ascending: true });
+
+  if (error) {
+    throw new Error(`No se pudo leer el catálogo de planes: ${error.message}`);
+  }
+
+  return (data ?? []).map((fila) => ({
+    ...filaAPlan(fila as FilaPlan),
+    clientes: 0,
+  }));
+}
+
+/**
  * Cuántos clientes hay en cada estado, más el total.
  *
  * Va aquí y no en la pantalla porque es un dato del dominio: los recuentos que
  * se enseñan dentro de los filtros son los mismos que alimentan el dashboard.
  */
-/**
- * El catálogo de planes con lo que ha pasado con cada uno.
- *
- * Los clientes se cuentan sobre `CLIENTES` con el mismo ayudante que usa
- * `getRepartoPlanes()`, así que esta pantalla y el donut del dashboard no
- * pueden discrepar.
- *
- * La facturación sí sale de `REPARTO_PLANES`: es un importe mensual del reparto
- * de ingresos, no algo que se pueda deducir de la ficha de cada cliente.
- */
-export function getPlanes(): PlanConMetricas[] {
-  const porPlan = contarClientesPorPlan();
-
-  return CONDICIONES_PLANES.map((cond) => ({
-    ...cond,
-    nombreVisible: cond.plan,
-    precio: PRECIO_PLAN[cond.plan],
-    clientes: porPlan.get(cond.plan) ?? 0,
-    facturacionMes:
-      REPARTO_PLANES.find((r) => r.plan === cond.plan)?.importe ?? 0,
-  }));
-}
-
 export function getConteoEstados(): Record<EstadoMembresia | "Todas", number> {
   const conteo: Record<EstadoMembresia | "Todas", number> = {
     Todas: CLIENTES.length,
@@ -479,14 +537,43 @@ export function getTasaRenovacion() {
 }
 
 /**
- * Quién está usando el panel.
+ * Quién está usando el panel, o `null` si no hay nadie con acceso.
  *
- * ⚠️ **No lee ninguna sesión: devuelve el dato fijo de `mock.ts`.** El día que
- * haya autenticación, esta función es el único sitio donde hay que ir a buscar
- * al usuario de verdad — la cabecera no se entera.
+ * El nombre y el rol salen de la ficha en `equipo`; el correo, de `auth.users`.
+ * Son dos sitios porque son dos cosas: las credenciales las gestiona Supabase y
+ * el dominio del estudio vive en nuestra tabla.
+ *
+ * ⚠️ **Devuelve `null` en DOS casos distintos que aquí valen lo mismo:** que no
+ * haya sesión, y que la haya pero sin ficha activa en `equipo`. El segundo es una
+ * clienta registrada que escribe `/admin` a mano: tiene cuenta, pero no es
+ * personal. Quien consume esto debe echarla, no pintarle el panel — RLS no le
+ * daría ni una fila y solo vería pantallas vacías sin entender por qué.
  */
-export function getUsuarioActual(): UsuarioActual {
-  return USUARIO_ACTUAL;
+export async function getUsuarioActual(): Promise<UsuarioActual | null> {
+  const supabase = await crearClienteServidor();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return null;
+
+  // ⚠️ Mismo filtro que `mi_rol()` (`activo`): si divergieran, alguien dado de
+  // baja vería el panel pintado y vacío, porque RLS ya no le daría ni una fila.
+  const { data: ficha } = await supabase
+    .from("equipo")
+    .select("nombre, rol")
+    .eq("cuenta_id", user.id)
+    .eq("activo", true)
+    .maybeSingle();
+
+  if (!ficha) return null;
+
+  return {
+    nombre: ficha.nombre,
+    correo: user.email ?? "",
+    rol: ficha.rol,
+  };
 }
 
 /**

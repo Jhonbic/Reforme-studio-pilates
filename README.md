@@ -28,21 +28,23 @@ y entra a `http://<IP-de-tu-PC>:3000` (la IP la da `ipconfig`).
 
 ## Comandos
 
-| Comando | Qué hace |
-|---|---|
-| `npm run dev` | Servidor de desarrollo |
-| `npm run build` | Build de producción |
-| `npm start` | Sirve el build |
-| `npm run lint` | Linter |
+| Comando              | Qué hace              |
+| -------------------- | ---------------------- |
+| `npm run dev`      | Servidor de desarrollo |
+| `npm run build`    | Build de producción   |
+| `npm start`        | Sirve el build         |
+| `npm run lint`     | Linter                 |
 | `npx tsc --noEmit` | Comprobación de tipos |
 
 ## Rutas
 
 **Público**
+
 - `/` — landing
 - `/login`, `/registro` — solo UI, sin backend
 
 **Panel administrativo** — construido, con datos de ejemplo
+
 - `/admin` — dashboard
 - `/admin/usuarios` — listado con filtros y export CSV
 - `/admin/usuarios/nuevo` — alta de cliente (valida, **no guarda**)

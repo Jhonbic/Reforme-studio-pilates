@@ -5,7 +5,11 @@ import Modal from "@/components/admin/Modal";
 import CampoTexto from "@/components/admin/campos/CampoTexto";
 import { CASILLA, FILA_CHECK } from "@/components/admin/campos/estilos";
 import { moneda } from "@/lib/admin/format";
-import type { BorradorPlan, PlanConMetricas } from "@/lib/admin/types";
+import type {
+  BorradorPlan,
+  PlanConMetricas,
+  Resultado,
+} from "@/lib/admin/types";
 import { soloDigitos } from "@/lib/validacion";
 
 const BOTON_PRIMARIO =
@@ -20,6 +24,7 @@ const VACIO: BorradorPlan = {
   vigenciaDias: 30,
   clasesIncluidas: null,
   seVende: true,
+  destacado: false,
   descripcion: "",
   caracteristicas: [],
 };
@@ -45,11 +50,12 @@ function errorDe(campo: keyof Errores, v: BorradorPlan): string {
  *  consecuencia del plan, no algo que se pueda escribir en un formulario. */
 function aBorrador(p: PlanConMetricas): BorradorPlan {
   return {
-    nombre: p.nombreVisible,
+    nombre: p.nombre,
     precio: p.precio,
     vigenciaDias: p.vigenciaDias,
     clasesIncluidas: p.clasesIncluidas,
     seVende: p.seVende,
+    destacado: p.destacado,
     descripcion: p.descripcion,
     caracteristicas: [...p.caracteristicas],
   };
@@ -63,21 +69,21 @@ function aBorrador(p: PlanConMetricas): BorradorPlan {
  * cambia es el título, el texto del botón y de dónde salen los valores
  * iniciales.
  *
- * ⚠️ **NO GUARDA NADA.** No hay base de datos ni mutador, y el catálogo vive en
- * `mock.ts` como constante de módulo: mutarlo se perdería en el siguiente
- * render del servidor y, peor, *parecería* que funciona. Al enviar se dice.
+ * El formulario **no sabe dónde se guarda**: recibe `onGuardar` y se limita a
+ * entregar el borrador y pintar lo que responda. Así la decisión de si es un
+ * alta o una edición vive en un único sitio, el panel.
  */
 export default function FormularioPlan({
   abierto,
   plan,
   onCerrar,
-  onGuardado,
+  onGuardar,
 }: {
   abierto: boolean;
   /** `undefined` = plan nuevo. */
   plan?: PlanConMetricas;
   onCerrar: () => void;
-  onGuardado: (nombre: string, esNuevo: boolean) => void;
+  onGuardar: (borrador: BorradorPlan) => Promise<Resultado>;
 }) {
   const esNuevo = plan === undefined;
   const [v, setV] = useState<BorradorPlan>(() =>
@@ -85,19 +91,26 @@ export default function FormularioPlan({
   );
   const [errores, setErrores] = useState<Errores>({});
   const [nuevaCaract, setNuevaCaract] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [fallo, setFallo] = useState<string | null>(null);
   const refs = useRef<Partial<Record<keyof Errores, HTMLElement | null>>>({});
   const refCaract = useRef<HTMLInputElement>(null);
 
   /* ⚠️ `key` en el Modal desde fuera sería lo ideal, pero el estado vive aquí:
      se resincroniza cuando cambia el plan que se está editando. Sin esto, abrir
      «editar Mensual», cerrar y abrir «editar Trimestral» enseñaría los datos
-     del primero. */
-  const [ultimoPlan, setUltimoPlan] = useState(plan?.nombreVisible);
-  if (plan?.nombreVisible !== ultimoPlan) {
-    setUltimoPlan(plan?.nombreVisible);
+     del primero.
+
+     ⚠️ Se compara por `id` y no por nombre: el nombre es editable, así que
+     renombrar un plan dentro del formulario dispararía este resincronizado y
+     descartaría lo que se estaba escribiendo. */
+  const [ultimoPlan, setUltimoPlan] = useState(plan?.id);
+  if (plan?.id !== ultimoPlan) {
+    setUltimoPlan(plan?.id);
     setV(plan ? aBorrador(plan) : VACIO);
     setErrores({});
     setNuevaCaract("");
+    setFallo(null);
   }
 
   function set<K extends keyof BorradorPlan>(campo: K, valor: BorradorPlan[K]) {
@@ -130,8 +143,9 @@ export default function FormularioPlan({
     refCaract.current?.focus();
   }
 
-  function enviar(e: React.FormEvent) {
+  async function enviar(e: React.FormEvent) {
     e.preventDefault();
+    setFallo(null);
 
     const orden: (keyof Errores)[] = ["nombre", "precio", "vigenciaDias"];
     const nuevos: Errores = {};
@@ -147,7 +161,18 @@ export default function FormularioPlan({
       return;
     }
 
-    onGuardado(v.nombre.trim(), esNuevo);
+    setGuardando(true);
+    const resultado = await onGuardar({ ...v, nombre: v.nombre.trim() });
+    setGuardando(false);
+
+    /* ⚠️ Si la base lo rechaza, el diálogo SE QUEDA ABIERTO con lo escrito.
+       Cerrarlo y avisar por fuera obligaría a teclearlo todo otra vez, y el
+       caso más común —nombre repetido— se arregla cambiando una palabra. */
+    if (!resultado.ok) {
+      setFallo(resultado.mensaje);
+      return;
+    }
+
     onCerrar();
   }
 
@@ -155,7 +180,7 @@ export default function FormularioPlan({
     <Modal
       abierto={abierto}
       onCerrar={onCerrar}
-      titulo={esNuevo ? "Nuevo plan" : `Editar ${plan.nombreVisible}`}
+      titulo={esNuevo ? "Nuevo plan" : `Editar ${plan.nombre}`}
       tamano="lg"
     >
       <form onSubmit={enviar} noValidate className="space-y-4">
@@ -355,19 +380,63 @@ export default function FormularioPlan({
           </span>
         </label>
 
-        <p className="rounded-xl border border-dashed border-dorado/50 bg-dorado/5 px-4 py-3 text-sm text-verde-700">
-          Este formulario <strong>no guarda todavía</strong>: el catálogo vive en
-          el código. Sirve para acordar qué define un plan antes de que exista la
-          base de datos.
-        </p>
+        {/* ⚠️ Solo puede haber UN plan destacado, y quien lo garantiza es la
+            base (índice `solo_un_plan_destacado`). Aquí no se comprueba nada:
+            marcar este desmarca el anterior en una sola sentencia. Por eso la
+            ayuda lo avisa — si no, quien lo marca esperaría tener dos. */}
+        <label className={FILA_CHECK}>
+          <input
+            type="checkbox"
+            checked={v.destacado}
+            onChange={(e) => set("destacado", e.target.checked)}
+            className={CASILLA}
+          />
+          <span className="text-sm text-verde-700">
+            Destacar como «el más contratado»
+            <span className="block text-xs text-verde-300">
+              Resalta este plan en el catálogo. Solo puede haber uno: si ya hay
+              otro destacado, dejará de estarlo.
+            </span>
+          </span>
+        </label>
+
+        {/* El fallo de la base va aquí abajo, pegado a los botones, que es
+            donde está mirando quien acaba de pulsar «Guardar». */}
+        {fallo && (
+          <p
+            role="alert"
+            className="rounded-xl border px-4 py-3 text-sm"
+            style={{
+              borderColor: "color-mix(in srgb, var(--color-estado-grave) 40%, transparent)",
+              backgroundColor:
+                "color-mix(in srgb, var(--color-estado-grave) 8%, transparent)",
+              color: "var(--color-estado-grave)",
+            }}
+          >
+            {fallo}
+          </p>
+        )}
 
         <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onCerrar} className={BOTON}>
+          <button
+            type="button"
+            onClick={onCerrar}
+            disabled={guardando}
+            className={`${BOTON} disabled:cursor-not-allowed disabled:opacity-50`}
+          >
             <span className="control-sheen" aria-hidden="true" />
             Cancelar
           </button>
-          <button type="submit" className={BOTON_PRIMARIO}>
-            {esNuevo ? "Crear plan" : "Guardar cambios"}
+          <button
+            type="submit"
+            disabled={guardando}
+            className={`${BOTON_PRIMARIO} disabled:cursor-not-allowed disabled:opacity-50`}
+          >
+            {guardando
+              ? "Guardando…"
+              : esNuevo
+                ? "Crear plan"
+                : "Guardar cambios"}
           </button>
         </div>
       </form>

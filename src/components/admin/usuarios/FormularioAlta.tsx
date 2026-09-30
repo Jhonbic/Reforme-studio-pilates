@@ -11,8 +11,8 @@ import CampoCheck from "@/components/admin/campos/CampoCheck";
 import CampoSelect from "@/components/admin/campos/CampoSelect";
 import CampoTexto from "@/components/admin/campos/CampoTexto";
 import Seccion from "@/components/admin/campos/Seccion";
-import ResumenErrores from "./ResumenErrores";
 import { descargarCsv, csvFicha } from "./exportar";
+import SelectorPlan, { type OpcionPlan } from "./SelectorPlan";
 import {
   EPS,
   EPS_OTRA,
@@ -21,8 +21,19 @@ import {
   TIPOS_IDENTIFICACION,
   URL_TERMINOS,
 } from "@/lib/admin/catalogos";
-import { documento, fechaCompacta, telefonoCO } from "@/lib/admin/format";
-import type { FichaAlta, TipoIdentificacion } from "@/lib/admin/types";
+import {
+  documento,
+  fechaCompacta,
+  moneda,
+  numero,
+  telefonoCO,
+} from "@/lib/admin/format";
+import type {
+  FichaAlta,
+  Plan,
+  PlanAlta,
+  TipoIdentificacion,
+} from "@/lib/admin/types";
 import {
   DOC_MAX,
   DOC_MIN,
@@ -32,6 +43,7 @@ import {
   esCorreo,
   esMovilCO,
   hoyLocalIso,
+  nombrePropio,
   normalizarTelefonoPegado,
   sinDigitos,
   soloAlfanumerico,
@@ -41,7 +53,8 @@ import {
 /* ------------------------------------------------------------------ campos */
 
 type Campo =
-  | "nombre"
+  | "nombres"
+  | "apellidos"
   | "identificacion"
   | "fechaNacimiento"
   | "telefono"
@@ -53,29 +66,77 @@ type Campo =
   | "tutorNombre"
   | "tutorIdentificacion"
   | "tutorTelefono"
+  | "plan"
+  | "planClases"
+  | "planCobro"
   | "terminos";
 
 /**
- * ⚠️ **Una sola lista para tres cosas**: el orden visual, el orden del resumen de
- * errores y el orden en que se busca el primer campo a enfocar. Con tres listas
- * separadas, el resumen acabaría enumerando los errores en un orden distinto al
- * de la pantalla.
+ * ⚠️ **Una sola lista para dos cosas**: el orden visual y el orden en que se
+ * busca el primer campo inválido a enfocar al enviar. Con dos listas, el foco
+ * podría saltar a un campo de más abajo dejando atrás uno con error.
  */
-const ORDEN_CAMPOS: { campo: Campo; etiqueta: string }[] = [
-  { campo: "nombre", etiqueta: "Nombre completo" },
-  { campo: "identificacion", etiqueta: "Número de documento" },
-  { campo: "fechaNacimiento", etiqueta: "Fecha de nacimiento" },
-  { campo: "telefono", etiqueta: "Teléfono" },
-  { campo: "correo", etiqueta: "Correo electrónico" },
-  { campo: "eps", etiqueta: "EPS" },
-  { campo: "epsOtra", etiqueta: "Nombre de la EPS" },
-  { campo: "emergenciaNombre", etiqueta: "Contacto de emergencia" },
-  { campo: "emergenciaTelefono", etiqueta: "Teléfono de emergencia" },
-  { campo: "tutorNombre", etiqueta: "Nombre del acudiente" },
-  { campo: "tutorIdentificacion", etiqueta: "Cédula del acudiente" },
-  { campo: "tutorTelefono", etiqueta: "Teléfono del acudiente" },
-  { campo: "terminos", etiqueta: "Términos y condiciones" },
+const ORDEN_CAMPOS: Campo[] = [
+  "nombres",
+  "apellidos",
+  "identificacion",
+  "fechaNacimiento",
+  "telefono",
+  "correo",
+  "eps",
+  "epsOtra",
+  "emergenciaNombre",
+  "emergenciaTelefono",
+  "tutorNombre",
+  "tutorIdentificacion",
+  "tutorTelefono",
+  "plan",
+  "planClases",
+  "planCobro",
+  "terminos",
 ];
+
+/* Los dos valores del desplegable de plan que no son un plan del catálogo.
+   No pueden chocar con un id real: esos son uuid. */
+const PLAN_NINGUNO = "ninguno";
+const PLAN_PERSONALIZADO = "personalizado";
+
+/** Los del plan personalizado. Se limpian en bloque al dejar de serlo. */
+const CAMPOS_PERSONALIZADO: Campo[] = ["planClases", "planCobro"];
+
+/** Tope de los campos del personalizado. Filtrando a dígitos y cortando aquí,
+ *  un cobro con tres ceros de más no se puede ni teclear. */
+const CLASES_MAX_DIGITOS = 3;
+const COBRO_MAX_DIGITOS = 8;
+
+/** Las tarjetas del selector: el catálogo y, al final, las dos salidas que
+ *  no son un plan de catálogo. */
+function opcionesDePlan(planes: Plan[]): OpcionPlan[] {
+  return [
+    ...planes.map((p) => ({
+      valor: p.id,
+      titulo: p.nombre,
+      destacado: moneda(p.precio),
+      detalle: `${p.vigenciaDias} días · ${
+        p.clasesIncluidas === null
+          ? "clases ilimitadas"
+          : `${p.clasesIncluidas} ${p.clasesIncluidas === 1 ? "clase" : "clases"}`
+      }`,
+    })),
+    {
+      valor: PLAN_PERSONALIZADO,
+      titulo: "Personalizado",
+      destacado: "A medida",
+      detalle: "Tú fijas clases y cobro",
+    },
+    {
+      valor: PLAN_NINGUNO,
+      titulo: "Sin plan",
+      destacado: "Después",
+      detalle: "Se asigna más adelante",
+    },
+  ];
+}
 
 /** Los del bloque del acudiente. Se limpian en bloque al dejar de ser menor. */
 const CAMPOS_ACUDIENTE: Campo[] = [
@@ -85,7 +146,8 @@ const CAMPOS_ACUDIENTE: Campo[] = [
 ];
 
 type Valores = {
-  nombre: string;
+  nombres: string;
+  apellidos: string;
   tipoIdentificacion: TipoIdentificacion;
   identificacion: string;
   fechaNacimiento: string;
@@ -101,11 +163,17 @@ type Valores = {
   tutorTelefonoPropio: string;
   mismoNombre: boolean;
   mismoTelefono: boolean;
+  /** `""` (sin elegir), `PLAN_NINGUNO`, `PLAN_PERSONALIZADO` o el id del plan. */
+  plan: string;
+  /** Dígitos en crudo, como el documento: el formato va en el eco. */
+  planClases: string;
+  planCobro: string;
   terminos: boolean;
 };
 
 const INICIAL: Valores = {
-  nombre: "",
+  nombres: "",
+  apellidos: "",
   tipoIdentificacion: "C.C.",
   identificacion: "",
   fechaNacimiento: "",
@@ -120,6 +188,9 @@ const INICIAL: Valores = {
   tutorTelefonoPropio: "",
   mismoNombre: false,
   mismoTelefono: false,
+  plan: "",
+  planClases: "",
+  planCobro: "",
   terminos: false,
 };
 
@@ -137,6 +208,8 @@ type Contexto = {
   documentosExistentes: Record<string, string>;
   /** nombre normalizado → nombre tal cual está escrito en la base. */
   nombresExistentes: Record<string, string>;
+  /** correo en minúsculas → nombre del cliente que ya lo usa. */
+  correosExistentes: Record<string, string>;
   tutorNombre: string;
   tutorTelefono: string;
 };
@@ -169,10 +242,13 @@ function errorDe(campo: Campo, v: Valores, ctx: Contexto): string | undefined {
     /* Los números NO se validan aquí: `sinDigitos` los filtra al teclear, así
        que un nombre con dígitos no puede llegar a existir. Un mensaje para eso
        sería código muerto. */
-    case "nombre":
-      return v.nombre.trim().length >= 3
+    case "nombres":
+      return v.nombres.trim().length >= 2 ? undefined : "Escribe los nombres.";
+
+    case "apellidos":
+      return v.apellidos.trim().length >= 2
         ? undefined
-        : "Escribe el nombre completo.";
+        : "Escribe los apellidos.";
 
     case "identificacion": {
       const d = v.identificacion;
@@ -201,12 +277,18 @@ function errorDe(campo: Campo, v: Valores, ctx: Contexto): string | undefined {
       if (!v.telefono) return "Indica el teléfono.";
       return esMovilCO(v.telefono) ? undefined : MSJ_MOVIL;
 
-    // El correo es OPCIONAL: vacío es válido. Solo se valida con contenido.
-    case "correo":
-      if (!v.correo.trim()) return undefined;
-      return esCorreo(v.correo)
-        ? undefined
-        : "Revisa el correo: le falta el @ o el punto.";
+    /* ⚠️ OBLIGATORIO: es con lo que el cliente inicia sesión. La base lo exige
+       también (NOT NULL + único), así que aquí solo se adelanta el error. */
+    case "correo": {
+      if (!v.correo.trim()) return "Indica el correo: con él inicia sesión.";
+      if (!esCorreo(v.correo))
+        return "Revisa el correo: le falta el @ o el punto.";
+      /* Error y no aviso, como el documento: dos clientes no pueden iniciar
+         sesión con el mismo correo. */
+      const duenio = ctx.correosExistentes[v.correo.trim().toLowerCase()];
+      if (duenio) return `Ya hay un cliente con este correo: ${duenio}.`;
+      return undefined;
+    }
 
     case "eps":
       return v.eps ? undefined : "Selecciona la EPS.";
@@ -252,6 +334,21 @@ function errorDe(campo: Campo, v: Valores, ctx: Contexto): string | undefined {
       if (!ctx.tutorTelefono) return "Indica el teléfono del acudiente.";
       return esMovilCO(ctx.tutorTelefono) ? undefined : MSJ_MOVIL;
 
+    /* ⚠️ Sin valor por defecto: «Sin plan» hay que ELEGIRLO. Si viniera
+       preseleccionado, olvidarse del plan pasaría por decisión. */
+    case "plan":
+      return v.plan ? undefined : "Elige un plan, o «Sin plan».";
+
+    case "planClases":
+      if (v.plan !== PLAN_PERSONALIZADO) return undefined;
+      return Number(v.planClases) >= 1
+        ? undefined
+        : "Indica cuántas clases incluye.";
+
+    case "planCobro":
+      if (v.plan !== PLAN_PERSONALIZADO) return undefined;
+      return Number(v.planCobro) >= 1 ? undefined : "Indica cuánto se cobra.";
+
     case "terminos":
       return v.terminos
         ? undefined
@@ -271,12 +368,16 @@ function errorDe(campo: Campo, v: Valores, ctx: Contexto): string | undefined {
 function avisosDe(v: Valores, ctx: Contexto): Partial<Record<Campo, string>> {
   const a: Partial<Record<Campo, string>> = {};
 
-  const t = v.nombre.trim();
-  if (t.length >= 3 && !t.includes(" ")) a.nombre = "¿Falta el apellido?";
-
-  const repetido = ctx.nombresExistentes[claveNombre(v.nombre)];
-  if (repetido)
-    a.nombre = `Ya hay un cliente llamado ${repetido}. Comprueba que no sea la misma persona.`;
+  /* Ya no hace falta el «¿Falta el apellido?»: los apellidos tienen campo propio
+     y obligatorio. El repetido compara el nombre COMPLETO —así está en la
+     base— y el aviso va bajo los apellidos, que es lo último que se escribe:
+     debajo de los nombres saltaría con «María» antes de terminar. */
+  if (v.nombres.trim() && v.apellidos.trim()) {
+    const repetido =
+      ctx.nombresExistentes[claveNombre(`${v.nombres} ${v.apellidos}`)];
+    if (repetido)
+      a.apellidos = `Ya hay un cliente llamado ${repetido}. Comprueba que no sea la misma persona.`;
+  }
 
   if (v.emergenciaTelefono && v.emergenciaTelefono === v.telefono)
     a.emergenciaTelefono = "Es el mismo teléfono del cliente.";
@@ -295,13 +396,17 @@ const enServidor = () => "";
 export default function FormularioAlta({
   documentosExistentes,
   nombresExistentes,
+  correosExistentes,
+  planes,
 }: {
   documentosExistentes: Record<string, string>;
   nombresExistentes: Record<string, string>;
+  correosExistentes: Record<string, string>;
+  /** El catálogo real, solo los que se venden hoy. */
+  planes: Plan[];
 }) {
   const [v, setV] = useState<Valores>(INICIAL);
   const [errores, setErrores] = useState<Errores>({});
-  const [intentado, setIntentado] = useState(false);
   const [ficha, setFicha] = useState<FichaAlta | null>(null);
   /** Si nadie ha tocado el tipo de documento, la edad puede sugerirlo. */
   const [tipoTocado, setTipoTocado] = useState(false);
@@ -321,7 +426,6 @@ export default function FormularioAlta({
    */
   const hoy = useSyncExternalStore(sinSuscripcion, hoyLocalIso, enServidor);
 
-  const refResumen = useRef<HTMLDivElement>(null);
   const refs = useRef<Record<string, HTMLElement | null>>({});
 
   /* ---------------------------------------------------------- derivados */
@@ -346,6 +450,7 @@ export default function FormularioAlta({
     hoy,
     documentosExistentes,
     nombresExistentes,
+    correosExistentes,
     tutorNombre,
     tutorTelefono,
   };
@@ -379,27 +484,62 @@ export default function FormularioAlta({
     });
   }
 
+  function cambiarPlan(valor: string) {
+    set("plan", valor);
+    /* Mismo motivo que el acudiente: al dejar de ser personalizado, sus errores
+       bloquearían el envío desde campos que ya no están en pantalla. Los
+       valores se conservan por si se vuelve a él. */
+    setErrores((e) => {
+      const limpio = { ...e, plan: undefined };
+      for (const c of CAMPOS_PERSONALIZADO) limpio[c] = undefined;
+      return limpio;
+    });
+  }
+
+  const planElegido = planes.find((p) => p.id === v.plan);
+  const opcionesPlan = opcionesDePlan(planes);
+
   /* ------------------------------------------------------------- envío */
 
   function onSubmit(ev: FormEvent) {
     ev.preventDefault();
-    setIntentado(true);
-
     const nuevos: Errores = {};
-    for (const { campo } of ORDEN_CAMPOS) {
+    for (const campo of ORDEN_CAMPOS) {
       const err = errorDe(campo, v, ctx);
       if (err) nuevos[campo] = err;
     }
     setErrores(nuevos);
 
-    if (Object.keys(nuevos).length > 0) {
-      refResumen.current?.focus();
+    /* Sin resumen de errores arriba (decisión del usuario): cada campo ya
+       dice lo suyo debajo, en rojo. El foco va al PRIMERO con error, y el
+       lector de pantalla lee su mensaje por `aria-describedby`. */
+    const primero = ORDEN_CAMPOS.find((c) => nuevos[c]);
+    if (primero) {
+      refs.current[primero]?.focus();
       return;
     }
 
     const eps = v.eps === EPS_OTRA ? v.epsOtra.trim() : v.eps;
+    const plan: PlanAlta = planElegido
+      ? {
+          tipo: "catalogo",
+          planId: planElegido.id,
+          nombre: planElegido.nombre,
+          precio: planElegido.precio,
+        }
+      : v.plan === PLAN_PERSONALIZADO
+        ? {
+            tipo: "personalizado",
+            clases: Number(v.planClases),
+            importe: Number(v.planCobro),
+          }
+        : { tipo: "ninguno" };
+    /* Los nombres se normalizan AQUÍ, al guardar (ver `nombrePropio`): los
+       cuatro de persona, no solo el del cliente, o el acudiente saldría en
+       mayúsculas junto a un cliente bien escrito. */
     setFicha({
-      nombre: v.nombre.trim(),
+      nombres: nombrePropio(v.nombres),
+      apellidos: nombrePropio(v.apellidos),
       tipoIdentificacion: v.tipoIdentificacion,
       identificacion: v.identificacion,
       fechaNacimiento: v.fechaNacimiento,
@@ -407,26 +547,21 @@ export default function FormularioAlta({
       correo: v.correo.trim().toLowerCase(),
       eps,
       contactoEmergencia: {
-        nombre: v.emergenciaNombre.trim(),
+        nombre: nombrePropio(v.emergenciaNombre),
         telefono: telefonoCO(v.emergenciaTelefono),
       },
       acudiente:
         esMenor === true
           ? {
-              nombre: tutorNombre.trim(),
+              nombre: nombrePropio(tutorNombre),
               identificacion: v.tutorIdentificacion,
               telefono: telefonoCO(tutorTelefono),
             }
           : undefined,
+      plan,
       aceptaTerminos: v.terminos,
     });
   }
-
-  const listaErrores = ORDEN_CAMPOS.filter((c) => errores[c.campo]).map((c) => ({
-    campo: c.campo,
-    etiqueta: c.etiqueta,
-    mensaje: errores[c.campo] as string,
-  }));
 
   /* ------------------------------------------------------------- éxito */
 
@@ -437,7 +572,7 @@ export default function FormularioAlta({
           ✦
         </div>
         <h2 className="mt-6 font-display text-3xl text-verde">
-          Ficha de {ficha.nombre.split(" ")[0]} completada
+          Ficha de {ficha.nombres.split(" ")[0]} completada
         </h2>
         {/* Sin eufemismos: el mismo criterio que el aviso del botón de alta. */}
         <p className="mx-auto mt-3 max-w-md text-sm text-verde-700">
@@ -466,7 +601,6 @@ export default function FormularioAlta({
               setFicha(null);
               setV(INICIAL);
               setErrores({});
-              setIntentado(false);
               setTipoTocado(false);
             }}
             className="control-fx relative inline-flex min-h-[44px] items-center gap-2 overflow-hidden rounded-full border border-verde/40 px-5 text-sm text-verde-700 transition-colors duration-300 hover:border-dorado hover:text-verde"
@@ -489,34 +623,43 @@ export default function FormularioAlta({
 
   return (
     <form onSubmit={onSubmit} className="space-y-4" noValidate>
-      {intentado && (
-        <ResumenErrores
-          ref={refResumen}
-          errores={listaErrores}
-          onIr={(campo) => refs.current[campo]?.focus()}
-        />
-      )}
-
       <Seccion titulo="Datos personales">
+        {/* Nombres y apellidos por separado, y emparejados: son un mismo dato
+            partido en dos, que es cuando la rejilla admite dos columnas.
+            Mayúsculas y minúsculas NO se tocan al teclear; se normalizan al
+            guardar con `nombrePropio()`. */}
         <CampoTexto
-          ancho
-          nombre="nombre"
-          etiqueta="Nombre completo"
-          value={v.nombre}
+          nombre="nombres"
+          etiqueta="Nombres"
+          value={v.nombres}
           /* Los dígitos se filtran al teclear, igual que en el documento: un
              nombre de persona no lleva números, así que en vez de avisar después
              simplemente no entran. */
-          onChange={(e) => set("nombre", sinDigitos(e.target.value))}
-          onBlur={() => alSalir("nombre")}
-          error={errores.nombre}
-          aviso={avisos.nombre}
-          maxLength={80}
+          onChange={(e) => set("nombres", sinDigitos(e.target.value))}
+          onBlur={() => alSalir("nombres")}
+          error={errores.nombres}
+          maxLength={60}
           /* ⚠️ `off` a propósito, al revés que en `/registro`: allí cada quien
              escribe sus datos y el autofill ayuda; aquí una recepcionista
              escribe los de OTRA persona y el navegador le metería los suyos. */
           autoComplete="off"
           ref={(el) => {
-            refs.current.nombre = el;
+            refs.current.nombres = el;
+          }}
+        />
+
+        <CampoTexto
+          nombre="apellidos"
+          etiqueta="Apellidos"
+          value={v.apellidos}
+          onChange={(e) => set("apellidos", sinDigitos(e.target.value))}
+          onBlur={() => alSalir("apellidos")}
+          error={errores.apellidos}
+          aviso={avisos.apellidos}
+          maxLength={60}
+          autoComplete="off"
+          ref={(el) => {
+            refs.current.apellidos = el;
           }}
         />
 
@@ -637,7 +780,7 @@ export default function FormularioAlta({
 
         <CampoTexto
           nombre="correo"
-          etiqueta="Correo electrónico (opcional)"
+          etiqueta="Correo electrónico"
           type="email"
           value={v.correo}
           onChange={(e) => set("correo", e.target.value)}
@@ -807,6 +950,83 @@ export default function FormularioAlta({
           </div>
         </Seccion>
       )}
+
+      {/* Después de los datos de la persona y antes de los términos: es lo
+          último que se decide en recepción, y lo que se firma incluye el plan. */}
+      <Seccion titulo="Plan">
+        <SelectorPlan
+          opciones={opcionesPlan}
+          valor={v.plan}
+          onCambio={cambiarPlan}
+          error={errores.plan}
+          ref={(el) => {
+            refs.current.plan = el;
+          }}
+        />
+        {planes.length === 0 && (
+          <p className="text-xs text-verde-300 sm:col-span-2">
+            El catálogo está vacío: crea los planes en{" "}
+            <Link
+              href="/admin/planes"
+              className="text-dorado-dark underline underline-offset-4"
+            >
+              Planes
+            </Link>
+            , o usa uno personalizado.
+          </p>
+        )}
+
+        {v.plan === PLAN_PERSONALIZADO && (
+          <>
+            <CampoTexto
+              nombre="planClases"
+              etiqueta="Clases incluidas"
+              value={v.planClases}
+              /* Dígitos filtrados al teclear, como el documento: el error
+                 «solo números» no puede llegar a existir. */
+              onChange={(e) =>
+                set(
+                  "planClases",
+                  soloDigitos(e.target.value).slice(0, CLASES_MAX_DIGITOS),
+                )
+              }
+              onBlur={() => alSalir("planClases")}
+              error={errores.planClases}
+              inputMode="numeric"
+              pattern="\d*"
+              autoComplete="off"
+              ref={(el) => {
+                refs.current.planClases = el;
+              }}
+            />
+            <CampoTexto
+              nombre="planCobro"
+              etiqueta="Cobro (COP)"
+              value={v.planCobro}
+              onChange={(e) =>
+                set(
+                  "planCobro",
+                  soloDigitos(e.target.value).slice(0, COBRO_MAX_DIGITOS),
+                )
+              }
+              onBlur={() => alSalir("planCobro")}
+              error={errores.planCobro}
+              /* El estado guarda dígitos crudos y el formato va en el eco:
+                 formatear dentro del input descolocaría el cursor. */
+              ayuda={
+                Number(v.planCobro) > 0 ? moneda(Number(v.planCobro)) : undefined
+              }
+              inputMode="numeric"
+              pattern="\d*"
+              placeholder={numero(150000)}
+              autoComplete="off"
+              ref={(el) => {
+                refs.current.planCobro = el;
+              }}
+            />
+          </>
+        )}
+      </Seccion>
 
       <div className="rounded-2xl border border-beige bg-white p-5 shadow-card sm:p-6">
         <CampoCheck

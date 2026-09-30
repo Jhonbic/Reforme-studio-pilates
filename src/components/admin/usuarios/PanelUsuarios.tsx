@@ -194,7 +194,9 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
           return (
             /* ⚠️ La pestaña inactiva lleva BORDE siempre, no solo al hover. Sin
                él no se leía como un control: no había nada que «se encendiera»
-               al acercar el cursor, solo un barrido que pasaba y se iba. El
+               al acercar el cursor, solo un barrido que pasaba y se iba. Hoy
+               ese barrido (dash) ya no está —decisión del usuario, igual que en
+               las pastillas de filtro—: el hover es solo el borde. El
                grosor no cambia nunca —lo que se enciende es el color del borde
                más un `ring`—, por la misma razón que en las tarjetas: pasar de
                `border` a `border-2` movería 1px el texto y se vería como un
@@ -218,21 +220,12 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
                 if (e.key === "ArrowRight") irAPestana(i + 1);
                 if (e.key === "ArrowLeft") irAPestana(i - 1);
               }}
-              className={`control-fx relative min-h-[44px] overflow-hidden rounded-full border px-5 font-display text-lg transition-[color,background-color,border-color,box-shadow] duration-300 ${
+              className={`min-h-[44px] rounded-full border px-5 font-display text-lg transition-[color,background-color,border-color,box-shadow] duration-300 ${
                 activa
                   ? "border-dorado bg-dorado text-verde-900"
-                  : "border-beige text-verde-700 hover:border-dorado hover:text-verde hover:ring-2 hover:ring-dorado/25 focus-visible:border-dorado focus-visible:ring-2 focus-visible:ring-dorado/25"
+                  : "border-beige text-verde-700 hover:border-dorado hover:text-verde hover:ring-2 hover:ring-dorado/45 focus-visible:border-dorado focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dorado/45"
               }`}
             >
-              {/* Solo en la inactiva: sobre el dorado de la activa un dorado al
-                  28 % no se ve, y la pestaña activa ya está señalada por su
-                  relleno — no necesita respuesta al hover. */}
-              {!activa && (
-                <span
-                  className="control-sheen control-sheen--lento"
-                  aria-hidden="true"
-                />
-              )}
               {p.etiqueta}
             </button>
           );
@@ -281,7 +274,7 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
       </div>
 
       {/* El `tabpanel` va en un `<div>` propio y no en la `Card`: las props de
-          `Card` son cerradas a propósito (tono, densidad, fx, sheen…) y abrirla
+          `Card` son cerradas a propósito (tono, densidad, fx, resalte…) y abrirla
           a atributos ARIA arbitrarios por un solo uso no compensa. */}
       <div
         role="tabpanel"

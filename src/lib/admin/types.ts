@@ -95,32 +95,53 @@ export type Acudiente = {
 };
 
 /**
+ * El plan que se elige en el alta. Tres casos que no se parecen entre sí, así
+ * que es una unión discriminada y no un objeto con campos opcionales: con
+ * opcionales cabría un «personalizado» sin importe o un «ninguno» con clases.
+ *
+ * - `catalogo`: uno de la tabla `planes`. Se copian nombre y precio **del
+ *   momento del alta**, igual que `membresias.importe`: si mañana sube el
+ *   precio, lo pactado hoy no cambia solo.
+ * - `personalizado`: fuera de catálogo, con sus clases y su cobro.
+ * - `ninguno`: se registra a la persona y el plan se asigna después.
+ */
+export type PlanAlta =
+  | { tipo: "ninguno" }
+  | { tipo: "catalogo"; planId: string; nombre: string; precio: number }
+  | { tipo: "personalizado"; clases: number; importe: number };
+
+/**
  * Lo que se rellena en recepción al dar de alta a alguien.
  *
- * ⚠️ **No es un `Cliente`, y es a propósito.** Un `Cliente` necesita plan,
- * estado, vencimiento e importe, y el alta **no pregunta por el plan**: se asigna
- * después. Como además hoy no hay backend ni mutador, nada de esto entra en
+ * ⚠️ **No es un `Cliente`, y es a propósito.** Un `Cliente` necesita estado,
+ * vencimiento e importe, y el plan puede quedar sin asignar (`PlanAlta`
+ * `ninguno`). Como además hoy no hay mutador, nada de esto entra en
  * `CLIENTES`, así que no hace falta forzar la forma de `Cliente` ni volver sus
  * campos opcionales — que habría roto la columna de plan del listado, su filtro,
  * `REPARTO_PLANES` y el CSV.
  *
- * El día que haya base de datos, `crearCliente(ficha)` mapeará ficha → cliente y
- * será ahí donde se elija el plan.
+ * El día que se conecte, `crearCliente(ficha)` creará el cliente y, si hay
+ * plan, su membresía.
  */
 export type FichaAlta = {
-  nombre: string;
+  /** Se piden por separado y se guardan ya normalizados con `nombrePropio()`.
+   *  `Cliente.nombre` y la columna `clientes.nombre` siguen siendo uno solo:
+   *  `crearCliente(ficha)` decidirá si se unen o si la tabla se parte. */
+  nombres: string;
+  apellidos: string;
   tipoIdentificacion: TipoIdentificacion;
   /** Dígitos en crudo (o alfanumérico en pasaporte), sin puntos. */
   identificacion: string;
   /** ISO corto. */
   fechaNacimiento: string;
   telefono: string;
-  /** Cadena vacía si no lo dio: el correo es opcional. */
+  /** Obligatorio y en minúsculas: es el usuario con el que inicia sesión. */
   correo: string;
   eps: string;
   contactoEmergencia: ContactoEmergencia;
   /** Solo si es menor de edad. */
   acudiente?: Acudiente;
+  plan: PlanAlta;
   /** Lo acepta el cliente, o su acudiente si es menor. */
   aceptaTerminos: boolean;
 };
@@ -292,16 +313,24 @@ export type CondicionesPlan = {
 };
 
 /**
+ * Cómo acabó una escritura en la base.
+ *
+ * ⚠️ **Las server actions no lanzan excepciones para lo previsible.** Un nombre
+ * repetido o un plan que no se puede borrar no son fallos del programa: son
+ * respuestas que el formulario tiene que saber pintar. Lanzar convertiría cada
+ * una en una pantalla de error.
+ *
+ * Vive aquí y no en `acciones.ts` para que los componentes de cliente puedan
+ * usar el tipo sin importar un módulo `"use server"`.
+ */
+export type Resultado = { ok: true } | { ok: false; mensaje: string };
+
+/**
  * Un plan que se está creando o editando en el formulario.
  *
- * ⚠️ **No es un `CondicionesPlan`, igual que `FichaAlta` no es un `Cliente`.**
- * El motivo es `TipoPlan`: es una unión de cuatro literales porque cada cliente
- * guarda el suyo, así que un plan nuevo —con nombre libre— no encaja en ese
- * tipo. Forzarlo a `string` obligaría a tocar `Cliente`, `REPARTO_PLANES`, el
- * filtro del listado y el CSV, y todo eso para un formulario que hoy no guarda.
- *
- * El día que haya base de datos, el plan pasará a tener id propio y `TipoPlan`
- * desaparecerá como unión cerrada; ahí `guardarPlan(borrador)` hará el mapeo.
+ * ⚠️ **No es un `Plan`: le falta el `id`**, igual que `FichaAlta` no es un
+ * `Cliente`. El id lo pone la base al insertar, así que un plan que todavía no
+ * existe no puede tenerlo.
  */
 export type BorradorPlan = {
   nombre: string;
@@ -310,25 +339,60 @@ export type BorradorPlan = {
   /** `null` = ilimitadas dentro de la vigencia. */
   clasesIncluidas: number | null;
   seVende: boolean;
+  /** Si es el resaltado del catálogo. Como máximo uno lo está — ver `Plan`. */
+  destacado: boolean;
   descripcion: string;
   caracteristicas: string[];
 };
 
-/** Una tarjeta de la pantalla de Planes: condiciones + lo que ha pasado con ellas. */
-export type PlanConMetricas = CondicionesPlan & {
-  /**
-   * El nombre para pintar. Hoy es siempre igual que `plan`, pero se separa a
-   * propósito: `plan` es la clave de tipo `TipoPlan` con la que los clientes
-   * guardan su modalidad, y un plan creado desde el formulario tendrá nombre
-   * libre sin pertenecer a esa unión. Escribir `plan.plan` en la UI, además,
-   * se lee fatal.
-   */
-  nombreVisible: string;
+/**
+ * Una modalidad del catálogo, tal y como está guardada en la tabla `planes`.
+ *
+ * ⚠️ **Esto NO es `CondicionesPlan`, y la diferencia es de dónde salen.**
+ * `CondicionesPlan` va indexado por `TipoPlan` —la unión cerrada de cuatro
+ * literales que cada cliente guarda— y vive en `mock.ts`. `Plan` tiene **id
+ * propio y nombre libre**: es lo que permite que el estudio cree las
+ * modalidades que quiera desde la pantalla.
+ *
+ * Conviven a propósito mientras clientes y membresías sigan en `mock.ts`: ahí
+ * `Cliente.plan` continúa siendo un `TipoPlan`. Cuando esas dos se migren,
+ * `CondicionesPlan` y `TipoPlan` desaparecen y solo queda este tipo.
+ */
+export type Plan = {
+  id: string;
+  nombre: string;
   precio: number;
-  /** Clientes que lo tienen ahora mismo, contados sobre `CLIENTES`. */
+  /** Días que dura la membresía desde que se paga. */
+  vigenciaDias: number;
+  /** Clases incluidas, o `null` si son ilimitadas dentro de la vigencia. */
+  clasesIncluidas: number | null;
+  /** Si se puede vender hoy. Un plan retirado conserva sus clientes vigentes. */
+  seVende: boolean;
+  /**
+   * El resaltado del catálogo, el que sale como «El más contratado».
+   *
+   * ⚠️ **Como máximo uno lo tiene, y eso lo garantiza la BASE** (índice
+   * `solo_un_plan_destacado`), no la pantalla. Se marca a mano: derivarlo del
+   * número de clientes dejó de funcionar cuando el catálogo pasó a arrancar
+   * vacío, porque con todos a cero se destacaba uno cualquiera.
+   */
+  destacado: boolean;
+  /** Para quién es, en una línea. */
+  descripcion: string;
+  /** Lo que incluye, en frases cortas para la tarjeta de precio. */
+  caracteristicas: string[];
+};
+
+/** Una tarjeta de la pantalla de Planes: el plan + lo que ha pasado con él. */
+export type PlanConMetricas = Plan & {
+  /**
+   * Clientes que lo tienen contratado ahora mismo.
+   *
+   * ⚠️ **Hoy es 0 para todos, y es la verdad, no un hueco sin rellenar:**
+   * las membresías siguen en `mock.ts` y ninguna apunta a los planes que se
+   * creen aquí. Pasa a ser un `COUNT` real en cuanto `membresias` se migre.
+   */
   clientes: number;
-  /** Lo que factura al mes ese plan según el reparto de ingresos. */
-  facturacionMes: number;
 };
 
 export type RepartoMetodoPago = {

@@ -60,18 +60,48 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 - `package.json` name = `reforme-studio-pilates` (carpeta con espacios/mayúsculas).
   Hay otro `package-lock.json` en el home del usuario → fijado `turbopack.root` en
   `next.config.ts` (con `path.resolve(__dirname)`, ruta relativa: funciona igual
-  en el Linux de Vercel).
+  en el Linux del servidor de compilación).
 
 ### Despliegue
 
 - Repo: `github.com/Jhonbic/Reforme-studio-pilates`, rama **`main`**.
-- Hospedaje: **Vercel** (plan Hobby). Push a `main` → redespliegue automático.
-- ⚠️ **Usar siempre la URL de producción:** https://reforme-studio-pilates.vercel.app
-  Las otras dos (`…-git-main-…` y la del hash) están tras la *Deployment
-  Protection* de Vercel y **piden iniciar sesión** — en el móvil no hay sesión, así
-  que parecen rotas. Se desactivaría en Settings → Deployment Protection.
-- El sitio es 100 % estático (todas las rutas salen `○ Static` en el build), por eso
-  no hace falta un contenedor tipo Railway.
+- Hospedaje: **Netlify**, plan **Personal**, en el **mismo equipo que Jain Sport
+  Box**. Base de datos: **Supabase**, plan **Free**.
+- ⚠️ **Un solo plan paga los dos proyectos: los créditos de Netlify son del
+  EQUIPO, no del sitio** (Personal admite hasta 500 proyectos sobre el mismo
+  bote de 1.000 créditos). Por eso el coste atribuible a Reforme es la mitad de
+  $9 ≈ 14.400 COP/mes y no $9. El precio de eso es que **un pico de Jain puede
+  pausar este sitio**: lo hace tolerable la **auto-recarga**, que convierte
+  quedarse sin créditos en un cobro de $5 en vez de dos sitios caídos.
+- ⚠️ **Vercel y Railway se descartaron porque sus planes baratos PROHÍBEN el uso
+  comercial**, y esta web se vende por membresía: Hobby de Vercel dice
+  literalmente «non-commercial, personal use only», y el de Railway lo mismo.
+  Sus planes legales son $20/asiento, el doble que Netlify. Railway además
+  factura un contenedor encendido **24/7** —solo 512 MB de RAM son $5/mes aunque
+  no entre nadie de madrugada—, que es el modelo equivocado para ~50 usuarios.
+  Cloudflare sí es gratis y permite cobrar, pero exige el adaptador OpenNext y su
+  fricción documentada es el **middleware**, justo donde vivirá el
+  `middleware.ts` de la autenticación. VPS descartado: nadie va a mantenerlo.
+- ⚠️ **Ya NO se despliega con cada push a `main`.** Un deploy a producción cuesta
+  **15 créditos** de los 1.000 del equipo, compartidos con Jain. Se trabaja **en
+  ramas** —los *deploy previews* cuestan **0 créditos**— y a `main` solo van
+  releases. De paso, eso da el entorno de pruebas que antes no existía.
+- ⚠️ **El sitio dejará de ser 100 % estático al conectar Supabase.** Hoy las
+  rutas salen `○ Static` / `● SSG`, pero con datos reales `/admin` pasa a
+  renderizarse por petición (ver [`BASE_DE_DATOS.md`](BASE_DE_DATOS.md)). No es
+  culpa del hospedaje: es el precio de tener datos de verdad.
+- **Respaldos: [`.github/workflows/respaldo.yml`](../.github/workflows/respaldo.yml)**,
+  diario. Cubre dos cosas de una vez: el plan Free de Supabase **no incluye
+  backups**, y un proyecto Free **se pausa tras una semana de inactividad** — la
+  conexión diaria cuenta como actividad y lo impide. Necesita el secret
+  `SUPABASE_DB_URL`.
+- **Se desarrolla contra una base LOCAL en Docker** (sep 2026): `npx supabase
+  start` + `npm run db:reset`, y `npm run dev` ya va contra ella por
+  `.env.development.local`. Admin local: `admin@reforme.local` /
+  `reforme-local`. Los clientes de Supabase están tipados con
+  `src/lib/supabase/database.types.ts` (`npm run db:tipos` tras cada
+  migración). Todo en [`BASE_DE_DATOS.md`](BASE_DE_DATOS.md) §«Desarrollo en
+  local».
 - Para ver en el móvil sin desplegar: `npx next dev -H 0.0.0.0` y abrir
   `http://<IP-del-PC>:3000`.
 
@@ -169,8 +199,10 @@ En `src/components/`:
 
 **Efectos premium** en `src/components/fx/`:
 - `SmoothScroll.tsx` — Lenis (inercia + intercepta anclas, offset -80 por navbar).
-- `HeroFX.tsx` — canvas único: motas doradas + burbujas que siguen el cursor +
-  ondas "goteo" al clic.
+- `HeroFX.tsx` — canvas único: motas doradas + ondas "goteo" al clic.
+  ⚠️ **Sin estela que siga al cursor** (sep 2026, decisión del usuario): la
+  cadena de burbujas doradas se quitó de todos los fondos verdes. No volver a
+  añadirla.
 - `Magnetic.tsx` — botones que se imantan al cursor (solo `pointer:fine`).
 - Grano/textura global vía `.grain-overlay` (SVG feTurbulence) en el layout.
 
@@ -205,16 +237,19 @@ En `src/components/`:
     términos). **`/login` no valida nada**: solo mira el correo para repartir por
     rol (ver Panel administrativo).
   - Login **sin** "Continuar con Google" (se quitó; la auth real es fase 2 aún sin definir).
-  - `AuthShell` lleva los **detalles premium del inicio**: `HeroFX` (estela dorada) en el panel
+  - `AuthShell` lleva los **detalles premium del inicio**: `HeroFX` (motas doradas) en el panel
     de marca, y en **móvil** una banda de marca verde superior (profundidad radial + HeroFX +
     logo + titular serif) con `SectionWave` que funde hacia el formulario. Mobile-first.
 
 ### Panel administrativo (`/admin`)
 
-Fase 3 arrancada. **Solo UI con datos de ejemplo**, sin backend.
+Fase 2 en curso. **Login y Planes conectados a Supabase; el resto lee `mock.ts`.**
 
-- Secciones: **Dashboard**, **Usuarios**, **Planes** y **Finanzas**, las cuatro
-  construidas. Lo que falta en ellas no es pantalla, es persistencia.
+- Secciones: **Dashboard**, **Usuarios**, **Clases**, **Planes** y **Finanzas**,
+  las cinco construidas. Lo que falta en ellas no es pantalla, es persistencia.
+- ⚠️ **El panel ya está protegido**, y por dos capas distintas: `src/proxy.ts`
+  (comprobación optimista de cookie) y el propio `layout.tsx`, que exige perfil
+  de personal contra la base. Ver §7 y `docs/BASE_DE_DATOS.md`.
 - `app/admin/layout.tsx` — armazón propio: barra lateral verde en escritorio,
   cabecera fija + pastillas con scroll horizontal en móvil. **No usa el Navbar ni
   el Footer públicos**: son dos productos distintos, y aquí los efectos
@@ -252,6 +287,14 @@ Fase 3 arrancada. **Solo UI con datos de ejemplo**, sin backend.
       que cuenta algo real. Los otros dos son de ejemplo y el propio menú lo
       dice. Un punto rojo que nunca cambia sería una mentira pequeña; este
       cambia con los datos.
+    - ⚠️ **La píldora de cuenta va en `bg-dorado` con texto BLANCO por decisión
+      del usuario.** Queda medido: blanco sobre `#be9b69` da **2,6:1** y sobre
+      `dorado-dark` **3,8:1**, por debajo del 4,5 de AA para texto pequeño. Se
+      acepta porque el nombre es decorativo —no hace falta leerlo para operar el
+      panel, y el desplegable lo repite en verde sobre blanco—, pero si algún
+      día se corrige, lo que sí pasa es `text-verde-900` (5,47:1), el mismo par
+      que usan las pastillas activas del listado. El hover oscurece a
+      `dorado-dark`.
     - Desplegable con el mismo patrón que `MenuExportar`: `absolute` para no
       empujar el título, cierre al pulsar fuera y con `Escape`, foco de vuelta
       al botón. Dentro: nombre, correo, rol, «Ver la web pública» y «Cerrar
@@ -382,7 +425,7 @@ con la llamada que ya existía:
   hovers y sombras, no un color de superficie: se veía casi negro. El
   `verde-900` sí se sigue usando **como tinta sobre dorado** (5.47:1); el verde
   de marca ahí se queda en 4.11:1 y no llega al 4.5 de AA.
-- **Efectos del panel: motas + estela, NUNCA goteo.** `HeroFX` acepta
+- **Efectos del panel: solo motas, NUNCA goteo.** `HeroFX` acepta
   `goteo={false}` y así se usa en las dos tarjetas oscuras, en la barra lateral
   y en la cabecera móvil. El motivo: en el panel casi todo clic va a un control
   (un filtro, un desplegable, un enlace) y una onda decorativa encima confunde
@@ -393,10 +436,10 @@ con la llamada que ya existía:
   **`ring`, no un `border-2`**: cambiar el ancho del borde en hover desplazaría
   1px todo el contenido y se vería como un temblor. Por eso la transición es
   `transition-[border-color,box-shadow]` y no `transition-colors`.
-  Las **tres cifras de cabecera**
-  llevan además `sheen`: la estela diagonal `.card-sheen` de la web pública. Son
-  las únicas tarjetas sin tooltip ni contenido que se salga del marco, así que
-  son las únicas donde se puede recortar con `overflow-hidden` sin romper nada.
+  ⚠️ **Ninguna tarjeta del panel lleva el dash diagonal** (`.card-sheen`). Lo
+  llevaron las tres cifras de cabecera y se quitó en sep 2026 (decisión del
+  usuario); con ello desapareció la prop `sheen` de `Card`, que no tenía otro
+  consumidor. `.card-sheen` sigue en la web pública.
 - ⚠️ **Lenis (`SmoothScroll`) está DESACTIVADO en `/admin`.** No es solo criterio:
   era un **bug**. Lenis cachea la altura desplazable, y los `<details>` de «Ver
   datos en tabla» hacen crecer la página al abrirse; Lenis no se enteraba y
@@ -404,7 +447,7 @@ con la llamada que ya existía:
   la tabla**. Se salta por `usePathname`. En la web pública se le añadió un
   `ResizeObserver` sobre `body` que llama a `lenis.resize()`, por si aparece
   algún contenido que cambie de alto.
-- **`Card` con `fx`** monta `HeroFX` (motas, estela y goteo de la web pública)
+- **`Card` con `fx`** monta `HeroFX` (motas y goteo de la web pública)
   dentro de la tarjeta. Solo en tono `oscuro`: sobre fondo claro el dorado no se
   ve, y en las tarjetas de datos competiría con el hover de los gráficos.
   ⚠️ El canvas va **detrás del texto con `isolate` + `-z-10`**, no envolviendo
@@ -555,6 +598,13 @@ los 118 clientes daban 404. Hoy se prerenderizan las 118 con
   `Variacion`: cada estado lleva **símbolo + texto** (`● Activa`, `▲ Por vencer`,
   `■ Vencida`, `○ Inactiva`). Estrena `--color-estado-aviso`, que estaba definido
   y sin usar. «Inactiva» va en `verde-300` neutro: no es una alarma.
+  ⚠️ **«Activa» NO lleva color de estado** (sep 2026, decisión del usuario:
+  «demasiados colores»). Va en `TONO_ESTADO.normal`: marco neutro con tinta
+  `verde` de marca. Es el estado de ~3 de cada 4 filas, y un verde de estado en
+  casi todas no distinguía nada —la misma regla por la que «Programada» no se
+  pinta en Clases—. **Color solo para lo que pide actuar**: ámbar «Por vencer» y
+  rojo «Vencida». Activa e Inactiva se separan por símbolo (● / ○) y tinta. Lo
+  mismo en la pastilla del Equipo.
   Usa `color-mix()` sobre las variables `--color-estado-*` porque la sintaxis
   `bg-token/10` de Tailwind solo funciona con colores del `@theme`.
 - **Se busca por nombre o número de identificación** (decisión del usuario), no
@@ -585,8 +635,12 @@ los 118 clientes daban 404. Hoy se prerenderizan las 118 con
   se registró.
 - **La respuesta al hover de los controles es el dash diagonal dorado**
   (`.control-sheen`), **no un relleno de fondo** (decisión del usuario, que
-  descartó el relleno beige que se probó antes). Lo llevan pestañas, pastillas de
-  estado, «Nuevo cliente» y paginación.
+  descartó el relleno beige que se probó antes). Lo llevan «Nuevo cliente» y
+  la paginación.
+  - ⚠️ **Las pastillas de filtro por estado y las pestañas Clientes/Equipo YA
+    NO llevan dash** (sep 2026, decisión del usuario). Su hover es solo el borde: se enciende en dorado y
+    **engorda con un `ring-2`**, nunca con `border-2` (movería 1px el texto). El
+    raíl lleva `py-1 -mt-1` para que su `overflow-x-auto` no recorte el anillo.
   - ⚠️ **No es `.card-sheen` reutilizado: 0,55 s frente a 1,3 y 0,28 de opacidad
     frente a 0,22.** Es cuestión de tamaño: una pastilla mide ~100px, y a 1,3 s el
     barrido se arrastraría mucho después de haber movido el cursor; en tan poco
@@ -685,7 +739,7 @@ los 118 clientes daban 404. Hoy se prerenderizan las 118 con
   en el `role="status"`. Ese aviso va **en su propia línea** bajo la fila: en la
   esquina no le queda ancho y al aparecer empujaría las pestañas.
 - ⚠️ **`Card` no acepta atributos ARIA arbitrarios** (sus props son `tono`,
-  `densidad`, `fx`, `sheen`, `resalte`, `as`, `className`, `id`). El
+  `densidad`, `fx`, `resalte`, `as`, `className`, `id`). El
   `role="tabpanel"` va en
   un `<div>` que la envuelve, en vez de abrir su API por un solo uso.
 
@@ -696,12 +750,37 @@ formulario en `/admin`, ni utilidad de validación, ni componente de campo que
 sirviera: además de la página, funda el vocabulario de formularios del panel.
 
 - ⚠️ **El formulario NO produce un `Cliente`, produce una `FichaAlta`.** Un
-  `Cliente` exige plan, estado, vencimiento e importe, y **el alta no pregunta por
-  el plan** (decisión del usuario: se asigna después). Como además no hay backend
-  ni mutador, nada de esto entra en `CLIENTES`, así que **no hace falta tocar
-  `Cliente` ni volver sus campos opcionales** — que habría roto la columna de plan
-  del listado, su filtro, `REPARTO_PLANES` y el CSV. Con la BD,
-  `crearCliente(ficha)` mapeará ficha → cliente y ahí se elegirá el plan.
+  `Cliente` exige estado, vencimiento e importe, y el plan puede quedar sin
+  asignar. Como además no hay mutador, nada de esto entra en `CLIENTES`, así que
+  **no hace falta tocar `Cliente` ni volver sus campos opcionales** — que habría
+  roto la columna de plan del listado, su filtro, `REPARTO_PLANES` y el CSV.
+- **Sección «Plan»** (sep 2026, decisión del usuario; antes el alta no
+  preguntaba por el plan). **Tarjetas pequeñas seleccionables**
+  (`SelectorPlan.tsx`) con el **catálogo REAL** de `/admin/planes` (Supabase,
+  solo los que `seVende`) y dos más al final: **«Personalizado»** —abre
+  «Clases incluidas» y «Cobro (COP)»— y **«Sin plan»**.
+  - ⚠️ **Empezó como `<select>` y se cambió a tarjetas** (decisión del
+    usuario): con 4-5 opciones se comparan de un vistazo precio, días y
+    clases. Por debajo son **`<input type="radio">` nativos en `sr-only`**,
+    no botones: flechas del teclado, anuncio del lector y foco al fallar,
+    gratis. ⚠️ **La elegida NO se rellena** (decisión del usuario): se queda
+    blanca con borde dorado **grueso** (`ring-2` sólido) + ✓. El hover solo
+    cambia el borde a dorado, sin engordar —si engordara se confundiría con la
+    elegida—. Sin dash. En `FichaAlta.plan` es la unión `PlanAlta`
+  (`catalogo` / `personalizado` / `ninguno`), no un objeto con opcionales.
+  - ⚠️ **No hay opción por defecto: «Sin plan» hay que elegirlo.** Si viniera
+    preseleccionado, olvidarse del plan pasaría por una decisión.
+  - Del plan de catálogo se copian **nombre y precio del momento del alta**,
+    como hace `membresias.importe`.
+  - Clases y cobro se filtran a dígitos al teclear (topes de 3 y 8 cifras) y
+    el cobro lleva el eco en `moneda()` debajo, como el documento.
+  - Al dejar de ser «Personalizado» se borran sus errores (mismo motivo que el
+    acudiente), y los valores se conservan.
+  - Con el catálogo vacío, la ayuda del campo enlaza a Planes.
+  - ⚠️ **El personalizado NO tiene vigencia** (el usuario pidió clases y
+    cobro). `membresias` exige `vencimiento` y `plan_id`, así que al conectar el
+    alta hay que decidir cómo se guarda: vigencia fija, un campo más, o una
+    fila de `planes` oculta por cliente.
 - **La minoría de edad se DERIVA de la fecha de nacimiento, no se pregunta.** No
   hay casilla «¿es menor?»: el bloque del acudiente aparece solo. Misma doctrina
   que «los rangos imposibles no se validan, no se pueden elegir».
@@ -739,6 +818,25 @@ sirviera: además de la página, funda el vocabulario de formularios del panel.
   - ⚠️ **El estado guarda dígitos crudos, sin formato.** Formatear dentro de un
     input controlado descoloca el cursor al editar por el medio. El formato va en
     el eco de debajo (`documento()`) y al guardar (`telefonoCO()`).
+- **Nombres y apellidos se piden en DOS campos** (sep 2026, decisión del
+  usuario), emparejados en la misma fila. `FichaAlta` lleva `nombres` y
+  `apellidos`; ⚠️ `Cliente.nombre` y la columna `clientes.nombre` **siguen
+  siendo uno solo** — al conectar el alta, `crearCliente(ficha)` decide si se
+  unen o si la tabla se parte. El «¿Falta el apellido?» desapareció: el campo
+  es obligatorio. El aviso de nombre repetido compara el nombre completo y sale
+  bajo los apellidos.
+- ⚠️ **Correo y teléfono son OBLIGATORIOS** (sep 2026, decisión del usuario):
+  el correo es con lo que el cliente inicia sesión. Antes el correo era
+  opcional y llevaba «(opcional)» en la etiqueta. Un correo ya usado es
+  **error que bloquea**, como el documento —dos clientes no pueden entrar con
+  la misma cuenta—, y la base lo garantiza además con NOT NULL + índice único
+  sobre `lower(correo)` (ver `BASE_DE_DATOS.md`, decisión 0).
+- ⚠️ **Los cuatro nombres de persona se normalizan AL GUARDAR con
+  `nombrePropio()`** (`lib/validacion.ts`): primera letra de cada palabra en
+  mayúscula, el resto en minúscula, espacios colapsados. No al teclear —
+  reescribir un input controlado descoloca el cursor—. Sin excepciones para
+  «de / del / la»: «De La Hoz» existe escrito así. Cubre cliente, contacto de
+  emergencia y acudiente.
 - **Lo mismo al revés en los NOMBRES: `sinDigitos()` los filtra al teclear**, en
   los tres campos (cliente, contacto de emergencia y acudiente). Antes solo el
   nombre del cliente rechazaba números **y solo al enviar**; el del contacto de
@@ -758,14 +856,16 @@ sirviera: además de la página, funda el vocabulario de formularios del panel.
   campo tiene contenido** (tabular por un campo vacío que ibas a rellenar luego no
   debe castigarte); el envío valida todo. Una sola función `errorDe()` para los
   tres momentos, así el mensaje del blur y el del envío no pueden diferir.
-- ⚠️ **Al fallar el envío el foco va al RESUMEN de errores, no al primer campo
-  inválido.** Enfocar el primer campo esconde cuántos problemas hay: arreglas
-  uno, envías, aparece otro — tortura por goteo con catorce campos.
-  `ResumenErrores` es `role="alert"` + `tabIndex={-1}`, y sus ítems son botones
-  que llevan a cada campo.
-- ⚠️ **`role="alert"` existe UNA sola vez**, en el resumen. Cinco a la vez, uno
-  por campo, son un grito ininteligible en un lector de pantalla; los campos se
-  comunican con `aria-describedby` + `aria-invalid`.
+- ⚠️ **Sin resumen de errores** (sep 2026, decisión del usuario: «basta con la
+  alerta en cada espacio»). Hubo un `ResumenErrores` arriba —«Faltan N datos
+  por revisar», `role="alert"`, con botones a cada campo— y **se borró**. Al
+  fallar el envío, **todos** los campos con problema se marcan a la vez en
+  rojo (el envío valida todo, así que no hay goteo de uno en uno) y el foco va
+  al **primero** en orden de pantalla.
+- ⚠️ **No hay `role="alert"` por campo**: cinco a la vez son un grito
+  ininteligible en un lector de pantalla. Los campos se comunican con
+  `aria-describedby` + `aria-invalid`, y el lector lee el mensaje del campo al
+  que llega el foco.
 - **`aria-describedby` no existía en NINGÚN sitio del proyecto** antes de esto: el
   error de `/registro` es un `<p>` suelto sin `id`, que un lector nunca anuncia al
   enfocar el campo. Lo arregla la convención de `idsDeCampo()` en
@@ -945,10 +1045,8 @@ nadie que reserve.
 - **En una clase finalizada o cancelada los botones desaparecen**, no se
   deshabilitan: aquí no hay ningún porqué que leer, a diferencia del alta de
   cliente. Reprogramar el pasado no significa nada.
-- **El foco al fallar el envío va al primer campo inválido, NO a un resumen de
-  errores** — al revés que el alta. No es incoherencia: el alta son catorce
-  campos en cinco secciones, donde ir de uno en uno es tortura por goteo; esto
-  son seis campos dentro de un diálogo que cabe en pantalla.
+- **El foco al fallar el envío va al primer campo inválido**, igual que en el
+  alta de cliente desde que esta perdió su resumen de errores.
 - **La barra de ocupación va `aria-hidden`**: la cifra exacta («6 / 8 reservas»)
   está justo encima. Codificar la ocupación solo con longitud dejaría fuera a
   quien no la ve — misma regla que `Variacion` y `EstadoBadge`.
@@ -1015,6 +1113,46 @@ nadie que reserve.
 
 ⚠️ **Tampoco guarda nada**, y las tres acciones lo dicen con un aviso `warning`.
 
+#### Planes (`/admin/planes`) — conectado a Supabase jul 2026
+
+**La primera pantalla del panel que guarda de verdad.** El catálogo de
+modalidades: qué se vende, a qué precio, cuánto dura y qué incluye.
+
+- **Arranca VACÍO** (decisión del usuario). Los cuatro planes de `seed.sql` son
+  datos de ejemplo, no el catálogo del estudio. Por eso hay un **estado vacío
+  con su propia llamada a la acción**: sin él, la pantalla sería una franja con
+  un botón suelto y parecería que algo falló al cargar.
+  - ⚠️ **Vaciarlo es un archivo aparte, `supabase/catalogo-vacio.sql`, y NO un
+    cambio en `seed.sql`.** En la semilla los planes son el primer eslabón de
+    una cadena —los 118 clientes salen de `join planes pl on pl.nombre = …`, y
+    de ellos cuelgan membresías y pagos—, así que quitar el `insert into planes`
+    de allí no deja «el seed sin planes»: lo deja **sin nada**. La semilla sigue
+    haciendo falta para migrar las pantallas que quedan.
+- **El «más contratado» se marca A MANO**, con una casilla en el formulario.
+  Antes se derivaba del plan con más clientes —lo útil en una herramienta
+  interna es ver cuál se vende de verdad—, pero con el catálogo vacío todos
+  valen 0 y el cálculo destacaba a uno cualquiera. Ver `TarjetaPlan.tsx` y
+  `docs/BASE_DE_DATOS.md` §7.
+- ⚠️ **Solo puede haber uno destacado y lo garantiza la BASE**, no el
+  formulario: índice único parcial `solo_un_plan_destacado`, y la función
+  `destacar_plan()` que marca uno y desmarca el resto **en una sola sentencia**.
+- ⚠️ **Los errores de Postgres se traducen a algo accionable** en
+  `acciones.ts`, en vez de enseñar el error crudo. `23505` → «ya existe un plan
+  con ese nombre»; `23503` → «tiene clientes contratados, márcalo como *no se
+  vende*», que es exactamente la razón de ser del `on delete restrict`.
+- ⚠️ **Un UPDATE o un DELETE bloqueado por RLS NO devuelve error: devuelve éxito
+  con cero filas.** Por eso las dos acciones llevan `.select()` y comprueban
+  cuántas filas tocaron. Sin eso, la pantalla diría «Plan actualizado» y al
+  recargar no habría cambiado nada — el peor fallo posible, porque *parece* que
+  funciona.
+- **Al fallar, el diálogo se queda ABIERTO con lo escrito.** El caso más común
+  —nombre repetido— se arregla cambiando una palabra; cerrarlo obligaría a
+  teclearlo todo otra vez. Eliminar es la excepción: ahí sí se cierra, porque su
+  fallo típico no se arregla insistiendo en el mismo botón.
+- No hay estado local del catálogo: cada acción llama a `revalidatePath` y la
+  página de servidor baja los planes ya actualizados. Mantener aquí una copia
+  sería tener dos verdades.
+
 **⚠️ shadcn/ui se evaluó y se descartó (jul 2026).** Se probó instalar el bloque
 `@efferd/dashboard-3` en la rama `shadcn-dashboard-3`, ya borrada. Qué se aprendió,
 por si se vuelve a plantear:
@@ -1080,10 +1218,18 @@ izquierda** (legibilidad); solo se centra su encabezado.
 - **Fase 1 — landing (hecha).** Landing + UI de `/login` y `/registro`. Sin backend.
 - **Fase 1.5 — panel, solo lectura (hecha).** Dashboard, Usuarios (listado, alta,
   ficha), Clases, Planes y Finanzas. Todo con `mock.ts`.
-- **Fase 2 — datos reales (siguiente).** Autenticación y base de datos. Es lo que
-  desbloquea los formularios, que hoy validan pero no guardan.
+- **Fase 2 — datos reales (EN CURSO).** Autenticación y base de datos. Hechos ya
+  el **login real** y el **catálogo de Planes**; el resto de pantallas sigue en
+  `mock.ts`.
 - **Fase 3 — más módulos.** Reservas (la vista de cliente sobre la agenda que ya
   existe) e informes.
+
+> ⚠️ **Por qué la fase 2 empezó por Planes y arrastró la autenticación.** Planes
+> es la tabla más independiente del esquema —no depende de clientes ni de
+> membresías—, así que era el sitio por donde entrar. Pero las policies de RLS
+> exigen sesión **hasta para LEER** (`tiene_perfil()`), así que sin auth la
+> pantalla no salía «sin guardar»: salía **vacía**. No era una decisión de
+> alcance, era la única forma de que la primera pantalla conectada funcionase.
 
 > ⚠️ **La agenda de clases se adelantó a la fase 3** (jul 2026), igual que la
 > 1.5 se adelantó a la 2: el horario es lo que hay que tener para que la vista
@@ -1091,39 +1237,60 @@ izquierda** (legibilidad); solo se centra su encabezado.
 > tabla de reservas.
 
 > Ojo al orden: **la 1.5 se adelantó a la 2 a propósito**, para decidir el diseño
-> con algo delante. La consecuencia es que `/admin` está abierto y todos sus
-> datos son inventados.
+> con algo delante. La consecuencia fue que `/admin` estuvo abierto y con datos
+> inventados hasta que la fase 2 cerró lo primero.
 
 ### Qué está construido (jul 2026)
 
-Nueve rutas, todas `○ Static` o `● SSG`:
+Nueve rutas. La web pública es `○ Static`; **todo `/admin` es ahora `ƒ Dynamic`**,
+porque consultar la base obliga a resolver por petición.
 
 | Ruta | Estado |
 |---|---|
 | `/` | Landing completa |
-| `/login`, `/registro` | Solo UI, no envían a ningún sitio |
-| `/admin` | Dashboard bento + vista contable alternable |
-| `/admin/usuarios` | Listado, filtros, paginación, export CSV **real** |
+| `/registro` | Solo UI, no envía a ningún sitio |
+| `/login` | **Entra de verdad** (Supabase Auth) y reparte por rol |
+| `/recuperar` · `/nueva-contrasena` | Recuperación de contraseña · **falta configurar SMTP en Supabase** |
+| `/admin` | Dashboard bento + vista contable alternable · `mock.ts` |
+| `/admin/usuarios` | Listado, filtros, paginación, export CSV **real** · `mock.ts` |
 | `/admin/usuarios/nuevo` | Formulario validado · **no guarda** |
-| `/admin/usuarios/[id]` | Ficha de solo lectura (118 prerenderizadas) |
+| `/admin/usuarios/[id]` | Ficha de solo lectura · `mock.ts` |
 | `/admin/clases` | Agenda por día + alta, edición, cancelación · **no guarda** |
-| `/admin/planes` | Catálogo en tarjetas + CRUD · **no guarda** |
+| `/admin/planes` | Catálogo en tarjetas + CRUD · **GUARDA de verdad** |
 | `/admin/finanzas` | Libro de movimientos con filtros + alta de gasto · **no guarda** |
 
-**Lo único que funciona de verdad** sin backend: la exportación a CSV, los
-filtros y búsquedas (en cliente) y el selector de periodo del dashboard.
+**Lo que funciona de verdad:** el login, el CRUD de Planes, la exportación a CSV,
+los filtros y búsquedas (en cliente) y el selector de periodo del dashboard.
+
+⚠️ **Consecuencia aceptada de tener media app conectada y media en `mock.ts`:**
+el Dashboard y Usuarios hablan de «Mensual / Trimestral / Pack 10 clases», que
+son los planes inventados de `mock.ts`, mientras `/admin/planes` enseña el
+catálogo **real**, que arranca vacío. Son dos catálogos distintos en pantallas
+vecinas. Es justo el tipo de discrepancia que este proyecto persigue, y se
+acepta a sabiendas porque desaparece sola al migrar clientes y membresías —
+donde `Cliente.plan` deja de ser un `TipoPlan` y pasa a apuntar a un `plan_id`.
+
+⚠️ **Las tarjetas de Planes ya no muestran «Clientes» ni «Factura»** (sep
+2026, decisión del usuario): la tarjeta es el plan y nada más. `facturacionMes`
+se borró del tipo. `PlanConMetricas.clientes` **se queda**, porque el diálogo
+de eliminar lo usa para avisar de cuántos clientes tienen el plan; hoy vale 0
+—contarlo exige la tabla `membresias`, que sigue en `mock.ts`— y pasa a ser un
+`COUNT` real al migrarla.
 
 ## 8. Pendientes
 
 ### Bloqueante
 
-- [ ] **`/admin` no tiene ninguna protección.** No hay `middleware.ts`, ni sesión,
-      ni dependencia de auth en `package.json`. `/login` **ni lee la contraseña**:
-      es una regex sobre el correo (`/@reforme\.(com|co)$/`). Y ni eso hace falta,
-      basta escribir la URL. **Está desplegado en público.**
-- [ ] **Nada de lo que se escribe se guarda.** No existe `src/app/api/`. Alta de
-      cliente, CRUD de planes, registro de gasto y la agenda de clases validan y
-      avisan honestamente de que no persisten.
+- [x] ~~**`/admin` no tiene ninguna protección.**~~ **Resuelto (jul 2026).**
+      `src/proxy.ts` manda a `/login` a quien no tenga sesión, el layout del
+      panel exige además **perfil de personal** contra la base, y `/login` entra
+      de verdad con `signInWithPassword`. La regex sobre el correo ya no existe.
+      ⚠️ Lo que protege de verdad sigue siendo **RLS**: sin ficha activa en `equipo` (ver `docs/BASE_DE_DATOS.md`, «Personal: una ficha, un rol»),
+      una cuenta autenticada no recibe ni un registro.
+- [ ] **Casi nada de lo que se escribe se guarda todavía.** Planes ya persiste
+      (`src/app/admin/planes/acciones.ts`). Siguen sin guardar el alta de
+      cliente, el registro de gasto y la agenda de clases, y las tres lo avisan
+      honestamente al enviarse.
 - [ ] **La agenda no tiene reservas todavía.** `Clase.reservas` es un número
       generado, no un `COUNT`: falta la tabla de reservas y la vista de cliente
       que las cree. La agenda ya reserva el sitio para ello (aforo, cupos libres,
@@ -1149,13 +1316,18 @@ filtros y búsquedas (en cliente) y el selector de periodo del dashboard.
       commit inicial.
 - [ ] SVG oficial del logo. El que hay es PNG y solo está en el hero; Navbar,
       Footer y AuthShell siguen con el isotipo recreado a mano (`Logo.tsx`).
-- [ ] Destino para los tres `href="#"`: recuperar contraseña en `/login`, y
-      términos y política de privacidad en `/registro`.
+- [ ] Destino para los dos `href="#"` de `/registro`: términos y política de
+      privacidad. (El de «¿Olvidaste tu contraseña?» ya lleva a `/recuperar`.)
+- [ ] **SMTP propio, URLs y plantilla del correo en Supabase.** Sin eso la
+      recuperación de contraseña no le llega a ninguna clienta, en ningún plan.
+      Pasos y plantilla en `docs/BASE_DE_DATOS.md`.
 
 ### Calidad
 
-- [ ] **Cero tests y cero CI.** No hay `.github/`, ni Vitest/Playwright, ni script
-      de `typecheck`. Todo el CI es el auto-deploy de Vercel al hacer push.
+- [ ] **Cero tests y casi cero CI.** No hay Vitest/Playwright ni script de
+      `typecheck`. En `.github/workflows/` solo vive el respaldo diario de la
+      base de datos, que no comprueba nada del código: lo único que valida un
+      cambio es el build de Netlify al desplegar la rama.
 - [ ] **La rejilla bento sigue sin validarse a ojo** a 375 / 768 / 1280 / 1920.
       Qué mirar: que no haya scroll horizontal a 1920 (prueba del `min-w-0`), que
       los gráficos no se estiren al redimensionar, y que a 375px la columna única
@@ -1172,8 +1344,9 @@ filtros y búsquedas (en cliente) y el selector de periodo del dashboard.
 - ⚠️ `PAGOS` se **deriva** de `CLIENTES`. Con base de datos la relación se
   invierte: el pago pasa a ser el hecho registrado y el vencimiento se calcula a
   partir de él.
-- ⚠️ `crearCliente(ficha)` mapeará `FichaAlta` → `Cliente`, y es ahí donde se
-  asigna el plan (el alta no lo pregunta).
+- ⚠️ `crearCliente(ficha)` creará el cliente y, según `ficha.plan`, su
+  membresía: con plan de catálogo, directa; con personalizado, falta decidir
+  vigencia y `plan_id` (ver Alta de cliente); sin plan, ninguna.
 - ⚠️ **El esquema de Supabase todavía NO tiene clases ni reservas** (ver
   `docs/BASE_DE_DATOS.md`): hoy cubre clientes, membresías, pagos, planes y
   gastos. La agenda necesita dos tablas más, y `reservas` es la que convierte

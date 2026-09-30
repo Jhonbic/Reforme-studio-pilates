@@ -1,0 +1,31 @@
+-- =============================================================================
+-- Dejar el catálogo de planes VACÍO para empezar de cero
+--
+-- El estudio crea sus propias modalidades desde /admin/planes. Los cuatro
+-- planes de `seed.sql` (Mensual, Trimestral, Pack 10 clases, Clase suelta) son
+-- datos de EJEMPLO, no el catálogo real.
+--
+-- ⚠️ POR QUÉ ESTO ES UN ARCHIVO APARTE Y NO UN CAMBIO EN `seed.sql`
+--
+-- En la semilla, los planes son el primer eslabón de una cadena: los 118
+-- clientes se generan con `join planes pl on pl.nombre = p.nombre_plan`, y de
+-- ellos cuelgan membresías y pagos. Quitar el `insert into planes` de allí no
+-- deja «el seed sin planes»: deja el seed SIN NADA, y con él se irían los 118
+-- clientes de prueba que todavía hacen falta para el resto de pantallas —
+-- Usuarios, Dashboard y Finanzas siguen leyendo `mock.ts`, pero la migración de
+-- esas pantallas va a necesitar esos datos en la base.
+--
+-- Por eso la semilla se queda intacta y vaciar el catálogo es un acto
+-- deliberado, que se ejecuta cuando el estudio va a meter sus planes de verdad.
+--
+-- ⚠️ ESTO BORRA DATOS. `cascade` se propaga por clave foránea:
+--        planes → membresias → pagos
+--    Los clientes se quedan, pero SIN membresía ni historial de pagos.
+--    No se puede deshacer. En una base con datos reales, respaldar antes
+--    (el workflow .github/workflows/respaldo.yml genera uno a diario).
+--
+-- Ejecutar a mano, nunca automáticamente:
+--    npx supabase db query --linked -f supabase/catalogo-vacio.sql
+-- =============================================================================
+
+truncate table planes cascade;

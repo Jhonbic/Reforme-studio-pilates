@@ -15,8 +15,13 @@
 
 -- Idempotente: la semilla se puede volver a lanzar sin duplicar.
 -- `restart identity cascade` limpia también lo que cuelga por clave foránea.
-truncate table pagos, membresias, clientes, gastos, presupuestos, equipo, planes
+truncate table pagos, membresias, clientes, gastos, presupuestos, planes
   restart identity cascade;
+
+-- ⚠️ `equipo` NO va en el truncate: ahí están las fichas con cuenta de acceso
+-- (las de `npm run alta-personal`). Vaciarla dejaría fuera del panel a quien
+-- lanzó la semilla. Solo se borra la plantilla de ejemplo, la que no entra.
+delete from equipo where cuenta_id is null;
 
 
 -- Planes ---------------------------------------------------------------------
@@ -162,8 +167,11 @@ nuevos as (
   select
     f.nombre,
     f.identificacion,
+    -- ⚠️ El `f.i` final no es decoración: nombre y apellido se repiten entre
+    -- los 118 (salían 20 correos distintos), y el correo es ÚNICO desde la
+    -- migración 20260930140000 — es el usuario de login.
     lower(translate(split_part(f.nombre, ' ', 1), 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU')) || '.' ||
-    lower(translate(split_part(f.nombre, ' ', 2), 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU')) || '@correo.com',
+    lower(translate(split_part(f.nombre, ' ', 2), 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU')) || f.i || '@correo.com',
     '3' || lpad(((f.i * 7919) % 1000000000)::text, 9, '0'),
     current_date - (60 + (f.i * 23) % 840),
     -- Las inactivas llevan más de 30 días sin aparecer; el resto, poco.

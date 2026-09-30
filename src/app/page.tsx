@@ -158,7 +158,7 @@ export default function Home() {
                 <Parallax speed={-0.08}>
                   <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] shadow-lift">
                     <div className="brand-gradient absolute inset-0" />
-                    {/* Estela dorada dentro del cuadro */}
+                    {/* Motas doradas dentro del cuadro */}
                     <HeroFX className="z-[1]" />
                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-6 p-10 text-center text-arena">
                       <Isotype size={130} className="text-arena/90" />
@@ -235,7 +235,7 @@ export default function Home() {
             <Isotype size={300} />
           </Parallax>
 
-          {/* Estela dorada también sobre esta sección verde */}
+          {/* Motas doradas también sobre esta sección verde */}
           <HeroFX className="z-10" />
 
           <div className="relative z-20 mx-auto max-w-3xl px-6 text-center lg:px-10">

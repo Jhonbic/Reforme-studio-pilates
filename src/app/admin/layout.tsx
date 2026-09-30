@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import AdminTopbar from "@/components/admin/AdminTopbar";
 import AppSidebar from "@/components/admin/AppSidebar";
 import { SidebarProvider } from "@/context/SidebarContext";
@@ -26,7 +27,20 @@ export const metadata: Metadata = {
  *
  * `LayoutProps<'/admin'>` es un helper global de Next 16, no se importa.
  */
-export default function AdminLayout(props: LayoutProps<"/admin">) {
+export default async function AdminLayout(props: LayoutProps<"/admin">) {
+  const usuario = await getUsuarioActual();
+
+  /* ⚠️ **Esta es la comprobación de acceso que cuenta, no la de `proxy.ts`.**
+     El proxy solo mira si hay cookie de sesión —comprobación optimista, como
+     recomienda Next— y con eso deja pasar a una clienta registrada que escriba
+     `/admin` a mano. Aquí se verifica contra la base que además tenga PERFIL de
+     personal; sin él no hay panel que pintar, porque RLS no le devolvería una
+     sola fila y solo vería pantallas vacías.
+
+     Va en el layout y no en cada página para que ninguna ruta nueva del panel
+     pueda olvidarse de comprobarlo. */
+  if (!usuario) redirect("/login");
+
   return (
     <SidebarProvider>
       <ToastProvider>
@@ -39,10 +53,7 @@ export default function AdminLayout(props: LayoutProps<"/admin">) {
               ResizeObserver de los gráficos mediría un ancho inflado, que es
               justo el bug del estiramiento de las gráficas. */}
           <div className="flex min-w-0 flex-1 flex-col">
-            <AdminTopbar
-              usuario={getUsuarioActual()}
-              avisos={getNotificaciones()}
-            />
+            <AdminTopbar usuario={usuario} avisos={getNotificaciones()} />
 
             <main className="flex-1 px-4 py-5 sm:px-6 lg:px-6 lg:py-6 xl:px-8">
               {props.children}

@@ -1,5 +1,6 @@
 import Avatar from "./Avatar";
 import { Pastilla } from "./EstadoBadge";
+import { TONO_ESTADO } from "@/components/admin/Pastilla";
 import { fechaCompacta } from "@/lib/admin/format";
 import { REJILLA_EQUIPO } from "./rejilla";
 import type { MiembroEquipo } from "@/lib/admin/types";
@@ -40,13 +41,13 @@ export default function FilaMiembro({ miembro }: { miembro: MiembroEquipo }) {
           <Pastilla
             simbolo="●"
             texto="Activa"
-            clase="border-[color-mix(in_srgb,var(--color-estado-ok)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-ok)_10%,transparent)] text-[var(--color-estado-ok)]"
+            clase={TONO_ESTADO.normal}
           />
         ) : (
           <Pastilla
             simbolo="○"
             texto="Inactiva"
-            clase="border-beige bg-beige/40 text-verde-300"
+            clase={TONO_ESTADO.neutro}
           />
         )}
 

@@ -9,11 +9,12 @@ export { default as Pastilla } from "@/components/admin/Pastilla";
 /**
  * Los cuatro estados de membresía.
  *
- * `Inactiva` va en neutro a propósito: no es una alarma, es alguien que dejó de
- * venir.
+ * Solo llevan color los dos que piden hacer algo (renovar, cobrar). `Activa` es
+ * lo normal y va sin color de estado, en tinta de marca; `Inactiva` en neutro
+ * atenuado: no es una alarma, es alguien que dejó de venir.
  */
 const ESTILOS: Record<EstadoMembresia, { simbolo: string; clase: string }> = {
-  Activa: { simbolo: "●", clase: TONO_ESTADO.ok },
+  Activa: { simbolo: "●", clase: TONO_ESTADO.normal },
   "Por vencer": { simbolo: "▲", clase: TONO_ESTADO.aviso },
   Vencida: { simbolo: "■", clase: TONO_ESTADO.grave },
   Inactiva: { simbolo: "○", clase: TONO_ESTADO.neutro },

@@ -110,7 +110,7 @@ export default function PanelClases({
           ocupa casi toda la pantalla, el cursor está siempre dentro y encender
           el borde no señalaría nada — solo enmarcaría la página en dorado. */}
       {/* ⚠️ `Card` no acepta atributos ARIA arbitrarios (sus props son `tono`,
-          `densidad`, `fx`, `sheen`, `resalte`, `as`, `className` e `id`) y no se
+          `densidad`, `fx`, `resalte`, `as`, `className` e `id`) y no se
           abre su API por un solo uso: el `<h2>` del día de abajo ya nombra este
           bloque. */}
       <Card densidad="plana" resalte={false} className="mt-4">

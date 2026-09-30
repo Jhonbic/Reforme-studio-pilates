@@ -42,6 +42,33 @@ export function sinDigitos(texto: string): string {
   return texto.replace(/\d/g, "");
 }
 
+/**
+ * Nombre de persona con la primera letra de cada palabra en mayúscula y el resto
+ * en minúscula: «maría JOSÉ  de la ossa» → «María José De La Ossa».
+ *
+ * Se aplica **al guardar, no al teclear**: reescribir un input controlado
+ * mientras se escribe descoloca el cursor, y quien teclea no tiene por qué ver
+ * cómo se le cambia el texto bajo los dedos. Lo que se guarda sale siempre
+ * igual, lo haya escrito quien lo haya escrito — sin eso la base acabaría con
+ * «LAURA», «laura» y «Laura» en la misma columna.
+ *
+ * - También tras guion y apóstrofo: «Ana-María», «D'Angelo».
+ * - ⚠️ **Las partículas («de», «del», «la») también suben**: la regla es una
+ *   sola y sin excepciones. Hacerlas minúscula acertaría en «de la Ossa» y
+ *   fallaría en «De La Hoz», que hay quien lo escribe así en su cédula.
+ * - `\p{L}` y no `[a-z]`: con `[a-z]` la «á» de «álvaro» no contaría como letra.
+ * - Colapsa los espacios repetidos y recorta los extremos.
+ */
+export function nombrePropio(texto: string): string {
+  return texto
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("es-CO")
+    .replace(/(^|[\s\-'’])(\p{L})/gu, (_, sep: string, letra: string) =>
+      sep + letra.toLocaleUpperCase("es-CO"),
+    );
+}
+
 /** Para comparar dos nombres: sin tildes, sin mayúsculas y con los espacios
  *  colapsados, para que «Ana  MARÍA solano» y «ana maria Solano» sean el mismo. */
 export function claveNombre(texto: string): string {

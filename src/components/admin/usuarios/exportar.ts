@@ -129,7 +129,8 @@ export function csvPagos(pagos: Pago[]): string {
  */
 export function csvFicha(f: FichaAlta): string {
   const filas: [string, string][] = [
-    ["Nombre", f.nombre],
+    ["Nombres", f.nombres],
+    ["Apellidos", f.apellidos],
     ["Tipo de documento", f.tipoIdentificacion],
     ["Número de documento", f.identificacion],
     ["Fecha de nacimiento", f.fechaNacimiento],
@@ -139,6 +140,17 @@ export function csvFicha(f: FichaAlta): string {
     ["Contacto de emergencia", f.contactoEmergencia.nombre],
     ["Teléfono de emergencia", f.contactoEmergencia.telefono],
   ];
+
+  const p = f.plan;
+  if (p.tipo === "ninguno") filas.push(["Plan", "Sin plan"]);
+  if (p.tipo === "catalogo")
+    filas.push(["Plan", p.nombre], ["Precio del plan", String(p.precio)]);
+  if (p.tipo === "personalizado")
+    filas.push(
+      ["Plan", "Personalizado"],
+      ["Clases incluidas", String(p.clases)],
+      ["Cobro", String(p.importe)],
+    );
 
   if (f.acudiente) {
     filas.push(

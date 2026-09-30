@@ -26,9 +26,16 @@ export function vigencia(dias: number): string {
  * comparan en vertical —precio contra precio, característica contra
  * característica— que es justo lo que hace quien elige.
  *
- * ⚠️ **La destacada es la de más clientes, no una elegida a mano.** Marcar
- * «la popular» a dedo es una decisión de marketing que aquí no toca: el panel
- * es una herramienta interna, y lo útil es ver cuál se vende de verdad.
+ * ⚠️ **La destacada se elige a mano**, con la casilla del formulario, y esto es
+ * un cambio respecto a como estuvo hecho al principio: se DERIVABA del plan con
+ * más clientes, porque en una herramienta interna lo útil es ver cuál se vende
+ * de verdad y no cuál querríamos destacar. Dejó de servir cuando el catálogo
+ * pasó a arrancar vacío — con todos los planes a cero clientes, el cálculo
+ * marcaba a uno cualquiera con el cartel «El más contratado» sin tener ni uno.
+ *
+ * Volverá a poder derivarse cuando `membresias` esté en la base y el recuento
+ * sea real; hasta entonces, una decisión explícita es más honesta que una
+ * deducción de datos que no existen.
  */
 export default function TarjetaPlan({
   plan,
@@ -54,7 +61,7 @@ export default function TarjetaPlan({
               destacado ? "text-arena" : "text-verde"
             }`}
           >
-            {plan.nombreVisible}
+            {plan.nombre}
           </h3>
 
           {/* ⚠️ Ranura de altura fija para el distintivo, aunque no haya
@@ -77,7 +84,7 @@ export default function TarjetaPlan({
 
         <Dropdown
           alineacion="derecha"
-          ariaLabel={`Acciones de ${plan.nombreVisible}`}
+          ariaLabel={`Acciones de ${plan.nombre}`}
           claseBoton={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dorado ${
             destacado
               ? "border-verde-700 text-beige hover:border-dorado"
@@ -165,34 +172,6 @@ export default function TarjetaPlan({
         ))}
       </ul>
 
-      {/* Lo que de verdad interesa en un panel interno: no «contrátalo», sino
-          cuánta gente lo tiene y cuánto deja. */}
-      <dl
-        className={`mt-6 grid grid-cols-2 gap-3 border-t pt-4 text-sm ${
-          destacado ? "border-verde-700" : "border-beige"
-        }`}
-      >
-        <div>
-          <dt className={destacado ? "text-beige/70" : "text-verde-300"}>
-            Clientes
-          </dt>
-          <dd
-            className={`tabular-nums ${destacado ? "text-arena" : "text-verde"}`}
-          >
-            {numero(plan.clientes)}
-          </dd>
-        </div>
-        <div>
-          <dt className={destacado ? "text-beige/70" : "text-verde-300"}>
-            Factura
-          </dt>
-          <dd
-            className={`tabular-nums ${destacado ? "text-arena" : "text-verde"}`}
-          >
-            {moneda(plan.facturacionMes)}
-          </dd>
-        </div>
-      </dl>
     </Card>
   );
 }

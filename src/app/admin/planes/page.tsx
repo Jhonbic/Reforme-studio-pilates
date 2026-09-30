@@ -9,19 +9,19 @@ import { getPlanes } from "@/lib/admin/queries";
  * competían con lo único que se viene a mirar aquí. El recuento de modalidades
  * no se perdió: vive en la cabecera de `PanelPlanes`, junto al botón de alta.
  *
- * Crear, editar y eliminar existen como pantalla, pero **no guardan**: el
- * catálogo vive en `mock.ts` como constante de módulo. Cada acción lo dice al
- * ejecutarse, con un aviso de tipo `warning`.
+ * ⚠️ **Es la primera pantalla del panel que GUARDA de verdad.** Crear, editar,
+ * eliminar y destacar escriben en la tabla `planes` a través de las server
+ * actions de `acciones.ts`. El resto del panel sigue leyendo `mock.ts`.
  *
- * ⚠️ El precio no se guarda aquí ni en el catálogo: sale de `PRECIO_PLAN`, el
- * mismo que se le cobra a cada cliente. Y los clientes se cuentan sobre
- * `CLIENTES`. Ver `getPlanes()`.
+ * ⚠️ **Por eso esta ruta ya no se prerenderiza.** Consultar la base obliga a
+ * resolverla por petición: no es un coste de Supabase, es lo que significa
+ * tener datos reales en vez de constantes compiladas.
  */
-export default function PlanesPage() {
+export default async function PlanesPage() {
   return (
     <div className="mx-auto w-full max-w-[1440px]">
       <h1 className="sr-only">Planes</h1>
-      <PanelPlanes planes={getPlanes()} />
+      <PanelPlanes planes={await getPlanes()} />
     </div>
   );
 }

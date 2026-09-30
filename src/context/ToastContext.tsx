@@ -74,9 +74,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           `polite` y no `assertive` (`role="alert"`): estos avisos confirman algo
           que la persona acaba de hacer y está mirando; interrumpir su lectura
           sería peor. Es la misma elección que ya hacen `PanelUsuarios`
-          (`role="status"`) y `MenuExportar` (`aria-live="polite"`). Para un
-          error que sí bloquea, el patrón del proyecto es `ResumenErrores`, que
-          es `role="alert"` de verdad.
+          (`role="status"`) y `MenuExportar` (`aria-live="polite"`). Un error
+          que sí bloquea no va aquí: va bajo su campo, y el foco salta a él.
 
           `pointer-events-none` en la pila y `auto` en cada aviso: la columna
           ocupa una franja alta de la pantalla y, sin esto, tragaría los clics

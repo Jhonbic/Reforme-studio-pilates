@@ -1,0 +1,86 @@
+# Respaldo diario de la base de datos (Supabase).
+#
+# Existe por dos motivos, y por eso es UN solo workflow y no dos:
+#
+#   1. El plan Free de Supabase NO incluye backups automáticos. Este los hace.
+#   2. Un proyecto Free se pausa tras UNA SEMANA de inactividad. La conexión
+#      diaria cuenta como actividad, así que además impide que eso ocurra.
+#
+# ⚠️ Si algún día se sube a Supabase Pro (backups incluidos), el punto 1 sobra
+#    pero el workflow sigue siendo útil: deja una copia fuera de Supabase.
+
+name: Respaldo de la base de datos
+
+on:
+  schedule:
+    # 07:10 UTC = 02:10 en Colombia (UTC−5). De madrugada y no en punto: a las
+    # horas exactas GitHub encola muchísimos jobs y los retrasa.
+    - cron: "10 7 * * *"
+  # Permite lanzarlo a mano desde la pestaña Actions, que es como se verifica.
+  workflow_dispatch:
+
+# Sin esto el token del job tendría permisos de escritura sobre el repo. Un
+# workflow que solo lee la base no necesita ninguno.
+permissions: {}
+
+jobs:
+  respaldo:
+    runs-on: ubuntu-latest
+    # Un dump de 118 clientes tarda segundos; si pasa de 10 min algo va mal y es
+    # mejor fallar que dejar el job colgado consumiendo minutos.
+    timeout-minutes: 10
+
+    steps:
+      - name: Instalar el CLI de Supabase
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Volcar esquema y datos
+        env:
+          # Cadena de conexión completa (incluye la contraseña) guardada en
+          # Settings → Secrets and variables → Actions.
+          #
+          # ⚠️ Se usa --db-url y NO `supabase link`: enlazar exige estado local
+          #    y pide la contraseña de forma interactiva, que en CI no existe.
+          #
+          # ⚠️ Usar el POOLER (puerto 6543) o la conexión directa del panel de
+          #    Supabase. Nunca esta cadena en una variable NEXT_PUBLIC_.
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "Falta el secret SUPABASE_DB_URL." >&2
+            exit 1
+          fi
+
+          mkdir -p respaldo
+
+          # Dos archivos separados, no uno: el esquema sirve para recrear la base
+          # desde cero y los datos para repoblarla. Mezclados no se puede hacer
+          # ni lo uno ni lo otro por separado.
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f respaldo/esquema.sql
+          supabase db dump --db-url "$SUPABASE_DB_URL" --data-only -f respaldo/datos.sql
+
+          # Falla si algún dump salió vacío: un artifact vacío parece un respaldo
+          # correcto hasta el día que hace falta restaurarlo.
+          for f in respaldo/esquema.sql respaldo/datos.sql; do
+            if [ ! -s "$f" ]; then
+              echo "$f está vacío: el respaldo no es válido." >&2
+              exit 1
+            fi
+          done
+
+          echo "Respaldo generado:"
+          ls -lh respaldo/
+
+      - name: Guardar el respaldo
+        uses: actions/upload-artifact@v4
+        with:
+          name: respaldo-${{ github.run_id }}
+          path: respaldo/
+          # 30 días. Más retención consume la cuota de almacenamiento del repo
+          # sin dar mucho: lo que protege de verdad es tener el de ayer.
+          retention-days: 30
+          if-no-files-found: error

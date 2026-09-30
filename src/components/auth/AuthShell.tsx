@@ -18,7 +18,7 @@ const RADIAL =
 /**
  * Layout de pantalla completa para /login y /registro.
  * Escritorio: panel de marca (verde) a la izquierda + formulario a la derecha.
- * Móvil: banda de marca premium arriba (verde con estela dorada + onda) y el
+ * Móvil: banda de marca premium arriba (verde con motas doradas + onda) y el
  * formulario debajo — para que la experiencia premium del inicio también viva
  * en el dispositivo principal.
  */
@@ -39,7 +39,7 @@ export default function AuthShell({
         <div className="pointer-events-none absolute -bottom-24 -left-16 text-verde-500/40">
           <Isotype size={520} />
         </div>
-        {/* Estela dorada interactiva (mismo detalle que el inicio) */}
+        {/* Motas doradas (mismo detalle que el inicio) */}
         <HeroFX className="z-[1]" />
 
         <div className="relative z-10 p-10">

@@ -5,7 +5,6 @@ import { useEffect, useRef } from "react";
 // Dorado de marca en RGB para componer con alfa variable
 const GOLD = "190, 155, 105";
 
-type Bubble = { x: number; y: number };
 type Dust = {
   x: number;
   y: number;
@@ -19,7 +18,6 @@ type Ripple = { x: number; y: number; r: number; max: number; life: number };
 /**
  * Capa interactiva del hero (canvas):
  *  - Motas doradas flotando muy lento (ambiente).
- *  - Cadena de burbujas que sigue el cursor / dedo con inercia.
  *  - Ondas concéntricas ("goteo") al hacer clic o tocar — opcional.
  * Un único bucle rAF. Se desactiva por completo con prefers-reduced-motion.
  * pointer-events-none: nunca bloquea los botones del hero.
@@ -50,16 +48,6 @@ export default function HeroFX({
     let width = 0;
     let height = 0;
     let dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-    // Estado del puntero
-    const pointer = { x: -9999, y: -9999, inside: false };
-
-    // Cadena de burbujas (siguen al cursor con retardo creciente)
-    const BUBBLES = 3;
-    const bubbles: Bubble[] = Array.from({ length: BUBBLES }, () => ({
-      x: -9999,
-      y: -9999,
-    }));
 
     let dust: Dust[] = [];
     const ripples: Ripple[] = [];
@@ -92,25 +80,6 @@ export default function HeroFX({
     const localFromEvent = (clientX: number, clientY: number) => {
       const rect = parent.getBoundingClientRect();
       return { x: clientX - rect.left, y: clientY - rect.top, rect };
-    };
-
-    const onMove = (e: PointerEvent) => {
-      const { x, y, rect } = localFromEvent(e.clientX, e.clientY);
-      const inside =
-        e.clientX >= rect.left &&
-        e.clientX <= rect.right &&
-        e.clientY >= rect.top &&
-        e.clientY <= rect.bottom;
-      pointer.x = x;
-      pointer.y = y;
-      pointer.inside = inside;
-      // Al primer contacto, coloca la cadena para evitar un "salto" desde 0,0
-      if (bubbles[0].x < -9000) {
-        for (const b of bubbles) {
-          b.x = x;
-          b.y = y;
-        }
-      }
     };
 
     const onDown = (e: PointerEvent) => {
@@ -157,32 +126,6 @@ export default function HeroFX({
         ctx.fill();
       }
 
-      // --- Cadena de burbujas siguiendo el puntero ---
-      if (pointer.inside) {
-        let px = pointer.x;
-        let py = pointer.y;
-        for (let i = 0; i < bubbles.length; i++) {
-          const b = bubbles[i];
-          const ease = 0.15 - i * 0.013; // cada eslabón, más lento (estela suave)
-          b.x += (px - b.x) * ease;
-          b.y += (py - b.y) * ease;
-          px = b.x;
-          py = b.y;
-
-          const t = 1 - i / bubbles.length;
-          const radius = 4 + t * 14;
-          const alpha = 0.06 + t * 0.16;
-          const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, radius);
-          g.addColorStop(0, `rgba(${GOLD}, ${alpha})`);
-          g.addColorStop(0.7, `rgba(${GOLD}, ${alpha * 0.5})`);
-          g.addColorStop(1, `rgba(${GOLD}, 0)`);
-          ctx.beginPath();
-          ctx.arc(b.x, b.y, radius, 0, Math.PI * 2);
-          ctx.fillStyle = g;
-          ctx.fill();
-        }
-      }
-
       // --- Ondas al clic (goteo) ---
       for (let i = ripples.length - 1; i >= 0; i--) {
         const rp = ripples[i];
@@ -214,18 +157,13 @@ export default function HeroFX({
 
     const ro = new ResizeObserver(resize);
     ro.observe(parent);
-    window.addEventListener("pointermove", onMove, { passive: true });
     if (goteo) window.addEventListener("pointerdown", onDown, { passive: true });
-    const onLeave = () => (pointer.inside = false);
-    window.addEventListener("blur", onLeave);
 
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
       io.disconnect();
-      window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("blur", onLeave);
     };
   }, [goteo]);
 

@@ -99,11 +99,14 @@ export default function BarraFiltros({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           {/* Scroll horizontal en móvil, como las pastillas de `AdminNav`: son
               cinco y no caben en 375px. Los márgenes negativos dejan que el
-              raíl llegue al borde de la tarjeta en vez de cortarse antes. */}
+              raíl llegue al borde de la tarjeta en vez de cortarse antes.
+              ⚠️ El `py-1` (compensado con `-mt-1`) es sitio para el `ring` del
+              hover: `overflow-x-auto` también recorta en vertical y se comería
+              el anillo por arriba. En `lg` ya no hay scroll y se suelta. */}
           <div
             role="group"
             aria-label="Filtrar por estado de membresía"
-            className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:-mx-5 sm:px-5 lg:mx-0 lg:flex-wrap lg:px-0 [&::-webkit-scrollbar]:hidden"
+            className="-mx-4 -mt-1 flex gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:-mx-5 sm:px-5 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden"
           >
             {ESTADOS.map((e) => {
               const activo = e === estado;
@@ -113,15 +116,17 @@ export default function BarraFiltros({
                   type="button"
                   aria-pressed={activo}
                   onClick={() => onEstado(e)}
-                  className={`control-fx relative flex min-h-[44px] shrink-0 items-center gap-2 overflow-hidden rounded-full px-4 text-sm transition-colors duration-300 ${
+                  /* Sin dash (`.control-sheen`) por decisión del usuario: la
+                     respuesta al hover es solo el borde, que se enciende en
+                     dorado y engorda. ⚠️ Lo que engorda es un `ring`, no un
+                     `border-2`: cambiar el ancho del borde movería 1px el texto
+                     de la pastilla — misma regla que las tarjetas. */
+                  className={`flex min-h-[44px] shrink-0 items-center gap-2 rounded-full px-4 text-sm transition-[border-color,box-shadow,color] duration-300 focus-visible:outline-none ${
                     activo
-                      ? "bg-dorado text-verde-900"
-                      : "border border-beige text-verde-700 hover:border-dorado/60 hover:text-verde"
+                      ? "bg-dorado text-verde-900 focus-visible:ring-2 focus-visible:ring-dorado/45"
+                      : "border border-beige text-verde-700 hover:border-dorado hover:text-verde hover:ring-2 hover:ring-dorado/45 focus-visible:border-dorado focus-visible:ring-2 focus-visible:ring-dorado/45"
                   }`}
                 >
-                  {!activo && (
-                    <span className="control-sheen" aria-hidden="true" />
-                  )}
                   {e}
                   {/* ⚠️ En la activa el recuento va en `verde-900` **sólido**, no
                       atenuado: es el par documentado sobre dorado (5,47:1). Con

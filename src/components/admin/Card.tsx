@@ -17,7 +17,7 @@ type Props = {
    */
   densidad?: "normal" | "compacta" | "plana";
   /**
-   * Capa de motas doradas y estela de la web pública (`HeroFX`), **sin el
+   * Capa de motas doradas de la web pública (`HeroFX`), **sin el
    * goteo al clic**: en el panel casi todo clic va a un control, y una onda
    * decorativa encima confunde sobre si la acción se registró.
    *
@@ -27,12 +27,6 @@ type Props = {
    * `prefers-reduced-motion`.
    */
   fx?: boolean;
-  /**
-   * Estela diagonal dorada al pasar el ratón (`.card-sheen`, la misma de la web
-   * pública). Necesita recortar con `overflow-hidden`, así que NO vale en
-   * tarjetas con tooltip o contenido que se salga del marco.
-   */
-  sheen?: boolean;
   /**
    * Encender el borde en dorado al `hover` / `focus-within`. Se apaga en las
    * tarjetas GRANDES que ocupan casi toda la pantalla —el listado de Usuarios—:
@@ -67,7 +61,6 @@ export default function Card({
   className = "",
   id,
   fx = false,
-  sheen = false,
   resalte: conResalte = true,
   children,
 }: Props) {
@@ -85,7 +78,6 @@ export default function Card({
      `mt-auto` y `self-start` que las tarjetas aplican desde fuera.
      `overflow-hidden` recorta el canvas a las esquinas redondeadas. */
   const capaFx = fx ? "relative isolate overflow-hidden" : "";
-  const capaSheen = sheen ? "group relative overflow-hidden" : "";
 
   /* El borde se enciende en dorado al pasar el ratón y también con
      `focus-within`, para que quien navegue con teclado reciba la misma señal al
@@ -102,10 +94,9 @@ export default function Card({
   return (
     <Etiqueta
       id={id}
-      className={`rounded-2xl border shadow-card ${TONOS[tono]} ${relleno} ${resalte} ${capaFx} ${capaSheen} ${className}`}
+      className={`rounded-2xl border shadow-card ${TONOS[tono]} ${relleno} ${resalte} ${capaFx} ${className}`}
     >
       {fx && <HeroFX className="-z-10" goteo={false} />}
-      {sheen && <span className="card-sheen" aria-hidden="true" />}
       {children}
     </Etiqueta>
   );

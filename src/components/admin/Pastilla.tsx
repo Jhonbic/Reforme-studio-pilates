@@ -37,12 +37,20 @@ export default function Pastilla({
    últimos.
 
    `neutro` NO es una alarma: es para lo que ya pasó o dejó de moverse
-   («Inactiva», «Finalizada»). */
+   («Inactiva», «Finalizada»).
+
+   `normal` es para el estado de reposo («Activa»): el mismo marco neutro con la
+   tinta de marca. ⚠️ **Lo normal no lleva color de estado.** Es el estado de la
+   mayoría de filas, y un color que sale en casi todas no distingue ninguna —la
+   misma razón por la que «Programada» no se pinta en Clases—; además dejaba la
+   lista con cuatro colores. El color queda para lo que pide actuar (`aviso`,
+   `grave`), y lo normal se distingue de lo inactivo por símbolo y tinta. */
 export const TONO_ESTADO = {
   ok: "border-[color-mix(in_srgb,var(--color-estado-ok)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-ok)_10%,transparent)] text-[var(--color-estado-ok)]",
   aviso:
     "border-[color-mix(in_srgb,var(--color-estado-aviso)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-aviso)_10%,transparent)] text-[var(--color-estado-aviso)]",
   grave:
     "border-[color-mix(in_srgb,var(--color-estado-grave)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-grave)_10%,transparent)] text-[var(--color-estado-grave)]",
+  normal: "border-beige bg-beige/40 text-verde",
   neutro: "border-beige bg-beige/40 text-verde-300",
 } as const;
