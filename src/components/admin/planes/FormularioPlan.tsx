@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import Modal from "@/components/admin/Modal";
 import CampoTexto from "@/components/admin/campos/CampoTexto";
 import { CASILLA, FILA_CHECK } from "@/components/admin/campos/estilos";
+import { guardarPlan } from "@/lib/admin/acciones";
 import { moneda } from "@/lib/admin/format";
 import type { BorradorPlan, PlanConMetricas } from "@/lib/admin/types";
 import { soloDigitos } from "@/lib/validacion";
@@ -63,9 +64,8 @@ function aBorrador(p: PlanConMetricas): BorradorPlan {
  * cambia es el título, el texto del botón y de dónde salen los valores
  * iniciales.
  *
- * ⚠️ **NO GUARDA NADA.** No hay base de datos ni mutador, y el catálogo vive en
- * `mock.ts` como constante de módulo: mutarlo se perdería en el siguiente
- * render del servidor y, peor, *parecería* que funciona. Al enviar se dice.
+ * Guarda en Supabase con `guardarPlan` (oct 2026). La acción revalida la
+ * pantalla, así que la tarjeta cambia sola al cerrar el diálogo.
  */
 export default function FormularioPlan({
   abierto,
@@ -85,6 +85,9 @@ export default function FormularioPlan({
   );
   const [errores, setErrores] = useState<Errores>({});
   const [nuevaCaract, setNuevaCaract] = useState("");
+  /** Fallo del servidor que no es de ningún campo. */
+  const [errorEnvio, setErrorEnvio] = useState("");
+  const [guardando, iniciarGuardado] = useTransition();
   const refs = useRef<Partial<Record<keyof Errores, HTMLElement | null>>>({});
   const refCaract = useRef<HTMLInputElement>(null);
 
@@ -92,12 +95,16 @@ export default function FormularioPlan({
      se resincroniza cuando cambia el plan que se está editando. Sin esto, abrir
      «editar Mensual», cerrar y abrir «editar Trimestral» enseñaría los datos
      del primero. */
-  const [ultimoPlan, setUltimoPlan] = useState(plan?.nombreVisible);
-  if (plan?.nombreVisible !== ultimoPlan) {
-    setUltimoPlan(plan?.nombreVisible);
+  /* ⚠️ Por ID y no por nombre: el nombre se puede cambiar en este mismo
+     formulario, y con el nombre como clave renombrar un plan lo confundiría
+     con otro. */
+  const [ultimoPlan, setUltimoPlan] = useState(plan?.id);
+  if (plan?.id !== ultimoPlan) {
+    setUltimoPlan(plan?.id);
     setV(plan ? aBorrador(plan) : VACIO);
     setErrores({});
     setNuevaCaract("");
+    setErrorEnvio("");
   }
 
   function set<K extends keyof BorradorPlan>(campo: K, valor: BorradorPlan[K]) {
@@ -147,8 +154,22 @@ export default function FormularioPlan({
       return;
     }
 
-    onGuardado(v.nombre.trim(), esNuevo);
-    onCerrar();
+    setErrorEnvio("");
+    iniciarGuardado(async () => {
+      const r = await guardarPlan(plan?.id ?? null, v);
+      if (r.ok) {
+        onGuardado(v.nombre.trim(), esNuevo);
+        onCerrar();
+        return;
+      }
+      // Nombre repetido: es de un campo, va a ese campo.
+      if (r.campo === "nombre") {
+        setErrores((e) => ({ ...e, nombre: r.error }));
+        refs.current.nombre?.focus();
+        return;
+      }
+      setErrorEnvio(r.error);
+    });
   }
 
   return (
@@ -195,7 +216,15 @@ export default function FormularioPlan({
             value={v.precio ? String(v.precio) : ""}
             onChange={(e) => set("precio", Number(soloDigitos(e.target.value)))}
             error={errores.precio}
-            ayuda={v.precio ? moneda(v.precio) : "En pesos, sin puntos."}
+            /* Al editar se avisa de lo que NO cambia: quien ya pagó, pagó el
+               precio de entonces (`membresias.importe` es una copia). */
+            ayuda={
+              v.precio
+                ? esNuevo
+                  ? moneda(v.precio)
+                  : `${moneda(v.precio)} · no cambia lo que ya pagaron`
+                : "En pesos, sin puntos."
+            }
             autoComplete="off"
             ref={(el) => {
               refs.current.precio = el;
@@ -355,19 +384,23 @@ export default function FormularioPlan({
           </span>
         </label>
 
-        <p className="rounded-xl border border-dashed border-dorado/50 bg-dorado/5 px-4 py-3 text-sm text-verde-700">
-          Este formulario <strong>no guarda todavía</strong>: el catálogo vive en
-          el código. Sirve para acordar qué define un plan antes de que exista la
-          base de datos.
-        </p>
+        {errorEnvio && (
+          <p role="alert" className="rounded-xl border border-[color-mix(in_srgb,var(--color-estado-grave)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-grave)_8%,transparent)] px-4 py-3 text-sm text-[var(--color-estado-grave)]">
+            {errorEnvio}
+          </p>
+        )}
 
         <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end">
           <button type="button" onClick={onCerrar} className={BOTON}>
             <span className="control-sheen" aria-hidden="true" />
             Cancelar
           </button>
-          <button type="submit" className={BOTON_PRIMARIO}>
-            {esNuevo ? "Crear plan" : "Guardar cambios"}
+          <button
+            type="submit"
+            disabled={guardando}
+            className={`${BOTON_PRIMARIO} disabled:opacity-60`}
+          >
+            {guardando ? "Guardando…" : esNuevo ? "Crear plan" : "Guardar cambios"}
           </button>
         </div>
       </form>

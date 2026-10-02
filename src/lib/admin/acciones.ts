@@ -8,7 +8,12 @@ import {
 } from "./catalogos";
 import { hoyEnBogota } from "./horario";
 import { getUsuarioActual } from "./queries";
-import type { CategoriaGasto, MetodoPago, TipoIdentificacion } from "./types";
+import type {
+  BorradorPlan,
+  CategoriaGasto,
+  MetodoPago,
+  TipoIdentificacion,
+} from "./types";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { MAYORIA_DE_EDAD, edad, esCorreo, esMovilCO } from "@/lib/validacion";
 
@@ -252,4 +257,125 @@ export async function urlComprobante(gastoId: string): Promise<string | null> {
     .from("comprobantes")
     .createSignedUrl(data.comprobante_path, 60);
   return firmada.data?.signedUrl ?? null;
+}
+
+/* ======================================================================
+   Planes
+   ====================================================================== */
+
+export type ResultadoPlan =
+  | { ok: true }
+  | { ok: false; error: string; campo?: "nombre" };
+
+/** Las rutas que enseñan nombres o precios de planes. */
+function revalidarPlanes() {
+  revalidatePath("/admin/planes");
+  revalidatePath("/admin/usuarios");
+  revalidatePath("/admin");
+}
+
+async function soloAdministracion(): Promise<string | null> {
+  const usuario = await getUsuarioActual();
+  return usuario?.rol === "Administración"
+    ? null
+    : "Solo Administración puede cambiar el catálogo de planes.";
+}
+
+/**
+ * Crea un plan (`id` nulo) o guarda los cambios de uno existente.
+ *
+ * ⚠️ **Cambiar el precio NO cambia lo que pagó nadie**: cada membresía copia
+ * su importe al contratarse (`membresias.importe`). El precio nuevo vale para
+ * las altas y renovaciones de aquí en adelante.
+ */
+export async function guardarPlan(
+  id: string | null,
+  b: BorradorPlan,
+): Promise<ResultadoPlan> {
+  const prohibido = await soloAdministracion();
+  if (prohibido) return { ok: false, error: prohibido };
+
+  const nombre = b.nombre.trim();
+  if (nombre.length < 3) return { ok: false, campo: "nombre", error: "El nombre necesita al menos 3 caracteres." };
+  if (!Number.isInteger(b.precio) || b.precio <= 0) return { ok: false, error: "Precio no válido." };
+  if (!Number.isInteger(b.vigenciaDias) || b.vigenciaDias <= 0) return { ok: false, error: "Vigencia no válida." };
+  if (b.clasesIncluidas !== null && (!Number.isInteger(b.clasesIncluidas) || b.clasesIncluidas <= 0))
+    return { ok: false, error: "Número de clases no válido." };
+
+  const fila = {
+    nombre,
+    precio: b.precio,
+    vigencia_dias: b.vigenciaDias,
+    clases_incluidas: b.clasesIncluidas,
+    se_vende: b.seVende,
+    descripcion: b.descripcion.trim(),
+    caracteristicas: b.caracteristicas.map((c) => c.trim()).filter(Boolean),
+  };
+
+  const supabase = await crearClienteServidor();
+  const { error } = id
+    ? await supabase.from("planes").update(fila).eq("id", id)
+    : await supabase.from("planes").insert(fila);
+
+  if (error) {
+    // `nombre` es único: dos planes «Mensual» serían indistinguibles en el
+    // listado de clientes, que enseña el plan por nombre.
+    if (error.code === "23505") return { ok: false, campo: "nombre", error: "Ya hay un plan con ese nombre." };
+    return { ok: false, error: `No se pudo guardar el plan: ${error.message}` };
+  }
+
+  revalidarPlanes();
+  return { ok: true };
+}
+
+/**
+ * Pone un plan a la venta o lo retira, sin tocar nada más.
+ *
+ * Es la alternativa a borrar: quien ya lo tiene lo conserva, pero deja de
+ * ofrecerse.
+ */
+export async function cambiarVentaPlan(id: string, seVende: boolean): Promise<ResultadoPlan> {
+  const prohibido = await soloAdministracion();
+  if (prohibido) return { ok: false, error: prohibido };
+
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("planes").update({ se_vende: seVende }).eq("id", id);
+  if (error) return { ok: false, error: `No se pudo cambiar el plan: ${error.message}` };
+
+  revalidarPlanes();
+  return { ok: true };
+}
+
+/**
+ * Borra un plan.
+ *
+ * ⚠️ La base NO deja borrar un plan que alguien haya contratado alguna vez
+ * (`membresias.plan_id ... on delete restrict`): el historial de pagos de esa
+ * persona lo necesita. No basta con que hoy no lo tenga nadie; cuenta el
+ * pasado. Ese caso vuelve como un mensaje que propone retirarlo de la venta.
+ */
+export async function eliminarPlan(id: string): Promise<ResultadoPlan> {
+  const prohibido = await soloAdministracion();
+  if (prohibido) return { ok: false, error: prohibido };
+
+  const supabase = await crearClienteServidor();
+  const { error, count } = await supabase
+    .from("planes")
+    .delete({ count: "exact" })
+    .eq("id", id);
+
+  if (error) {
+    if (error.code === "23503") {
+      return {
+        ok: false,
+        error: "No se puede eliminar: hay clientes que lo contrataron alguna vez y su historial lo necesita. Márcalo como «no se vende».",
+      };
+    }
+    return { ok: false, error: `No se pudo eliminar el plan: ${error.message}` };
+  }
+  // Sin error y sin filas: RLS lo filtró o ya no existía. No es un éxito.
+  if (count === 0) return { ok: false, error: "El plan ya no existe." };
+
+  revalidarPlanes();
+  return { ok: true };
 }

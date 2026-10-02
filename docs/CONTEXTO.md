@@ -1181,7 +1181,22 @@ muy gruesa son de un box de crossfit; aquí manda la marca.
 - ⚠️ **Las instructoras ven «—», no «$0».** RLS no les da los pagos, y la
   consulta no falla: devuelve cero filas. Pintar «$0» haría creer que el plan
   no vende. La página decide por rol y ni siquiera pide los pagos.
-- Crear, editar y eliminar siguen **sin guardar** (paso 7).
+- ✅ **Crear, editar y eliminar GUARDAN** (paso 7, oct 2026): `guardarPlan`,
+  `cambiarVentaPlan` y `eliminarPlan`, solo Administración.
+  - ⚠️ **Un plan que alguien contrató alguna vez NO se puede borrar**
+    (`membresias.plan_id ... on delete restrict`): su historial lo necesita.
+    Cuenta el pasado, no solo quien lo tiene hoy. Por eso, con clientes, el
+    diálogo no ofrece «Eliminar» sino **«Marcar como no se vende»**; sin
+    clientes actuales intenta borrar y, si la base lo impide (`23503`),
+    explica por qué y propone lo mismo. Antes el texto decía que «la membresía
+    se queda sin modalidad», que era falso.
+  - **Cambiar el precio no cambia lo que ya pagaron**: `membresias.importe` es
+    una copia. El formulario lo avisa al editar.
+  - Nombre repetido (`23505`) vuelve al campo.
+  - El formulario se resincroniza por **id**, no por nombre: con el nombre
+    como clave, renombrar un plan lo confundía con otro.
+  - El **filtro de plan de Usuarios** ya no tiene los cuatro planes escritos a
+    mano: salen de los clientes. Un plan nuevo no aparecía.
 - Verificado contra un cálculo SQL independiente: mismos clientes y mismo
   cobrado por plan, como Administración y como Instructora.
 
@@ -1277,7 +1292,7 @@ Nueve rutas, todas `○ Static` o `● SSG`:
 | `/admin/usuarios/nuevo` | Formulario validado · **guarda en Supabase** (sin plan) |
 | `/admin/usuarios/[id]` | Ficha de solo lectura, **desde Supabase** |
 | `/admin/clases` | Agenda por día + alta, edición, cancelación · **no guarda** |
-| `/admin/planes` | Catálogo **desde Supabase** + CRUD · **no guarda** |
+| `/admin/planes` | Catálogo **desde Supabase** + CRUD que **guarda** |
 | `/admin/finanzas` | **Desde Supabase**, solo Administración · periodo, utilidad, desgloses, libro unificado, export · registrar gasto **guarda** (con comprobante) |
 
 **Lo único que funciona de verdad** sin backend: la exportación a CSV, los
@@ -1292,9 +1307,9 @@ filtros y búsquedas (en cliente) y el selector de periodo del dashboard.
 - [x] ~~El registro abierto daba rol de Recepción a cualquiera~~ — quitado el
       trigger `al_crear_usuario` (migración `20261001120000`). **Falta aplicarla
       en el remoto** con `npx supabase db push`.
-- [ ] **Casi nada de lo que se escribe se guarda.** El **alta de cliente y el
-      registro de gasto sí** (oct 2026, server actions). CRUD de planes y la
-      agenda de clases validan y avisan honestamente de que no persisten.
+- [ ] **La agenda de clases todavía no guarda** (no hay tabla de clases).
+      Alta de cliente, registro de gasto y CRUD de planes sí guardan (oct
+      2026, server actions en `lib/admin/acciones.ts`).
 - [ ] **La agenda no tiene reservas todavía.** `Clase.reservas` es un número
       generado, no un `COUNT`: falta la tabla de reservas y la vista de cliente
       que las cree. La agenda ya reserva el sitio para ello (aforo, cupos libres,

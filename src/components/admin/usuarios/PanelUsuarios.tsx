@@ -74,6 +74,17 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
 
   const esClientes = pestana === "clientes";
 
+  /* Los planes del filtro salen de los propios clientes, ordenados: así un
+     plan recién creado aparece en cuanto alguien lo tiene, y uno sin nadie
+     no ofrece un filtro que siempre daría cero. */
+  const planes = useMemo(
+    () =>
+      [...new Set(clientes.map((c) => c.plan).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, "es"),
+      ),
+    [clientes],
+  );
+
   /* Cualquier cambio de filtro devuelve a la página 1: si estabas en la 7 y al
      filtrar solo quedan 2, la lista se vería vacía sin explicación. */
   function filtrar<T>(set: (v: T) => void) {
@@ -303,6 +314,7 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
           conteos={conteos}
           plan={plan}
           onPlan={filtrar(setPlan)}
+          planes={planes}
           orden={orden}
           onOrden={filtrar(setOrden)}
           etiquetaBusqueda={

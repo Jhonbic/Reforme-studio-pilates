@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
+import { cambiarVentaPlan, eliminarPlan } from "@/lib/admin/acciones";
 import { useToast } from "@/context/ToastContext";
 import { numero } from "@/lib/admin/format";
 import type { PlanConMetricas } from "@/lib/admin/types";
@@ -14,13 +15,12 @@ const BOTON =
 /**
  * Catálogo de planes con sus tres acciones.
  *
- * ⚠️ **Ninguna de las tres guarda**, y las tres lo dicen. El catálogo vive en
- * `mock.ts` como constante de módulo: mutarlo desde aquí se perdería en el
- * siguiente render del servidor y —lo peor— *parecería* que funciona. Es el
- * mismo motivo por el que el alta de cliente descartó `sessionStorage`.
+ * Las tres guardan en Supabase desde oct 2026 (`lib/admin/acciones.ts`).
  *
- * Lo que sí es real es la pantalla: qué campos define un plan, qué avisa antes
- * de borrar y cómo se compara una modalidad con otra.
+ * ⚠️ **Un plan con clientes no se borra: se retira de la venta.** La base no
+ * deja borrar un plan que alguien haya contratado (el historial de pagos lo
+ * necesita), así que con clientes el diálogo no ofrece «Eliminar», sino la
+ * acción que sí sirve: «Marcar como no se vende».
  */
 export default function PanelPlanes({ planes }: { planes: PlanConMetricas[] }) {
   const { mostrarAviso } = useToast();
@@ -37,6 +37,8 @@ export default function PanelPlanes({ planes }: { planes: PlanConMetricas[] }) {
     (mejor, p) => (mejor === null || p.clientes > mejor.clientes ? p : mejor),
     null,
   );
+
+  const conClientes = (borrando?.clientes ?? 0) > 0;
 
   function abrirAlta() {
     setEditando(undefined);
@@ -86,34 +88,46 @@ export default function PanelPlanes({ planes }: { planes: PlanConMetricas[] }) {
         onGuardado={(nombre, esNuevo) =>
           mostrarAviso(
             esNuevo
-              ? `El plan «${nombre}» NO se ha creado: el catálogo todavía vive en el código. Llegará con la base de datos.`
-              : `Los cambios de «${nombre}» NO se han guardado: el catálogo todavía vive en el código.`,
-            "warning",
+              ? `Plan «${nombre}» creado.`
+              : `Cambios de «${nombre}» guardados.`,
+            "success",
           )
         }
       />
 
+      {/* Dos diálogos en uno, según si el plan tiene clientes. Con clientes,
+          borrar es imposible (la base lo impide), así que se ofrece lo que sí
+          se puede hacer en vez de un botón que acabaría en error. */}
       <ConfirmDialog
         abierto={borrando !== null}
-        titulo={`¿Eliminar ${borrando?.nombreVisible}?`}
-        /* ⚠️ El aviso lleva el número de clientes afectados, y no es adorno:
-           borrar un plan con 32 personas dentro es una decisión distinta a
-           borrar uno vacío, y ese dato solo lo tiene esta pantalla. */
+        titulo={
+          conClientes
+            ? `${borrando?.nombreVisible} tiene clientes`
+            : `¿Eliminar ${borrando?.nombreVisible}?`
+        }
         mensaje={
-          borrando && borrando.clientes > 0
+          conClientes && borrando
             ? `${numero(borrando.clientes)} ${
                 borrando.clientes === 1 ? "cliente lo tiene" : "clientes lo tienen"
-              } contratado ahora mismo. Si lo eliminas, su membresía se queda sin modalidad y habrá que reasignarla a mano. Considera marcarlo como «no se vende» en vez de borrarlo: deja de ofrecerse y quien lo tiene lo conserva.`
-            : "Ningún cliente lo tiene contratado, así que no afecta a nadie. Esta acción no se puede deshacer."
+              } contratado, y un plan que alguien ha pagado no se puede borrar: su historial lo necesita. Lo que sí se puede es dejar de venderlo: quien lo tiene lo conserva hasta que le venza.`
+            : "Ningún cliente lo tiene ahora. Si alguien lo contrató en el pasado, la base no dejará borrarlo y te propondrá retirarlo de la venta. Esta acción no se puede deshacer."
         }
-        textoConfirmar="Eliminar plan"
-        variante="peligro"
-        onConfirmar={() => {
-          const nombre = borrando?.nombreVisible ?? "";
+        textoConfirmar={conClientes ? "Marcar como no se vende" : "Eliminar plan"}
+        variante={conClientes ? "normal" : "peligro"}
+        onConfirmar={async () => {
+          if (!borrando) return;
+          const { id, nombreVisible } = borrando;
+          const r = conClientes
+            ? await cambiarVentaPlan(id, false)
+            : await eliminarPlan(id);
           setBorrando(null);
           mostrarAviso(
-            `El plan «${nombre}» NO se ha eliminado: el catálogo todavía vive en el código.`,
-            "warning",
+            r.ok
+              ? conClientes
+                ? `«${nombreVisible}» ya no se vende. Quien lo tiene lo conserva.`
+                : `Plan «${nombreVisible}» eliminado.`
+              : r.error,
+            r.ok ? "success" : "warning",
           );
         }}
         onCancelar={() => setBorrando(null)}

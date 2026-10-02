@@ -1,10 +1,12 @@
 "use client";
 
-import type { EstadoMembresia, TipoPlan } from "@/lib/admin/types";
+import type { EstadoMembresia } from "@/lib/admin/types";
 import { numero } from "@/lib/admin/format";
 
 export type FiltroEstado = EstadoMembresia | "Todas";
-export type FiltroPlan = TipoPlan | "Todos";
+/** Texto libre: los planes son una tabla, y uno creado hoy tiene que poder
+ *  filtrarse sin tocar este archivo. */
+export type FiltroPlan = string;
 export type Orden = "nombre" | "vencimiento" | "alta" | "importe";
 
 const ESTADOS: FiltroEstado[] = [
@@ -16,13 +18,6 @@ const ESTADOS: FiltroEstado[] = [
   "Sin plan",
 ];
 
-const PLANES: FiltroPlan[] = [
-  "Todos",
-  "Mensual",
-  "Trimestral",
-  "Pack 10 clases",
-  "Clase suelta",
-];
 
 const ORDENES: { valor: Orden; etiqueta: string }[] = [
   { valor: "nombre", etiqueta: "Nombre (A–Z)" },
@@ -49,6 +44,9 @@ type Props = {
   conteos: Record<FiltroEstado, number>;
   plan: FiltroPlan;
   onPlan: (v: FiltroPlan) => void;
+  /** Los planes que tiene algún cliente, sacados de los datos. Antes eran
+   *  los cuatro escritos aquí a mano: un plan nuevo no salía en el filtro. */
+  planes: string[];
   orden: Orden;
   onOrden: (v: Orden) => void;
   etiquetaBusqueda: string;
@@ -70,6 +68,7 @@ export default function BarraFiltros({
   conteos,
   plan,
   onPlan,
+  planes,
   orden,
   onOrden,
   etiquetaBusqueda,
@@ -153,7 +152,7 @@ export default function BarraFiltros({
               onChange={(e) => onPlan(e.target.value as FiltroPlan)}
               className={SELECT}
             >
-              {PLANES.map((p) => (
+              {["Todos", ...planes].map((p) => (
                 <option key={p} value={p}>
                   {p === "Todos" ? "Todos los planes" : p}
                 </option>

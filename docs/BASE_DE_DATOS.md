@@ -199,9 +199,9 @@ Falta:
    `src/lib/supabase/tipos.ts`. **Las pantallas apenas se tocan**: toda la UI pasa por ahí, y
    esa disciplina se mantuvo justo para este día.
 6. Mutaciones (server actions) para los formularios que hoy no guardan.
-   **Hechas: `crearCliente`** (alta de cliente) **y `registrarGasto`** (con
-   subida del comprobante al bucket `comprobantes`), en
-   `src/lib/admin/acciones.ts`.
+   **Hechas**, en `src/lib/admin/acciones.ts`: `crearCliente`,
+   `registrarGasto` (con subida del comprobante al bucket `comprobantes`),
+   `guardarPlan`, `cambiarVentaPlan` y `eliminarPlan`.
 
 ⚠️ **Las rutas de `/admin` ya no se prerenderizan** (salen `ƒ` en el build):
 leer la sesión usa cookies. `/login` también es dinámica, porque lee
