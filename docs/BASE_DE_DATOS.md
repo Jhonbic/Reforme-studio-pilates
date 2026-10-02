@@ -2,7 +2,7 @@
 
 > ✅ **Aplicado y verificado** contra el proyecto `gdmxiqvmtegusevkqtgt`
 > (Postgres 17, región `ca-central-1`). Las cuatro migraciones pasan, la semilla
-> carga 118 clientes y `supabase db advisors --type security` sale con **0
+> carga los clientes de ejemplo (20 desde oct 2026; eran 118) y `supabase db advisors --type security` sale con **0
 > errores**.
 
 ## Qué hay aquí
@@ -15,7 +15,7 @@ supabase/
     20260727130000_seguridad_vista_y_funciones.sql Cierra el fallo de la vista
     20260727130100_revocar_execute_public.sql      Quita EXECUTE a PUBLIC
     20261001120000_perfil_no_automatico.sql        Registrarse ya no da acceso
-  seed.sql                                         118 clientes, determinista
+  seed.sql                                         20 clientes, determinista
 ```
 
 ## Dos fallos que salieron al ejecutarlo
@@ -251,13 +251,22 @@ npx supabase db advisors --linked --type security
 
 ⚠️ **`db push --include-seed` no vuelve a ejecutar la semilla si ya corrió
 antes**: detecta que el hash cambió, lo actualiza y no hace nada más. Para
-recargarla de verdad, `db query -f supabase/seed.sql`. La semilla empieza con un
-`truncate`, así que es idempotente.
+recargarla de verdad, `db query --linked -f supabase/seed.sql`. La semilla
+empieza con un `truncate`, así que es idempotente. El `truncate` **no toca
+`perfiles` ni `auth.users`**: recargarla no quita el acceso a nadie.
+
+⚠️ **En LOCAL, `db query --local -f` falla** con «cannot insert multiple
+commands into a prepared statement»: no acepta un archivo con varias
+sentencias. Se carga con `psql` dentro del contenedor:
+
+```bash
+docker exec -i supabase_db_gdmxiqvmtegusevkqtgt psql -U postgres -v ON_ERROR_STOP=1 -q < supabase/seed.sql
+```
 
 Estado verificado hoy:
 
 ```sql
--- Reparto de estados → 87 Activa · 12 Inactiva · 12 Vencida · 7 Por vencer = 118
+-- Reparto de estados → 11 Activa · 4 Vencida · 3 Por vencer · 2 Inactiva = 20
 select estado, count(*) from clientes_vigentes group by estado order by 2 desc;
 
 -- Pagos en el futuro → 0

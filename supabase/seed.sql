@@ -91,8 +91,11 @@ insert into gastos (categoria, concepto, importe, fecha, metodo) values
 -- que su vencimiento nunca puede caer a más de 15 días vista y no puede estar
 -- «Activa». No es un apaño, es lo que significa una clase suelta.
 --
--- Reparto, el mismo que documenta el mock: 87 activas · 7 por vencer ·
--- 12 vencidas · 12 inactivas = 118.
+-- Reparto: 11 activas · 3 por vencer · 4 vencidas · 2 inactivas = 20.
+-- Antes eran 118, copiando el mock; se bajó a 20 en oct 2026 (decisión del
+-- usuario) porque no aportaban nada que no aporten estos. Lo que SÍ importa
+-- conservar: los cuatro estados presentes y más de 12 filas, para que el
+-- listado tenga una segunda página.
 -- =============================================================================
 
 with base as (
@@ -100,12 +103,12 @@ with base as (
     i,
     -- El estado objetivo de cada fila.
     case
-      when i < 12 then 'Vencida'
-      when i < 19 then 'Por vencer'
-      when i < 31 then 'Inactiva'
+      when i < 4 then 'Vencida'
+      when i < 7 then 'Por vencer'
+      when i < 9 then 'Inactiva'
       else 'Activa'
     end as objetivo
-  from generate_series(0, 117) as i
+  from generate_series(0, 19) as i
 ),
 asignado as (
   select
@@ -131,6 +134,8 @@ persona as (
            'Quintero','Salazar','Escobar','Arboleda','Calderón','Cifuentes',
            'Ospina','Muñoz','Torres','Cardona','Mejía','Zapata','Naranjo','Duque']
     )[1 + (a.i * 13) % 20]                          as nombre,
+    -- ⚠️ Los multiplicadores 7 y 13 son primos con 20: así `(i*7) % 20` recorre
+    -- los veinte nombres sin repetir ninguno.
     -- Diez dígitos, únicos por construcción y ordenables como texto (todos
     -- tienen la misma longitud), que es de lo que depende el reparto de abajo.
     (1000000000 + a.i * 4517)::text                 as identificacion
@@ -150,7 +155,7 @@ fechas as (
                        en el pasado o el trigger de pagos lo rechaza.          */
     case p.objetivo
       when 'Vencida'    then -(5 + (p.i * 7) % 40)
-      when 'Por vencer' then 1 + (p.i - 12) * 2
+      when 'Por vencer' then 1 + (p.i - 4) * 2
       else 16 + (p.i * 7) % greatest(pl.vigencia_dias - 15, 1)
     end::int                                        as dias_hasta_vencimiento
   from persona p
