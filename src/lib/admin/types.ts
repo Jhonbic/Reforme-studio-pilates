@@ -321,20 +321,28 @@ export type BorradorPlan = {
 };
 
 /** Una tarjeta de la pantalla de Planes: condiciones + lo que ha pasado con ellas. */
-export type PlanConMetricas = CondicionesPlan & {
+export type PlanConMetricas = Omit<CondicionesPlan, "plan"> & {
+  /** El id de la fila en `planes`. Es la clave: el nombre se puede cambiar. */
+  id: string;
   /**
-   * El nombre para pintar. Hoy es siempre igual que `plan`, pero se separa a
-   * propósito: `plan` es la clave de tipo `TipoPlan` con la que los clientes
-   * guardan su modalidad, y un plan creado desde el formulario tendrá nombre
-   * libre sin pertenecer a esa unión. Escribir `plan.plan` en la UI, además,
-   * se lee fatal.
+   * El nombre del plan. Texto libre en la base (`planes` es una tabla, no un
+   * enum), por eso no es un `TipoPlan`.
    */
   nombreVisible: string;
   precio: number;
-  /** Clientes que lo tienen ahora mismo, contados sobre `CLIENTES`. */
+  /**
+   * Clientes que lo tienen ahora: su última membresía es de este plan y no
+   * está vencida. Una membresía «Inactiva» cuenta —el plan sigue pagado, solo
+   * que la persona no viene—; una «Vencida» ya no.
+   */
   clientes: number;
-  /** Lo que factura al mes ese plan según el reparto de ingresos. */
-  facturacionMes: number;
+  /**
+   * Cobrado por este plan en los últimos 30 días, o `null` si quien mira no
+   * puede ver los pagos (RLS no se los da a las instructoras). `null` y no
+   * `0`: sin permiso la base devuelve cero filas, y pintar «$0» haría creer
+   * que el plan no vende.
+   */
+  cobrado30d: number | null;
 };
 
 export type RepartoMetodoPago = {

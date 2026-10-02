@@ -190,7 +190,7 @@ Falta:
 
 5. Reescribir las ~17 funciones de datos de `queries.ts` para que sean `async`
    y consulten. **Hechas: `getClientes`, `getCliente`, `getMovimientos`
-   (pagos + gastos), `getPresupuestos`** (y `getConteoEstados`,
+   (pagos + gastos), `getPresupuestos`, `getPlanes`** (y `getConteoEstados`,
    que ahora cuenta sobre la lista recibida). Tipos generados en
    `src/lib/supabase/tipos.ts`. **Las pantallas apenas se tocan**: toda la UI pasa por ahí, y
    esa disciplina se mantuvo justo para este día.
@@ -238,6 +238,8 @@ npx supabase stop      # apaga los contenedores y libera la RAM
     perfil a mano: ya no hay trigger que lo haga.
   - `cliente@reforme.local` / `reforme-local`: **sin perfil**, sirve para
     probar el rechazo.
+  - `instructora@reforme.local` / `reforme-local`: perfil `Instructora`, para
+    comprobar lo que RLS le oculta (pagos, gastos).
 - ⚠️ **El PC tiene ~8 GB de RAM.** La pila completa de Supabase más
   `next dev` y VS Code va justa: `supabase stop` al terminar, y si se queda
   corto, desactivar en `config.toml` lo que no se usa (hoy `realtime`,

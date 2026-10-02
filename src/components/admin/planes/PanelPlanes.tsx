@@ -68,10 +68,10 @@ export default function PanelPlanes({ planes }: { planes: PlanConMetricas[] }) {
           contenido y cuatro tarjetas de precio ahí serían ilegibles. */}
       <ul className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
         {planes.map((p) => (
-          <li key={p.plan} className="flex">
+          <li key={p.id} className="flex">
             <TarjetaPlan
               plan={p}
-              destacado={p.plan === masContratado?.plan}
+              destacado={p.id === masContratado?.id}
               onEditar={() => abrirEdicion(p)}
               onEliminar={() => setBorrando(p)}
             />

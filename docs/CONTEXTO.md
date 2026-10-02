@@ -1093,6 +1093,23 @@ muy gruesa son de un box de crossfit; aquí manda la marca.
 - Fuera de esta pantalla: «Ingresos frente a gastos» y «Gastos por categoría»
   siguen en el Dashboard, que aún lee `mock.ts`.
 
+#### Planes (`/admin/planes`) — desde Supabase, oct 2026
+
+- El catálogo sale de la tabla `planes`, del más barato al más caro. La clave
+  de cada tarjeta es el **id**, no el nombre: el nombre se puede cambiar.
+- **Clientes** se cuentan sobre `clientes_vigentes` —la misma vista del
+  listado de Usuarios— y **sin las vencidas**: una membresía «Inactiva»
+  cuenta (está pagada, solo que la persona no viene); una vencida ya no.
+- ⚠️ **«Factura» pasó a «Cobrado 30 d»**: suma de `pagos` de los últimos 30
+  días cuya membresía es de ese plan. Antes no decía de qué periodo era. Es
+  ventana móvil y no «este mes» porque el día 1 todo saldría a cero.
+- ⚠️ **Las instructoras ven «—», no «$0».** RLS no les da los pagos, y la
+  consulta no falla: devuelve cero filas. Pintar «$0» haría creer que el plan
+  no vende. La página decide por rol y ni siquiera pide los pagos.
+- Crear, editar y eliminar siguen **sin guardar** (paso 7).
+- Verificado contra un cálculo SQL independiente: mismos clientes y mismo
+  cobrado por plan, como Administración y como Instructora.
+
 **⚠️ shadcn/ui se evaluó y se descartó (jul 2026).** Se probó instalar el bloque
 `@efferd/dashboard-3` en la rama `shadcn-dashboard-3`, ya borrada. Qué se aprendió,
 por si se vuelve a plantear:
@@ -1185,7 +1202,7 @@ Nueve rutas, todas `○ Static` o `● SSG`:
 | `/admin/usuarios/nuevo` | Formulario validado · **no guarda** |
 | `/admin/usuarios/[id]` | Ficha de solo lectura, **desde Supabase** |
 | `/admin/clases` | Agenda por día + alta, edición, cancelación · **no guarda** |
-| `/admin/planes` | Catálogo en tarjetas + CRUD · **no guarda** |
+| `/admin/planes` | Catálogo **desde Supabase** + CRUD · **no guarda** |
 | `/admin/finanzas` | **Desde Supabase**, solo Administración · periodo, utilidad, desgloses, libro unificado, export · alta de gasto **no guarda** |
 
 **Lo único que funciona de verdad** sin backend: la exportación a CSV, los

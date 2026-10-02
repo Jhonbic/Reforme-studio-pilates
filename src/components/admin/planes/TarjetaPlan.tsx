@@ -184,12 +184,20 @@ export default function TarjetaPlan({
         </div>
         <div>
           <dt className={destacado ? "text-beige/70" : "text-verde-300"}>
-            Factura
+            {/* Corto en pantalla porque con cuatro tarjetas la columna mide
+                ~100px y la versión larga se partía en dos líneas. El lector
+                de pantalla oye la frase entera. */}
+            <span aria-hidden="true" className="whitespace-nowrap">
+              Cobrado 30 d
+            </span>
+            <span className="sr-only">Cobrado en los últimos 30 días</span>
           </dt>
           <dd
             className={`tabular-nums ${destacado ? "text-arena" : "text-verde"}`}
           >
-            {moneda(plan.facturacionMes)}
+            {/* «—» y no «$0» cuando el rol no puede ver pagos: ver
+                `PlanConMetricas.cobrado30d`. */}
+            {plan.cobrado30d === null ? "—" : moneda(plan.cobrado30d)}
           </dd>
         </div>
       </dl>

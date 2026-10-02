@@ -3,7 +3,6 @@ import { DIAS_CORTOS, diaSemana, finDe, sumarDias } from "./horario";
 import {
   CLASES,
   CLIENTES,
-  CONDICIONES_PLANES,
   EQUIPO,
   GASTOS,
   HOY,
@@ -11,7 +10,6 @@ import {
   MESES,
   MOVIMIENTO_CLIENTES,
   NOTIFICACIONES,
-  PRECIO_PLAN,
   REPARTO_METODOS,
   REPARTO_PLANES,
   RESUMEN,
@@ -391,25 +389,66 @@ export const getCliente = cache(
 );
 
 /**
- * El catálogo de planes con lo que ha pasado con cada uno.
+ * El catálogo de planes (tabla `planes`) con lo que ha pasado con cada uno,
+ * del más barato al más caro.
  *
- * Los clientes se cuentan sobre `CLIENTES` con el mismo ayudante que usa
- * `getRepartoPlanes()`, así que esta pantalla y el donut del dashboard no
- * pueden discrepar.
+ * - **Clientes**: se cuentan sobre `clientes_vigentes`, la misma vista del
+ *   listado de Usuarios, así que las dos pantallas no pueden discrepar.
+ *   ⚠️ Esa vista da el plan por NOMBRE, no por id. Hoy da igual (`nombre` es
+ *   `unique`), pero si un día se renombra un plan, se cuenta bien igualmente
+ *   porque la vista lee el nombre actual del plan.
+ * - **Cobrado en 30 días**: suma de `pagos` cuya membresía es de este plan.
+ *   Ventana móvil y no «este mes»: el día 1 de cada mes saldría todo a cero.
  *
- * La facturación sí sale de `REPARTO_PLANES`: es un importe mensual del reparto
- * de ingresos, no algo que se pueda deducir de la ficha de cada cliente.
+ * `puedeVerCobros` lo decide quien llama según el rol: RLS no le da los pagos
+ * a las instructoras, y la consulta no fallaría, devolvería cero filas.
  */
-export function getPlanes(): PlanConMetricas[] {
-  const porPlan = contarClientesPorPlan();
+export async function getPlanes(
+  hoy: string,
+  puedeVerCobros: boolean,
+): Promise<PlanConMetricas[]> {
+  const supabase = await crearClienteServidor();
+  const desde = sumarDias(hoy, -29);
 
-  return CONDICIONES_PLANES.map((cond) => ({
-    ...cond,
-    nombreVisible: cond.plan,
-    precio: PRECIO_PLAN[cond.plan],
-    clientes: porPlan.get(cond.plan) ?? 0,
-    facturacionMes:
-      REPARTO_PLANES.find((r) => r.plan === cond.plan)?.importe ?? 0,
+  const [planes, vigentes, pagos] = await Promise.all([
+    supabase.from("planes").select("*").order("precio"),
+    supabase.from("clientes_vigentes").select("plan, estado"),
+    puedeVerCobros
+      ? supabase
+          .from("pagos")
+          .select("importe, membresias(plan_id)")
+          .gte("fecha", desde)
+          .lte("fecha", hoy)
+      : Promise.resolve(null),
+  ]);
+  if (planes.error) throw new Error(`No se pudieron leer los planes: ${planes.error.message}`);
+  if (vigentes.error) throw new Error(`No se pudieron contar los clientes: ${vigentes.error.message}`);
+  if (pagos?.error) throw new Error(`No se pudieron leer los cobros: ${pagos.error.message}`);
+
+  const clientes = new Map<string, number>();
+  for (const v of vigentes.data) {
+    if (!v.plan || v.estado === "Vencida") continue;
+    clientes.set(v.plan, (clientes.get(v.plan) ?? 0) + 1);
+  }
+
+  const cobrado = new Map<string, number>();
+  for (const p of pagos?.data ?? []) {
+    const planId = p.membresias?.plan_id;
+    if (!planId) continue;
+    cobrado.set(planId, (cobrado.get(planId) ?? 0) + p.importe);
+  }
+
+  return planes.data.map((p) => ({
+    id: p.id,
+    nombreVisible: p.nombre,
+    precio: p.precio,
+    vigenciaDias: p.vigencia_dias,
+    clasesIncluidas: p.clases_incluidas,
+    seVende: p.se_vende,
+    descripcion: p.descripcion,
+    caracteristicas: p.caracteristicas,
+    clientes: clientes.get(p.nombre) ?? 0,
+    cobrado30d: puedeVerCobros ? (cobrado.get(p.id) ?? 0) : null,
   }));
 }
 
