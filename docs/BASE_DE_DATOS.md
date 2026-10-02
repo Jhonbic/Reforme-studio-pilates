@@ -14,6 +14,7 @@ supabase/
     20260727120100_rls.sql                         RLS + Storage + roles
     20260727130000_seguridad_vista_y_funciones.sql Cierra el fallo de la vista
     20260727130100_revocar_execute_public.sql      Quita EXECUTE a PUBLIC
+    20261001120000_perfil_no_automatico.sql        Registrarse ya no da acceso
   seed.sql                                         118 clientes, determinista
 ```
 
@@ -80,15 +81,24 @@ clave se salta RLS entera; si acaba en el navegador, la base queda abierta.
 
 ### El primer usuario
 
-El trigger `al_crear_usuario` da a toda cuenta nueva el rol **`Recepción`**, no
-`Administración`. Es deliberado: registrarse nunca debe conceder el rol máximo.
-Para el primer administrador, tras registrarte, en el SQL Editor de Supabase:
+**Crear una cuenta no da acceso al panel** (desde la migración
+`20261001120000_perfil_no_automatico.sql`). El acceso es la fila en `perfiles`,
+y la da Administración. El primer administrador se crea en dos pasos:
+
+1. Supabase → Authentication → Users → **Add user** (marca «Auto Confirm User»).
+2. En el SQL Editor:
 
 ```sql
-update perfiles set rol = 'Administración' where id = (
-  select id from auth.users where email = 'tu@correo.com'
-);
+insert into perfiles (id, nombre, rol)
+select id, 'Tu nombre', 'Administración' from auth.users
+where email = 'tu@correo.com';
 ```
+
+Antes, un trigger (`al_crear_usuario`) daba perfil de `Recepción` a toda cuenta
+nueva. Se quitó porque Supabase deja registrarse con la clave anónima, que es
+pública: cualquiera podía crearse una cuenta por la API y leer los clientes.
+**Verificado** en local, antes y después: un registro por la API ve 0 filas en
+`clientes` y en `clientes_vigentes`.
 
 ## Decisiones que se apartan del mock
 
@@ -150,28 +160,88 @@ Una instructora no ve gastos a propósito: no tiene por qué conocer la nómina.
 
 ## Lo que falta para que la app lo use
 
-Esto es el esquema. **La aplicación sigue leyendo `mock.ts`.** Lo que queda:
+**La autenticación ya está conectada (oct 2026). Los datos del panel siguen
+saliendo de `mock.ts`.**
 
-1. `npm i @supabase/supabase-js @supabase/ssr`
-2. Un cliente de servidor y otro de navegador.
-3. Reescribir las ~17 funciones de `src/lib/admin/queries.ts` para que sean
-   `async` y consulten. **Las pantallas apenas se tocan**: toda la UI pasa por
-   ahí, esa disciplina se mantuvo justo para este día.
-4. `middleware.ts` que refresque la sesión y proteja `/admin`.
-5. `/login` de verdad — hoy es una regex sobre el correo que ni lee la
-   contraseña.
-6. Mutaciones (server actions) para los tres formularios que hoy no guardan.
+Hecho:
 
-⚠️ Al conectar, **las rutas de `/admin` dejan de prerenderizarse**. Hoy son 129
-páginas estáticas; pasarán a renderizarse por petición. Es el precio de tener
-datos reales, no algo de Supabase.
+1. ✅ `@supabase/supabase-js` + `@supabase/ssr`. Cliente de servidor en
+   `src/lib/supabase/server.ts`. No hay cliente de navegador: hoy nada lo
+   necesita.
+2. ✅ **`src/proxy.ts`** (en Next 16 `middleware` pasó a llamarse `proxy`).
+   Refresca la sesión y manda a `/login?siguiente=…` a quien entra a `/admin`
+   sin sesión. Su matcher es solo `/admin/:path*`: la landing no paga el viaje
+   a Supabase.
+3. ✅ **`/login` de verdad**: server action `iniciarSesion` en
+   `src/lib/auth/acciones.ts`, con `signInWithPassword`.
+   - El error es **el mismo** para un correo desconocido y para una contraseña
+     mala: distinguirlos le diría a quien prueba correos cuáles existen.
+   - Una cuenta **sin fila en `perfiles`** no entra. Se le cierra la sesión y
+     recibe un mensaje.
+   - `?siguiente=` solo acepta rutas `/admin…`. `//otra-web.com` cae en
+     `/admin`, para que el login no sirva de trampolín a otra web.
+4. ✅ **Segunda puerta en el layout**: `getUsuarioActual()` (en `queries.ts`)
+   lee la sesión con `getUser()` y el perfil. Sin las dos cosas, redirige a
+   `/login`. La cabecera enseña la cuenta real, y «Cerrar sesión» es un
+   `<form>` con server action, no un enlace.
+
+Falta:
+
+5. Reescribir las ~17 funciones de datos de `queries.ts` para que sean `async`
+   y consulten. **Las pantallas apenas se tocan**: toda la UI pasa por ahí, y
+   esa disciplina se mantuvo justo para este día.
+6. Mutaciones (server actions) para los formularios que hoy no guardan.
+
+⚠️ **Las rutas de `/admin` ya no se prerenderizan** (salen `ƒ` en el build):
+leer la sesión usa cookies. `/login` también es dinámica, porque lee
+`?siguiente=` y `?error=`. La landing y `/registro` siguen `○ Static`.
+
+⚠️ **Vercel necesita las dos variables** de `.env.example`
+(`NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`), con los
+valores del proyecto remoto, **antes** de desplegar esto. Sin ellas `/admin`
+da error 500: falla cerrado, no abierto.
+
+✅ **Cerrado el agujero del registro abierto** (oct 2026): crear una cuenta ya
+no da perfil. Ver «El primer usuario».
 
 ⚠️ `getHoy()` devuelve la constante congelada `HOY = "2026-07-25"`. Ese es el
 único sitio a cambiar para que pase a ser la fecha real.
 
+## Entorno local (Docker)
+
+Instalado en el PC de desarrollo (oct 2026): **WSL2** (`wsl --install
+--no-distribution`) + **Docker Desktop** (`winget install -e --id
+Docker.DockerDesktop`). Hace falta reiniciar Windows una vez tras instalarlos y
+abrir Docker Desktop antes de usar el CLI.
+
+```bash
+npx supabase start     # levanta Postgres, Auth, Studio… (la 1ª vez descarga imágenes)
+npx supabase status    # URL local y claves anon/service_role
+npx supabase db reset  # reaplica migraciones + seed.sql en LOCAL
+npx supabase stop      # apaga los contenedores y libera la RAM
+```
+
+- API en `http://127.0.0.1:54321`, Studio en `http://127.0.0.1:54323`,
+  correos de prueba (Auth) en `http://127.0.0.1:54324`.
+- ⚠️ **Probar migraciones aquí antes del `db push`**: `db reset` local se puede
+  repetir sin miedo; el proyecto remoto es el único que hay.
+- **Cuentas de prueba (solo local).** No están en `seed.sql` a propósito:
+  la semilla también se ejecuta contra el remoto, y una contraseña conocida
+  ahí sería una puerta abierta. Se crean con la API de admin de Auth y la
+  clave `service_role` local. Un `db reset` las borra.
+  - `admin@reforme.local` / `reforme-local`: perfil `Administración`, entra
+    al panel. Tras un `db reset` hay que volver a crearla e insertarle el
+    perfil a mano: ya no hay trigger que lo haga.
+  - `cliente@reforme.local` / `reforme-local`: **sin perfil**, sirve para
+    probar el rechazo.
+- ⚠️ **El PC tiene ~8 GB de RAM.** La pila completa de Supabase más
+  `next dev` y VS Code va justa: `supabase stop` al terminar, y si se queda
+  corto, desactivar en `config.toml` lo que no se usa (hoy `realtime`,
+  `storage`).
+
 ## Verificar
 
-Sin Docker no hay entorno local, pero el CLI consulta el proyecto remoto:
+Sin `supabase start`, el CLI consulta igualmente el proyecto remoto:
 
 ```bash
 npx supabase db query --linked "<sql>"     # una consulta

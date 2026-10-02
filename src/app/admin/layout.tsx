@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import AdminTopbar from "@/components/admin/AdminTopbar";
 import AppSidebar from "@/components/admin/AppSidebar";
 import { SidebarProvider } from "@/context/SidebarContext";
@@ -21,12 +22,19 @@ export const metadata: Metadata = {
  *
  * ⚠️ **Este componente es de SERVIDOR y es donde se piden los datos de sesión.**
  * La cuenta y los avisos se leen aquí y bajan como props a `AdminTopbar`, que sí
- * es de cliente. Si los pidiera la cabecera desde el navegador, cada ruta del
- * panel dejaría de poder prerenderizarse.
+ * es de cliente.
+ *
+ * ⚠️ **Es la segunda puerta, no la única.** `proxy.ts` ya echa a quien no tiene
+ * sesión; aquí se echa además a quien tiene sesión pero no perfil del estudio.
+ * Leer la sesión usa cookies, así que **el panel ya no se prerenderiza**: cada
+ * ruta de `/admin` se pinta por petición. Es el precio de tener auth de verdad.
  *
  * `LayoutProps<'/admin'>` es un helper global de Next 16, no se importa.
  */
-export default function AdminLayout(props: LayoutProps<"/admin">) {
+export default async function AdminLayout(props: LayoutProps<"/admin">) {
+  const usuario = await getUsuarioActual();
+  if (!usuario) redirect("/login?error=sin-acceso");
+
   return (
     <SidebarProvider>
       <ToastProvider>
@@ -40,7 +48,7 @@ export default function AdminLayout(props: LayoutProps<"/admin">) {
               justo el bug del estiramiento de las gráficas. */}
           <div className="flex min-w-0 flex-1 flex-col">
             <AdminTopbar
-              usuario={getUsuarioActual()}
+              usuario={usuario}
               avisos={getNotificaciones()}
             />
 

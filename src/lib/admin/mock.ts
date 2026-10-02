@@ -17,7 +17,6 @@ import type {
   RepartoPlan,
   TipoClase,
   TipoPlan,
-  UsuarioActual,
 } from "./types";
 
 /**
@@ -474,17 +473,6 @@ export const RESUMEN = {
   /** Renovaciones logradas sobre membresías vencidas, en % */
   tasaRenovacion: 78.5,
   tasaRenovacionMesAnterior: 74.2,
-};
-
-/**
- * Quién ha entrado al panel. **No hay sesión**: es un dato fijo como el resto
- * de este archivo. Cuando haya auth, `getUsuarioActual()` leerá la sesión real
- * y esta constante desaparece con el resto de `mock.ts`.
- */
-export const USUARIO_ACTUAL: UsuarioActual = {
-  nombre: "Administrador",
-  correo: "admin@reforme.com",
-  rol: "Administrador",
 };
 
 /**

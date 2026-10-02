@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { iniciales } from "@/lib/admin/format";
+import { cerrarSesion } from "@/lib/auth/acciones";
 import type { UsuarioActual } from "@/lib/admin/types";
 
 const FILA =
@@ -125,25 +126,20 @@ export default function MenuCuenta({ usuario }: { usuario: UsuarioActual }) {
               <span aria-hidden="true">↗</span>
               Ver la web pública
             </Link>
-            {/* «Cerrar sesión» lleva a `/login` porque es lo que se espera al
-                pulsarlo, pero no cierra nada: no hay sesión que cerrar. Se dice
-                justo debajo en vez de fingir que sí — misma regla que el alta
-                de cliente, que tampoco disimula que no guarda. */}
-            <Link
-              href="/login"
-              role="menuitem"
-              className={FILA}
-              onClick={() => setAbierto(false)}
-            >
-              <span aria-hidden="true">←</span>
-              Cerrar sesión
-            </Link>
+            {/* Un `<form>` y no un enlace: cerrar sesión cambia estado en el
+                servidor, y un GET a `/logout` lo dispararía cualquier
+                precarga de enlaces o una imagen incrustada en otra web. */}
+            <form action={cerrarSesion}>
+              <button
+                type="submit"
+                role="menuitem"
+                className={`${FILA} w-full text-left`}
+              >
+                <span aria-hidden="true">←</span>
+                Cerrar sesión
+              </button>
+            </form>
           </div>
-
-          <p className="mt-2 px-3 text-xs leading-snug text-verde-300">
-            Todavía no hay autenticación: el panel está abierto y esta cuenta es
-            un dato de ejemplo.
-          </p>
         </div>
       )}
     </div>

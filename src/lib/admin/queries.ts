@@ -16,8 +16,9 @@ import {
   REPARTO_METODOS,
   REPARTO_PLANES,
   RESUMEN,
-  USUARIO_ACTUAL,
 } from "./mock";
+import { cache } from "react";
+import { crearClienteServidor } from "@/lib/supabase/server";
 import type {
   Clase,
   ClaseEnAgenda,
@@ -479,15 +480,39 @@ export function getTasaRenovacion() {
 }
 
 /**
- * Quién está usando el panel.
+ * Quién está usando el panel: la sesión de Supabase más su fila de `perfiles`.
  *
- * ⚠️ **No lee ninguna sesión: devuelve el dato fijo de `mock.ts`.** El día que
- * haya autenticación, esta función es el único sitio donde hay que ir a buscar
- * al usuario de verdad — la cabecera no se entera.
+ * Devuelve `null` en los dos casos en que no se debe entrar, y el layout echa a
+ * `/login`:
+ * - **sin sesión** (el proxy ya lo filtra, pero el layout no se fía de él);
+ * - **con sesión pero sin perfil**: estar en `auth.users` no hace a nadie del
+ *   estudio. Es la misma regla que aplica RLS con `tiene_perfil()`, y aquí se
+ *   repite para no pintar un panel vacío a quien la base no le va a dar nada.
+ *
+ * ⚠️ `getUser()` y no `getSession()`: getUser pregunta al servidor de Auth,
+ * así que una cookie falsificada o de una cuenta borrada no pasa.
+ *
+ * `cache()` hace que, si dos componentes la llaman en el mismo render, la
+ * consulta se haga una sola vez.
  */
-export function getUsuarioActual(): UsuarioActual {
-  return USUARIO_ACTUAL;
-}
+export const getUsuarioActual = cache(
+  async (): Promise<UsuarioActual | null> => {
+    const supabase = await crearClienteServidor();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: perfil } = await supabase
+      .from("perfiles")
+      .select("nombre, rol")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!perfil) return null;
+
+    return { nombre: perfil.nombre, correo: user.email ?? "", rol: perfil.rol };
+  },
+);
 
 /**
  * Avisos de la campana, del más reciente al más viejo.

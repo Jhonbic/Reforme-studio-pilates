@@ -70,10 +70,17 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
   Las otras dos (`…-git-main-…` y la del hash) están tras la *Deployment
   Protection* de Vercel y **piden iniciar sesión** — en el móvil no hay sesión, así
   que parecen rotas. Se desactivaría en Settings → Deployment Protection.
-- El sitio es 100 % estático (todas las rutas salen `○ Static` en el build), por eso
+- La web pública es estática (`○ Static`). **`/admin` y `/login` son dinámicas**
+  desde que hay auth (oct 2026): leen la sesión en cookies. Vercel lo sirve igual,
   no hace falta un contenedor tipo Railway.
+- ⚠️ **Vercel necesita `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`**
+  (ver `.env.example`). Sin ellas `/admin` da 500.
 - Para ver en el móvil sin desplegar: `npx next dev -H 0.0.0.0` y abrir
   `http://<IP-del-PC>:3000`.
+- **Supabase local con Docker** (WSL2 + Docker Desktop, instalados oct 2026):
+  `npx supabase start`. Pasos y gotchas en `docs/BASE_DE_DATOS.md` → «Entorno
+  local». Docker es **solo para desarrollo**: la web sigue en Vercel y la BD en
+  Supabase cloud.
 
 ## 4. Sistema de diseño
 
@@ -85,6 +92,14 @@ En [`src/app/globals.css`](../src/app/globals.css) vía `@theme`:
 - Utilidades: `.eyebrow`, `.rule-gold`, `.brand-gradient`, animaciones `rise`/`fade`,
   `.logo-float` (flotación del logo del hero), sombras `soft`/`lift`, y CSS de
   sheen/ripple/grano.
+- **`.font-cifra`** (solo panel admin, sep 2026): toda cifra del panel va en
+  **Lato con `lining-nums tabular-nums`**, no en Cormorant. Cormorant trae
+  cifras de estilo antiguo y de ancho variable: bonitas en un titular, pero en
+  una columna de importes no se alinean ni se comparan de un vistazo (decisión
+  del usuario). Peso 300 en cifras grandes, `font-normal` en tamaño de texto.
+  Por el mismo criterio, **los títulos de tarjeta, los nombres de las filas y
+  las pestañas pasaron a Lato bold**: son datos, no titulares. La serif queda
+  para el `<h1>` de la topbar, los diálogos y los mensajes de estado vacío.
 - **Colores de datos** (solo panel admin): `--color-chart-1..4` y
   `--color-estado-ok/aviso/grave`. **No son los de marca** y no se mezclan con
   ellos — el porqué está en §6, Panel administrativo.
@@ -202,8 +217,8 @@ En `src/components/`:
 - `/login` y `/registro`: **solo UI**, sin backend (muestran confirmación
   simulada). Comparten [`auth/AuthShell.tsx`](../src/components/auth/AuthShell.tsx).
   - **`/registro` valida en cliente** (nombre, email, contraseña ≥8, confirmación,
-    términos). **`/login` no valida nada**: solo mira el correo para repartir por
-    rol (ver Panel administrativo).
+    términos). **`/login` es real desde oct 2026**: server action con Supabase Auth
+    (ver Panel administrativo y `docs/BASE_DE_DATOS.md`).
   - Login **sin** "Continuar con Google" (se quitó; la auth real es fase 2 aún sin definir).
   - `AuthShell` lleva los **detalles premium del inicio**: `HeroFX` (estela dorada) en el panel
     de marca, y en **móvil** una banda de marca verde superior (profundidad radial + HeroFX +
@@ -256,19 +271,20 @@ Fase 3 arrancada. **Solo UI con datos de ejemplo**, sin backend.
       empujar el título, cierre al pulsar fuera y con `Escape`, foco de vuelta
       al botón. Dentro: nombre, correo, rol, «Ver la web pública» y «Cerrar
       sesión».
-    - ⚠️ **«Cerrar sesión» lleva a `/login` pero no cierra nada**, y el propio
-      menú lo dice: no hay sesión. Misma regla que el alta de cliente, que
-      tampoco disimula que no guarda.
-    - El usuario sale de **`getUsuarioActual()`** (`queries.ts` → `mock.ts`), y
-      se resuelve en el **layout, que es servidor**, bajando como prop:
-      `AdminTopbar` es cliente por `usePathname` y no podría esperar a una
-      versión `async` de esa función el día que haya BD.
+    - **«Cerrar sesión» es un `<form>` con la server action `cerrarSesion`**,
+      no un enlace: un GET que cierra sesión lo dispararía cualquier precarga.
+    - El usuario sale de **`getUsuarioActual()`** (`queries.ts`), que ya es
+      `async` y lee la sesión de Supabase y la fila de `perfiles`. Se resuelve
+      en el **layout, que es servidor**, y baja como prop: `AdminTopbar` es
+      cliente por `usePathname` y no puede esperar a una función `async`.
     - El bloque del título lleva `min-w-0` + `truncate`: un título largo se
       recorta él en vez de empujar el menú fuera de la pantalla.
 - **Acceso por rol desde el `/login` existente** (decisión del usuario, frente a
-  un `/admin/login` aparte). Provisional: el rol se deduce del dominio del correo
-  (`@reforme.com`) porque no hay auth. ⚠️ **El panel NO está protegido** hasta que
-  haya autenticación real.
+  un `/admin/login` aparte). **Auth real desde oct 2026**, con dos puertas:
+  `src/proxy.ts` echa a quien no tiene sesión (a `/login?siguiente=…`), y el
+  layout echa a quien tiene sesión pero no fila en `perfiles`. Por debajo, RLS.
+  «Cerrar sesión» cierra de verdad (server action `cerrarSesion`). Detalle en
+  `docs/BASE_DE_DATOS.md` → «Lo que falta para que la app lo use».
 
 **Capa de datos — `src/lib/admin/`:**
 - `types.ts` — tipos de dominio (importes en COP enteros, sin centavos).
@@ -1101,7 +1117,8 @@ Nueve rutas, todas `○ Static` o `● SSG`:
 | Ruta | Estado |
 |---|---|
 | `/` | Landing completa |
-| `/login`, `/registro` | Solo UI, no envían a ningún sitio |
+| `/login` | Auth real con Supabase (solo equipo; clientes aún sin área) |
+| `/registro` | Solo UI, no envía a ningún sitio |
 | `/admin` | Dashboard bento + vista contable alternable |
 | `/admin/usuarios` | Listado, filtros, paginación, export CSV **real** |
 | `/admin/usuarios/nuevo` | Formulario validado · **no guarda** |
@@ -1117,10 +1134,11 @@ filtros y búsquedas (en cliente) y el selector de periodo del dashboard.
 
 ### Bloqueante
 
-- [ ] **`/admin` no tiene ninguna protección.** No hay `middleware.ts`, ni sesión,
-      ni dependencia de auth en `package.json`. `/login` **ni lee la contraseña**:
-      es una regex sobre el correo (`/@reforme\.(com|co)$/`). Y ni eso hace falta,
-      basta escribir la URL. **Está desplegado en público.**
+- [x] ~~`/admin` sin protección~~ — resuelto en oct 2026 con `proxy.ts` + perfil
+      en el layout. **Falta configurar las variables en Vercel** antes de desplegar.
+- [x] ~~El registro abierto daba rol de Recepción a cualquiera~~ — quitado el
+      trigger `al_crear_usuario` (migración `20261001120000`). **Falta aplicarla
+      en el remoto** con `npx supabase db push`.
 - [ ] **Nada de lo que se escribe se guarda.** No existe `src/app/api/`. Alta de
       cliente, CRUD de planes, registro de gasto y la agenda de clases validan y
       avisan honestamente de que no persisten.

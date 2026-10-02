@@ -1,42 +1,26 @@
-"use client";
-
-import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import AuthShell from "@/components/auth/AuthShell";
-import TextField from "@/components/auth/TextField";
-import { Button } from "@/components/ui/Button";
+import FormularioLogin from "./FormularioLogin";
 
 /**
- * PROVISIONAL — reparto por rol sin backend.
+ * Una sola puerta para clientes y equipo: decide el perfil, no la URL
+ * (decisión del usuario, frente a un `/admin/login` aparte).
  *
- * Se decidió que clientes y equipo entren por la MISMA puerta y que sea el rol
- * quien decida a dónde van. Como todavía no hay autenticación, el rol se deduce
- * del dominio del correo. Cuando exista auth real, esto se sustituye por el rol
- * que devuelva el servidor — la bifurcación de abajo se queda igual.
+ * Autenticación real con Supabase (`lib/auth/acciones.ts`). Hoy solo el equipo
+ * tiene a dónde entrar: una cuenta sin fila en `perfiles` recibe un mensaje en
+ * vez de un panel vacío. El área de clientes es la fase de Reservas.
  *
- * ⚠️ No es seguridad: cualquiera que escriba un correo así entra. El panel no
- * está protegido hasta que haya auth de verdad.
+ * Es de servidor para leer `?siguiente=` (a dónde volver) y `?error=` (por qué
+ * se llegó aquí). Eso la vuelve dinámica, que en una página de login no cuesta
+ * nada.
  */
-const CORREO_EQUIPO = /@reforme\.(com|co)$/i;
+const AVISOS: Record<string, string> = {
+  "sin-acceso":
+    "Tu sesión no tiene acceso al panel. Entra con una cuenta del equipo.",
+};
 
-export default function LoginPage() {
-  const [showPass, setShowPass] = useState(false);
-  const [email, setEmail] = useState("");
-  const [done, setDone] = useState(false);
-  const router = useRouter();
-
-  function onSubmit(e: FormEvent) {
-    e.preventDefault();
-
-    if (CORREO_EQUIPO.test(email.trim())) {
-      router.push("/admin");
-      return;
-    }
-
-    // Clientes: aún no hay a dónde llevarlos, así que confirmamos y ya.
-    setDone(true);
-  }
+export default async function LoginPage({ searchParams }: PageProps<"/login">) {
+  const { siguiente, error } = await searchParams;
 
   return (
     <AuthShell
@@ -59,66 +43,10 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {done ? (
-        <div className="rounded-2xl border border-beige bg-white/60 p-6 text-center">
-          <p className="font-display text-2xl text-verde">Casi listo ✦</p>
-          <p className="mt-2 text-sm text-verde-700">
-            El inicio de sesión aún no está conectado. Estamos preparando tu
-            espacio; muy pronto podrás acceder a tu cuenta.
-          </p>
-          <button
-            onClick={() => setDone(false)}
-            className="mt-4 text-sm text-dorado-dark underline-offset-4 hover:underline"
-          >
-            Volver
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={onSubmit} className="space-y-5" noValidate>
-          <TextField
-            id="email"
-            label="Correo electrónico"
-            type="email"
-            autoComplete="email"
-            required
-            placeholder="tu@correo.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-
-          <div>
-            <TextField
-              id="password"
-              label="Contraseña"
-              type={showPass ? "text" : "password"}
-              autoComplete="current-password"
-              required
-              placeholder="••••••••"
-              hint={
-                <button
-                  type="button"
-                  onClick={() => setShowPass((v) => !v)}
-                  className="text-xs text-verde-300 transition-colors hover:text-dorado-dark"
-                >
-                  {showPass ? "Ocultar" : "Mostrar"}
-                </button>
-              }
-            />
-            <div className="mt-2 text-right">
-              <Link
-                href="#"
-                className="text-xs text-verde-300 transition-colors hover:text-dorado-dark"
-              >
-                ¿Olvidaste tu contraseña?
-              </Link>
-            </div>
-          </div>
-
-          <Button type="submit" variant="primary" size="lg" className="w-full">
-            Iniciar sesión
-          </Button>
-        </form>
-      )}
+      <FormularioLogin
+        siguiente={typeof siguiente === "string" ? siguiente : undefined}
+        aviso={typeof error === "string" ? AVISOS[error] : undefined}
+      />
     </AuthShell>
   );
 }
