@@ -39,7 +39,7 @@ export default function TarjetaIngresos({
           en móvil se le echaría encima al eyebrow. */}
       <p className="eyebrow pr-32 text-dorado-light">{etiqueta}</p>
 
-      <p className="mt-3 font-display text-4xl tabular-nums leading-none text-arena sm:text-5xl xl:text-6xl">
+      <p className="mt-3 font-cifra text-4xl leading-none text-arena sm:text-5xl xl:text-6xl">
         {formatearValor(valor, formato)}
       </p>
 

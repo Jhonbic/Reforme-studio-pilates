@@ -158,7 +158,7 @@ export default function SelectorDia({
               </span>
               <span
                 aria-hidden="true"
-                className="font-display text-lg tabular-nums leading-none"
+                className="font-cifra font-normal text-lg leading-none"
               >
                 {numeroDia(d)}
               </span>

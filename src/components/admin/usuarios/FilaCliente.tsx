@@ -29,7 +29,7 @@ export default function FilaCliente({ cliente }: { cliente: Cliente }) {
 
       <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 md:contents">
         <span className="min-w-0 basis-full md:basis-auto">
-          <span className="block truncate font-display text-lg leading-tight text-verde">
+          <span className="block truncate text-base font-bold leading-tight text-verde">
             {cliente.nombre}
           </span>
           {/* La cédula y no el correo: es el campo por el que se busca, y un

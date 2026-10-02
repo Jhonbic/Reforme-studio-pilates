@@ -33,7 +33,7 @@ export default function CardHeader({
     >
       <div className={accion ? "min-w-0" : undefined}>
         <h2
-          className={`font-display text-xl ${oscuro ? "text-arena" : "text-verde"}`}
+          className={`text-base font-bold ${oscuro ? "text-arena" : "text-verde"}`}
         >
           {titulo}
         </h2>

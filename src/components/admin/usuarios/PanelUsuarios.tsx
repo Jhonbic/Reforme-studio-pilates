@@ -218,7 +218,7 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
                 if (e.key === "ArrowRight") irAPestana(i + 1);
                 if (e.key === "ArrowLeft") irAPestana(i - 1);
               }}
-              className={`control-fx relative min-h-[44px] overflow-hidden rounded-full border px-5 font-display text-lg transition-[color,background-color,border-color,box-shadow] duration-300 ${
+              className={`control-fx relative min-h-[44px] overflow-hidden rounded-full border px-5 text-sm font-bold transition-[color,background-color,border-color,box-shadow] duration-300 ${
                 activa
                   ? "border-dorado bg-dorado text-verde-900"
                   : "border-beige text-verde-700 hover:border-dorado hover:text-verde hover:ring-2 hover:ring-dorado/25 focus-visible:border-dorado focus-visible:ring-2 focus-visible:ring-dorado/25"

@@ -17,7 +17,7 @@ export default function StatTile({ indicador }: { indicador: Indicador }) {
        puede recortar con `overflow-hidden` sin romper nada. */
     <Card as="div" densidad="compacta" sheen>
       <p className="eyebrow text-verde-300">{etiqueta}</p>
-      <p className="mt-3 font-display text-3xl tabular-nums leading-none text-verde sm:text-4xl">
+      <p className="mt-3 font-cifra text-3xl leading-none text-verde sm:text-4xl">
         {formatearValor(valor, formato)}
       </p>
 

@@ -52,7 +52,7 @@ export default function FilaClase({
       {/* Hora — la columna por la que se recorre la agenda en vertical */}
       <div className="flex items-baseline gap-2 md:block">
         <p
-          className={`font-display text-xl tabular-nums ${
+          className={`font-cifra font-normal text-lg ${
             anulada ? "text-verde-300 line-through" : "text-verde"
           }`}
         >
@@ -68,7 +68,7 @@ export default function FilaClase({
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <p
-            className={`truncate font-display text-lg ${
+            className={`truncate text-base font-bold ${
               anulada ? "text-verde-300" : "text-verde"
             }`}
           >

@@ -88,10 +88,10 @@ export default function DashboardPage() {
           fx
           className="flex flex-col justify-center md:col-span-3 xl:col-span-4"
         >
-          <h2 className="font-display text-xl text-arena">
+          <h2 className="text-base font-bold text-arena">
             Tasa de renovación
           </h2>
-          <p className="mt-6 font-display text-5xl tabular-nums leading-none text-arena xl:text-6xl">
+          <p className="mt-6 font-cifra text-5xl leading-none text-arena xl:text-6xl">
             {porcentaje(renovacion.valor)}
           </p>
           {renovacion.variacion !== null && (

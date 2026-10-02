@@ -239,7 +239,7 @@ export default function LineChart({
           style={{ left: tooltipX }}
         >
           <p className={`text-xs ${c.tooltipLabel}`}>{punto.label}</p>
-          <p className={`font-display text-base tabular-nums ${c.tooltipValor}`}>
+          <p className={`font-cifra font-normal text-base ${c.tooltipValor}`}>
             {fmt(punto.value, formato)}
           </p>
         </div>

@@ -50,7 +50,7 @@ export default function TarjetaPlan({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h3
-            className={`font-display text-xl leading-tight ${
+            className={`text-lg font-bold leading-tight ${
               destacado ? "text-arena" : "text-verde"
             }`}
           >
@@ -106,7 +106,7 @@ export default function TarjetaPlan({
           «$190.000 / mes» se lee de un golpe, «$190.000 cada 30 días» no. */}
       <p className="mt-5 flex flex-wrap items-baseline gap-x-1.5">
         <span
-          className={`font-display text-4xl tabular-nums leading-none ${
+          className={`font-cifra text-4xl leading-none ${
             destacado ? "text-arena" : "text-verde"
           }`}
         >

@@ -99,7 +99,7 @@ export default function Donut({
           x={C}
           y={C - 4}
           textAnchor="middle"
-          className="fill-verde font-display"
+          className="fill-verde font-cifra font-normal"
           fontSize="17"
         >
           {activo === null

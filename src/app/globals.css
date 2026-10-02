@@ -117,6 +117,19 @@ body {
     letter-spacing: -0.01em;
   }
 
+  /* Cifras del panel: sans de cuerpo con dígitos rectos y de ancho fijo.
+     Cormorant trae cifras de estilo antiguo (suben y bajan de la línea) y
+     de ancho variable: preciosas en un titular, ilegibles en una columna de
+     importes, donde los dígitos tienen que alinearse y compararse de un
+     vistazo. El 300 se reserva para las cifras grandes; en tamaños de
+     texto se sube a 400 con `font-normal`. */
+  .font-cifra {
+    font-family: var(--font-sans);
+    font-weight: 300;
+    font-variant-numeric: lining-nums tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
   /* Kicker / eyebrow: mayúsculas espaciadas, look editorial */
   .eyebrow {
     font-family: var(--font-sans);

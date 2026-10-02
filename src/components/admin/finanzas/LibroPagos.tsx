@@ -161,7 +161,7 @@ export default function LibroPagos({ pagos, hoy }: { pagos: Pago[]; hoy: string 
         <p className="text-sm text-verde-300">
           {numero(total)} {total === 1 ? "movimiento" : "movimientos"}
         </p>
-        <p className="font-display text-xl tabular-nums text-verde">
+        <p className="font-cifra font-normal text-lg text-verde">
           {moneda(suma)}
         </p>
       </div>

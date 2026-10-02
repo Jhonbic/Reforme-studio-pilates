@@ -217,7 +217,7 @@ export default function GroupedBars({
         {punto && (
           <div className="pointer-events-none absolute right-0 top-0 z-10 rounded-lg border border-beige bg-white px-3 py-2 shadow-lift">
             <p className="text-xs text-verde-300">{punto.label}</p>
-            <p className="flex items-center gap-2 font-display text-base tabular-nums text-verde">
+            <p className="flex items-center gap-2 font-cifra font-normal text-base text-verde">
               <span
                 aria-hidden="true"
                 className="h-2.5 w-2.5 rounded-[2px]"

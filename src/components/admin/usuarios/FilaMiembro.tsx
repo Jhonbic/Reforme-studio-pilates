@@ -19,7 +19,7 @@ export default function FilaMiembro({ miembro }: { miembro: MiembroEquipo }) {
 
       <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 md:contents">
         <span className="min-w-0 basis-full md:basis-auto">
-          <span className="block truncate font-display text-lg leading-tight text-verde">
+          <span className="block truncate text-base font-bold leading-tight text-verde">
             {miembro.nombre}
           </span>
           <span className="block truncate text-xs text-verde-300">
