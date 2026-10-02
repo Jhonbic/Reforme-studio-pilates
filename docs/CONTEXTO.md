@@ -63,6 +63,29 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
   `next.config.ts` (con `path.resolve(__dirname)`, ruta relativa: funciona igual
   en el Linux de Vercel).
 
+### Calidad: tests y CI (oct 2026, paso 11)
+
+| Comando | Qué comprueba |
+|---|---|
+| `npm run lint` | ESLint (0 avisos) |
+| `npm run typecheck` | TypeScript (`tsc --noEmit`) |
+| `npm test` | **Vitest**, 37 tests de la lógica pura: periodos, fechas, validaciones, formato y cálculos del dashboard (`src/**/*.test.ts`) |
+| `npm run test:db` | **pgTAP**, 20 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+
+- **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
+  dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
+  (levanta Postgres con todas las migraciones y ejecuta pgTAP). No sustituye
+  a Vercel, que sigue desplegando con cada push: avisa con una cruz roja.
+- Los tests fijan comportamientos que **ya costaron un fallo** o una decisión
+  (el mes anterior entero salía 1–30 ago; encadenar clases no es solaparse;
+  cumplir 18 hoy es ser mayor; renovar no es una baja…). Cada `it(...)` dice
+  por qué.
+- El test de base crea su propio plan: en la CI la base arranca vacía.
+- `@types/node` subió a 24 (Vitest 5 lo pide; el Node local ya era 24).
+- **No hay tests de navegador en el repo.** Las pantallas se probaron a mano
+  con Playwright (Edge del sistema + `playwright-core` en una carpeta
+  temporal). Es el siguiente escalón si hace falta.
+
 ### Despliegue
 
 - Repo: `github.com/Jhonbic/Reforme-studio-pilates`, rama **`main`**.
@@ -1426,6 +1449,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto | `.env.local` y Vercel ✅ |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave pública (RLS manda) | `.env.local` y Vercel ✅ |
 | `SUPABASE_SERVICE_ROLE_KEY` | Crear cuentas: registro de clientes, «Dar acceso», contraseñas temporales | `.env.local` ✅ · **Vercel: pendiente** |
+| `NEXT_PUBLIC_SITE_URL` | Opcional. URL pública para `sitemap`, `robots` y la imagen al compartir | Sin ella: `https://reforme-studio-pilates.vercel.app`. Fijarla al pasar al dominio propio |
 
 ⚠️ `SUPABASE_SERVICE_ROLE_KEY` se salta toda la seguridad de la base: nunca con
 prefijo `NEXT_PUBLIC_`. Solo la lee `src/lib/supabase/admin.ts` (`server-only`).
@@ -1434,7 +1458,8 @@ prefijo `NEXT_PUBLIC_`. Solo la lee `src/lib/supabase/admin.ts` (`server-only`).
 
 | Ruta | Lee de | Guarda | Quién |
 |---|---|---|---|
-| `/` | — | — | Público. Landing completa |
+| `/` | — | — | Público. Landing completa, con imagen para compartir (`opengraph-image.tsx`) |
+| `/robots.txt`, `/sitemap.xml` | — | — | Público. Fuera `/admin` y `/mi-cuenta` |
 | `/login` | Supabase Auth | Sesión | Público. Equipo → `/admin`, clientes → `/mi-cuenta` |
 | `/registro` | — | ✅ cuenta + ficha de cliente | Público (necesita `SUPABASE_SERVICE_ROLE_KEY`) |
 | `/mi-cuenta` | Supabase (RLS del cliente) | ✅ reservar, cancelar, contraseña | Clientes con cuenta |
@@ -1474,8 +1499,10 @@ datos y el rol en el servidor, y RLS lo vuelve a impedir en la base.
    el mostrador apunta y quita reservas.
 10. ✅ `/registro` real, `/mi-cuenta`, reservar y cancelar (reglas en la
     base), acceso web desde recepción.
-11. ⏳ **Siguiente:** calidad — tests, CI, `robots`, `sitemap`, imagen para
-    compartir.
+11. ✅ Calidad: Vitest (37) + pgTAP (20) + CI en GitHub Actions, `robots`,
+    `sitemap`, imagen para compartir, rejilla validada de 390 a 1920.
+
+**El plan de 11 pasos está completo.** Lo que queda está en §8.
 
 ### Arreglos que salieron por el camino
 
@@ -1564,12 +1591,16 @@ de repetir:
 
 ### Calidad
 
-- [ ] **Cero tests y cero CI.** Todo lo de oct 2026 se probó a mano con
-      Playwright (Edge instalado en Windows, `playwright-core` en una carpeta
-      temporal) y contra cálculos SQL independientes, pero no queda nada
-      automatizado en el repo.
-- [ ] La rejilla bento sin validar a 768 y 1920 (sí a 375/390 y 1280/1440).
-- [ ] Sin `robots.ts`, `sitemap.ts` ni imagen Open Graph.
+- [x] ~~Cero tests y cero CI~~ — paso 11: Vitest, pgTAP y GitHub Actions.
+- [ ] **Tests de navegador (Playwright) en la CI**: login, alta, reservar.
+      Hoy se prueban a mano.
+- [x] ~~Rejilla bento sin validar a 768 y 1920~~ — validada de 390 a 1920:
+      sin scroll horizontal ni gráficos estirados. Arreglado por el camino: a
+      768 px la cifra «−$ 10.800.000» se salía de su tarjeta (tres por fila);
+      ahora la letra sigue al ancho entre 24 y 36 px (`StatTile`).
+- [x] ~~Sin `robots`, `sitemap` ni imagen Open Graph~~ — hechos. La imagen
+      usa el logo oficial, Cormorant y Lato (`assets/fonts/`, OFL).
+- [ ] **Cuando haya dominio propio**: fijar `NEXT_PUBLIC_SITE_URL`.
 - [x] ~~Tres «hoy» distintos~~ — `getHoy()` desapareció en el paso 9. Quedan
       `hoyEnBogota()` / `horaEnBogota()` (servidor) y `hoyLocalIso()`
       (formularios en el navegador).

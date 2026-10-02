@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Cormorant, Lato } from "next/font/google";
 import "./globals.css";
 import SmoothScroll from "@/components/fx/SmoothScroll";
+import { URL_SITIO } from "@/lib/sitio";
 
 // Tipografía principal (títulos): elegante, atemporal
 const cormorant = Cormorant({
@@ -21,6 +22,9 @@ const lato = Lato({
 });
 
 export const metadata: Metadata = {
+  // Base de las URL absolutas: la imagen para compartir y el sitemap tienen
+  // que ser absolutas para WhatsApp y las redes. Ver `lib/sitio.ts`.
+  metadataBase: new URL(URL_SITIO),
   title: "Reforme Studio Pilates — Movimiento con Propósito",
   description:
     "Un espacio creado para experimentar el Pilates a través de una vivencia elegante y personalizada, enfocada en tu bienestar integral. Florencia, Caquetá.",

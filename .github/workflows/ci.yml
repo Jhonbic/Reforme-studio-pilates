@@ -1,0 +1,57 @@
+# CI: en cada push y en cada pull request a `main`.
+#
+# Dos trabajos en paralelo:
+#   · web — lint, tipos, tests unitarios y compilación de Next.
+#   · base — levanta Postgres con TODAS las migraciones y ejecuta los tests
+#     pgTAP de `supabase/tests/`: solapes, aforo y lo que puede ver cada rol.
+#
+# ⚠️ No sustituye a Vercel: Vercel sigue desplegando con cada push. Esto avisa
+# (cruz roja en GitHub) si algo se rompió, idealmente antes de que llegue a
+# producción. Con una rama + pull request, se ve antes de mezclar.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Un push nuevo cancela la ejecución anterior de la misma rama.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web (lint, tipos, tests, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      # La compilación no habla con Supabase (todo /admin y /mi-cuenta se pinta
+      # por petición), pero el código lee estas variables: valores de relleno.
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-sin-clave-real
+
+  base:
+    name: Base de datos (migraciones + pgTAP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # Solo Postgres (no hace falta el resto de la pila). Aplica las
+      # migraciones de `supabase/migrations/`: si una no entra, falla aquí.
+      - run: supabase db start
+      - run: supabase test db

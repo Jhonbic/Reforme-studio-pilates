@@ -17,7 +17,12 @@ export default function StatTile({ indicador }: { indicador: Indicador }) {
        puede recortar con `overflow-hidden` sin romper nada. */
     <Card as="div" densidad="compacta" sheen>
       <p className="eyebrow text-verde-300">{etiqueta}</p>
-      <p className="mt-3 font-cifra text-3xl leading-none text-verde sm:text-4xl">
+      {/* ⚠️ Desde `sm` hay TRES cifras por fila, y a 768px cada tarjeta mide
+          ~230px: «−$ 10.800.000» a 36px se salía y quedaba cortada (visto al
+          validar la rejilla a 768). Entre `sm` y `xl` la letra sigue al ancho
+          de la ventana, con 24px de mínimo y los 36px de antes de máximo. En
+          móvil (una por fila) hay sitio de sobra y se queda en 30px. */}
+      <p className="mt-3 font-cifra text-3xl leading-none text-verde sm:text-[clamp(1.5rem,3vw,2.25rem)]">
         {formatearValor(valor, formato)}
       </p>
 
