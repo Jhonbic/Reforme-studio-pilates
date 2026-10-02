@@ -1,7 +1,14 @@
 # Base de datos — Supabase
 
-> ✅ **Aplicado y verificado** contra el proyecto `gdmxiqvmtegusevkqtgt`
-> (Postgres 17, región `ca-central-1`). Las cuatro migraciones pasan, la semilla
+> ✅ **Proyecto de producción: `ngjybazethrflxtuyhhx` («PilatesReforme»)**
+> desde el 2 oct 2026. Antes fue `gdmxiqvmtegusevkqtgt` (Postgres 17,
+> `ca-central-1`), donde se aplicó y verificó todo lo que sigue; ver «Mudanza
+> de proyecto» en `docs/CONTEXTO.md` §7.
+>
+> ⚠️ `project_id` en `supabase/config.toml` sigue siendo `gdmxiqvmtegusevkqtgt`
+> **a propósito**: solo da nombre a los contenedores de Docker locales.
+> Cambiarlo crearía una base local nueva y vacía. No tiene que ver con el
+> proyecto remoto, que lo fija `npx supabase link`. Las cuatro migraciones pasan, la semilla
 > carga los clientes de ejemplo (20 desde oct 2026; eran 118) y `supabase db advisors --type security` sale con **0
 > errores**.
 

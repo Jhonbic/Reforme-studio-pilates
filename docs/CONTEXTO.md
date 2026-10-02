@@ -1438,7 +1438,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 |---|---|
 | Código | `github.com/Jhonbic/Reforme-studio-pilates`, rama `main` |
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
-| Base de datos y cuentas | Supabase, proyecto `gdmxiqvmtegusevkqtgt` |
+| Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
 | Esquema | `supabase/migrations/` — **12 migraciones, todas aplicadas en local y en remoto** |
 
@@ -1504,6 +1504,31 @@ datos y el rol en el servidor, y RLS lo vuelve a impedir en la base.
 
 **El plan de 11 pasos está completo.** Lo que queda está en §8.
 
+### Mudanza de proyecto de Supabase (2 oct 2026)
+
+La web nació contra `gdmxiqvmtegusevkqtgt`, pero el proyecto del estudio es
+**`ngjybazethrflxtuyhhx`** («PilatesReforme»), en otra cuenta de Supabase
+(decisión del usuario). Se mudó así:
+
+- `ngjy…` tenía **otro esquema**: el de la rama `recuperar-contrasena`
+  (commit `15068f2` de Jhonbic, 30 sep), sin `perfiles` y con el acceso
+  colgando de `equipo`, y sin las 8 migraciones de oct. **No tenía datos**
+  (0 clientes, 0 planes) y solo una cuenta (`jhonespa123`). Se vació el
+  esquema `public` y se aplicaron las 12 migraciones de `main`.
+- Se copiaron **todos** los datos de `gdmx…`: cuentas (con sus contraseñas),
+  clientes, planes, membresías, pagos, gastos, presupuestos, equipo, clases y
+  reservas. Sin sesiones ni tokens: no valen con otro proyecto. Recuentos
+  idénticos (20 · 4 · 22 · 22 · 5 · 5 · 207 · 749; pagos 7.365.000).
+- **Dos cuentas de Administración**: `jhonlespa12@gmail.com` (la de `gdmx…`)
+  y `jhonespa123@gmail.com` (la que ya había en `ngjy…`).
+- Copias de seguridad de los dos proyectos **fuera del repo** (tienen datos
+  personales y contraseñas cifradas):
+  `../respaldo-reforme-gdmx-2026-10-02/` y `../respaldo-reforme-ngjy-2026-10-02/`.
+- `gdmx…` se queda intacto como respaldo. Borrarlo cuando todo esté probado.
+- ⚠️ La rama `recuperar-contrasena` se quedó sin base que case con ella. Si se
+  quiere algo de ahí (la recuperación de contraseña está en pendientes), hay
+  que traerlo a `main` adaptado al esquema de `main`.
+
 ### Arreglos que salieron por el camino
 
 Problemas encontrados al conectar cada pantalla; quedan aquí porque son fáciles
@@ -1530,6 +1555,12 @@ de repetir:
 
 ### Lo que tiene que hacer alguien (no es código)
 
+- [ ] **Vercel: las TRES variables de Supabase del proyecto `ngjy…`**
+      (`NEXT_PUBLIC_SUPABASE_URL` = `https://ngjybazethrflxtuyhhx.supabase.co`,
+      la `anon` y la `service_role` de ese proyecto) y Redeploy. Con la URL de
+      un proyecto y una clave de otro, Supabase responde «Invalid API key».
+- [ ] **Borrar el proyecto `gdmxiqvmtegusevkqtgt`** cuando producción esté
+      probada contra `ngjy…`.
 - [ ] **Añadir `SUPABASE_SERVICE_ROLE_KEY` en Vercel** (Production y Preview) y
       volver a desplegar. **Sin ella, en producción no funcionan ni el registro
       de clientes ni «Dar acceso» / «Acceso web».** Valor: Supabase → Project
