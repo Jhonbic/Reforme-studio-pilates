@@ -172,14 +172,24 @@ export type EstadoClase = "Cancelada" | "Finalizada" | "Llena" | "Programada";
  * resuelto, la hora de fin, el estado y los huecos libres. Así la misma clase no
  * puede salir «Llena» en un sitio y «Programada» en otro.
  */
+/** Una persona apuntada a una clase. */
+export type ReservaEnClase = {
+  /** Id de la fila de `reservas`: es lo que se borra al quitarla. */
+  id: string;
+  clienteId: string;
+  nombre: string;
+};
+
 export type ClaseEnAgenda = Clase & {
-  /** Nombre resuelto desde `EQUIPO` a partir de `instructoraId`. */
+  /** Nombre resuelto desde la tabla `equipo` a partir de `instructoraId`. */
   instructora: string;
   /** `"07:50"`, calculada con `finDe()`. */
   horaFin: string;
   estado: EstadoClase;
   /** Cupos sin reservar. Nunca negativo. */
   libres: number;
+  /** Quién la reservó, por orden alfabético. `reservas` es su longitud. */
+  reservados: ReservaEnClase[];
 };
 
 /**

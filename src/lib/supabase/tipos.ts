@@ -23,6 +23,50 @@ export type Database = {
   };
   public: {
     Tables: {
+      clases: {
+        Row: {
+          cancelada: boolean;
+          creado_en: string;
+          cupos: number;
+          duracion_min: number;
+          fecha: string;
+          hora_inicio: string;
+          id: string;
+          instructora_id: string;
+          tipo: Database["public"]["Enums"]["tipo_clase"];
+        };
+        Insert: {
+          cancelada?: boolean;
+          creado_en?: string;
+          cupos: number;
+          duracion_min: number;
+          fecha: string;
+          hora_inicio: string;
+          id?: string;
+          instructora_id: string;
+          tipo: Database["public"]["Enums"]["tipo_clase"];
+        };
+        Update: {
+          cancelada?: boolean;
+          creado_en?: string;
+          cupos?: number;
+          duracion_min?: number;
+          fecha?: string;
+          hora_inicio?: string;
+          id?: string;
+          instructora_id?: string;
+          tipo?: Database["public"]["Enums"]["tipo_clase"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "clases_instructora_id_fkey";
+            columns: ["instructora_id"];
+            isOneToOne: false;
+            referencedRelation: "equipo";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       clientes: {
         Row: {
           acepta_terminos: boolean;
@@ -337,6 +381,49 @@ export type Database = {
         };
         Relationships: [];
       };
+      reservas: {
+        Row: {
+          clase_id: string;
+          cliente_id: string;
+          creado_en: string;
+          id: string;
+        };
+        Insert: {
+          clase_id: string;
+          cliente_id: string;
+          creado_en?: string;
+          id?: string;
+        };
+        Update: {
+          clase_id?: string;
+          cliente_id?: string;
+          creado_en?: string;
+          id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "reservas_clase_id_fkey";
+            columns: ["clase_id"];
+            isOneToOne: false;
+            referencedRelation: "clases";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reservas_cliente_id_fkey";
+            columns: ["cliente_id"];
+            isOneToOne: false;
+            referencedRelation: "clientes";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reservas_cliente_id_fkey";
+            columns: ["cliente_id"];
+            isOneToOne: false;
+            referencedRelation: "clientes_vigentes";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       clientes_vigentes: {
@@ -387,6 +474,7 @@ export type Database = {
       estado_membresia: "Activa" | "Por vencer" | "Vencida" | "Inactiva" | "Sin plan";
       metodo_pago: "Efectivo" | "Nequi" | "Transferencia" | "Tarjeta";
       rol_equipo: "Instructora" | "Administración" | "Recepción";
+      tipo_clase: "Reformer" | "Mat" | "Privada";
       tipo_identificacion: "C.C." | "T.I." | "C.E." | "Pasaporte" | "R.C.";
     };
     CompositeTypes: {
@@ -510,6 +598,7 @@ export const Constants = {
       estado_membresia: ["Activa", "Por vencer", "Vencida", "Inactiva", "Sin plan"],
       metodo_pago: ["Efectivo", "Nequi", "Transferencia", "Tarjeta"],
       rol_equipo: ["Instructora", "Administración", "Recepción"],
+      tipo_clase: ["Reformer", "Mat", "Privada"],
       tipo_identificacion: ["C.C.", "T.I.", "C.E.", "Pasaporte", "R.C."],
     },
   },

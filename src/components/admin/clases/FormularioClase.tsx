@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import Modal from "@/components/admin/Modal";
 import CampoSelect from "@/components/admin/campos/CampoSelect";
 import CampoTexto from "@/components/admin/campos/CampoTexto";
@@ -11,6 +11,7 @@ import {
   HORAS_CLASE,
   TIPOS_CLASE,
 } from "@/lib/admin/catalogos";
+import { guardarClase } from "@/lib/admin/acciones";
 import { numero } from "@/lib/admin/format";
 import { duracionLegible, rangoHorario, seSolapan } from "@/lib/admin/horario";
 import type {
@@ -107,6 +108,9 @@ export default function FormularioClase({
      que se reescribe solo después de haberlo puesto. */
   const [cuposTocados, setCuposTocados] = useState(false);
   const refs = useRef<Partial<Record<Campo, HTMLElement | null>>>({});
+  /** Fallo del servidor que no es de un campo concreto. */
+  const [errorEnvio, setErrorEnvio] = useState("");
+  const [guardando, iniciarGuardado] = useTransition();
 
   /* Resincroniza al cambiar de clase (o al pasar de editar a crear). Sin esto,
      abrir «editar las 07:00», cerrar y pulsar «Nueva clase» enseñaría los datos
@@ -229,11 +233,24 @@ export default function FormularioClase({
 
     const nombre =
       instructoras.find((i) => i.id === v.instructoraId)?.nombre ?? "";
-    onGuardado(
-      `${v.tipo} del ${v.fecha} a las ${v.horaInicio} con ${nombre}`,
-      esNueva,
-    );
-    onCerrar();
+    setErrorEnvio("");
+    iniciarGuardado(async () => {
+      const r = await guardarClase(clase?.id ?? null, v);
+      if (r.ok) {
+        onGuardado(`${v.tipo} del ${v.fecha} a las ${v.horaInicio} con ${nombre}`, esNueva);
+        onCerrar();
+        return;
+      }
+      /* Lo que la base rechaza y el formulario no vio venir (otra persona
+         programó a esa instructora a esa hora mientras tanto, o apuntó a
+         alguien y el aforo ya no puede bajar) va al campo que lo causa. */
+      if (r.campo) {
+        setErrores((e) => ({ ...e, [r.campo as Campo]: r.error }));
+        refs.current[r.campo]?.focus();
+        return;
+      }
+      setErrorEnvio(r.error);
+    });
   }
 
   return (
@@ -385,19 +402,23 @@ export default function FormularioClase({
           </p>
         )}
 
-        <p className="rounded-xl border border-dashed border-dorado/50 bg-dorado/5 px-4 py-3 text-sm text-verde-700">
-          Este formulario <strong>no guarda todavía</strong>: el horario vive en
-          el código. Sirve para acordar qué define una clase antes de que exista
-          la base de datos.
-        </p>
+        {errorEnvio && (
+          <p role="alert" className="rounded-xl border border-[color-mix(in_srgb,var(--color-estado-grave)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-grave)_8%,transparent)] px-4 py-3 text-sm text-[var(--color-estado-grave)]">
+            {errorEnvio}
+          </p>
+        )}
 
         <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end">
           <button type="button" onClick={onCerrar} className={BOTON}>
             <span className="control-sheen" aria-hidden="true" />
             Cancelar
           </button>
-          <button type="submit" className={BOTON_PRIMARIO}>
-            {esNueva ? "Crear clase" : "Guardar cambios"}
+          <button
+            type="submit"
+            disabled={guardando}
+            className={`${BOTON_PRIMARIO} disabled:opacity-60`}
+          >
+            {guardando ? "Guardando…" : esNueva ? "Crear clase" : "Guardar cambios"}
           </button>
         </div>
       </form>

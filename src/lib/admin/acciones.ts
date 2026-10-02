@@ -9,10 +9,12 @@ import {
 import { hoyEnBogota } from "./horario";
 import { getUsuarioActual } from "./queries";
 import type {
+  BorradorClase,
   BorradorPlan,
   CategoriaGasto,
   MetodoPago,
   RolEquipo,
+  TipoClase,
   TipoIdentificacion,
 } from "./types";
 import { crearClienteAdmin } from "@/lib/supabase/admin";
@@ -702,5 +704,177 @@ export async function cambiarMiContrasena(actual: string, nueva: string): Promis
 
   const { error } = await supabase.auth.updateUser({ password: nueva });
   if (error) return { ok: false, error: `No se pudo cambiar: ${error.message}` };
+  return { ok: true };
+}
+
+/* ======================================================================
+   Agenda: clases y reservas
+   ====================================================================== */
+
+export type ResultadoClase =
+  | { ok: true }
+  | { ok: false; error: string; campo?: "instructoraId" | "cupos" };
+
+const TIPOS_CLASE: TipoClase[] = ["Reformer", "Mat", "Privada"];
+const esTipoClase = (v: string): v is TipoClase => (TIPOS_CLASE as string[]).includes(v);
+
+/** Programar y apuntar gente es del mostrador; las instructoras consultan. */
+async function soloMostrador(): Promise<string | null> {
+  const usuario = await getUsuarioActual();
+  return usuario?.rol === "Administración" || usuario?.rol === "Recepción"
+    ? null
+    : "Solo Administración y Recepción pueden cambiar la agenda.";
+}
+
+function revalidarAgenda() {
+  revalidatePath("/admin/clases");
+  // El dashboard enseña las reservas por día de la semana.
+  revalidatePath("/admin");
+}
+
+/**
+ * Traduce los errores de la base a frases. Los que importan los produce la
+ * PROPIA base, no la app: así valen igual para quien llame a la API sin pasar
+ * por el formulario.
+ */
+function errorDeClase(e: { code?: string; message: string }): ResultadoClase {
+  // 23P01 = violación de la restricción de exclusión `clases_instructora_sin_solapes`.
+  if (e.code === "23P01") {
+    return {
+      ok: false,
+      campo: "instructoraId",
+      error: "Esa instructora ya tiene otra clase que se pisa con este horario.",
+    };
+  }
+  if (e.code === "P0001") return { ok: false, campo: "cupos", error: e.message };
+  return { ok: false, error: `No se pudo guardar la clase: ${e.message}` };
+}
+
+/**
+ * Crea una clase (`id` nulo) o guarda los cambios de una existente.
+ *
+ * El solapamiento de instructora lo comprueba el formulario EN VIVO (para
+ * avisar antes de pulsar) y lo impide la BASE (restricción de exclusión): el
+ * formulario evita el error de quien lo usa, la base el de cualquiera.
+ */
+export async function guardarClase(
+  id: string | null,
+  b: BorradorClase,
+): Promise<ResultadoClase> {
+  const prohibido = await soloMostrador();
+  if (prohibido) return { ok: false, error: prohibido };
+
+  if (!esTipoClase(b.tipo)) return { ok: false, error: "Tipo de clase no válido." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.fecha)) return { ok: false, error: "Fecha no válida." };
+  if (!/^\d{2}:\d{2}$/.test(b.horaInicio)) return { ok: false, error: "Hora no válida." };
+  if (!Number.isInteger(b.duracionMin) || b.duracionMin < 15 || b.duracionMin > 240)
+    return { ok: false, error: "Duración no válida." };
+  if (!UUID_VALIDO.test(b.instructoraId))
+    return { ok: false, campo: "instructoraId", error: "Elige una instructora." };
+  if (!Number.isInteger(b.cupos) || b.cupos <= 0)
+    return { ok: false, campo: "cupos", error: "El aforo tiene que ser al menos 1." };
+  // Programar en el pasado no tiene sentido; editar una clase que ya pasó,
+  // tampoco (la pantalla ni siquiera ofrece el botón).
+  if (b.fecha < hoyEnBogota()) return { ok: false, error: "La fecha ya pasó." };
+
+  const fila = {
+    tipo: b.tipo,
+    fecha: b.fecha,
+    hora_inicio: b.horaInicio,
+    duracion_min: b.duracionMin,
+    instructora_id: b.instructoraId,
+    cupos: b.cupos,
+  };
+  const supabase = await crearClienteServidor();
+  const { error } = id
+    ? await supabase.from("clases").update(fila).eq("id", id)
+    : await supabase.from("clases").insert(fila);
+  if (error) return errorDeClase(error);
+
+  revalidarAgenda();
+  return { ok: true };
+}
+
+/**
+ * Cancela una clase: se queda en la agenda marcada «Cancelada», con sus
+ * reservas, porque hay personas a las que avisar (el sistema no manda
+ * mensajes todavía; hay que llamarlas).
+ */
+export async function cancelarClase(id: string): Promise<ResultadoClase> {
+  const prohibido = await soloMostrador();
+  if (prohibido) return { ok: false, error: prohibido };
+
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("clases").update({ cancelada: true }).eq("id", id);
+  if (error) return { ok: false, error: `No se pudo cancelar: ${error.message}` };
+  revalidarAgenda();
+  return { ok: true };
+}
+
+/**
+ * Borra una clase. Solo si NADIE la reservó: con reservas, la base lo impide
+ * (`reservas.clase_id ... on delete restrict`) y lo que toca es cancelarla.
+ */
+export async function eliminarClase(id: string): Promise<ResultadoClase> {
+  const prohibido = await soloMostrador();
+  if (prohibido) return { ok: false, error: prohibido };
+
+  const supabase = await crearClienteServidor();
+  const { error, count } = await supabase.from("clases").delete({ count: "exact" }).eq("id", id);
+  if (error) {
+    if (error.code === "23503") {
+      return { ok: false, error: "Alguien la reservó mientras tanto: cancélala en vez de eliminarla." };
+    }
+    return { ok: false, error: `No se pudo eliminar: ${error.message}` };
+  }
+  if (count === 0) return { ok: false, error: "La clase ya no existe." };
+  revalidarAgenda();
+  return { ok: true };
+}
+
+/**
+ * Apunta a un cliente a una clase. Hoy lo hace el mostrador; con el paso 10
+ * lo harán también los propios clientes.
+ *
+ * El aforo lo vigila la BASE (trigger `reservas_respetan_aforo`, que bloquea
+ * la clase mientras cuenta): dos recepcionistas apuntando a la vez al último
+ * cupo no pueden colar a las dos personas.
+ */
+export async function reservar(claseId: string, clienteId: string): Promise<ResultadoClase> {
+  const prohibido = await soloMostrador();
+  if (prohibido) return { ok: false, error: prohibido };
+  if (!UUID_VALIDO.test(claseId) || !UUID_VALIDO.test(clienteId))
+    return { ok: false, error: "Clase o cliente no válido." };
+
+  const supabase = await crearClienteServidor();
+  const { data: clase } = await supabase
+    .from("clases")
+    .select("fecha, cancelada")
+    .eq("id", claseId)
+    .maybeSingle();
+  if (!clase) return { ok: false, error: "La clase ya no existe." };
+  if (clase.cancelada) return { ok: false, error: "La clase está cancelada." };
+  if (clase.fecha < hoyEnBogota()) return { ok: false, error: "La clase ya pasó." };
+
+  const { error } = await supabase.from("reservas").insert({ clase_id: claseId, cliente_id: clienteId });
+  if (error) {
+    if (error.code === "23505") return { ok: false, error: "Ya estaba apuntada a esta clase." };
+    if (error.code === "P0001") return { ok: false, error: error.message };
+    return { ok: false, error: `No se pudo reservar: ${error.message}` };
+  }
+  revalidarAgenda();
+  return { ok: true };
+}
+
+/** Quita una reserva y libera el cupo. */
+export async function quitarReserva(reservaId: string): Promise<ResultadoClase> {
+  const prohibido = await soloMostrador();
+  if (prohibido) return { ok: false, error: prohibido };
+
+  const supabase = await crearClienteServidor();
+  const { error, count } = await supabase.from("reservas").delete({ count: "exact" }).eq("id", reservaId);
+  if (error) return { ok: false, error: `No se pudo quitar la reserva: ${error.message}` };
+  if (count === 0) return { ok: false, error: "Esa reserva ya no existe." };
+  revalidarAgenda();
   return { ok: true };
 }

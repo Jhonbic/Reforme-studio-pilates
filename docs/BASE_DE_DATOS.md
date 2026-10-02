@@ -20,6 +20,7 @@ supabase/
     20261001140100_vista_sin_plan.sql              La vista lo usa (security_invoker)
     20261001150000_registrar_membresia.sql         Membresía + pago atómicos; «Inactiva» desde el pago
     20261001160000_equipo_y_cuentas.sql            equipo.cuenta_id + cambiar_rol_equipo
+    20261002120000_clases_y_reservas.sql           Agenda: sin solapes de instructora, aforo
   seed.sql                                         20 clientes, determinista
 ```
 
@@ -83,6 +84,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<clave anónima>
 
 ⚠️ **La clave `service_role` no se pone aquí ni en ningún `NEXT_PUBLIC_`.** Esa
 clave se salta RLS entera; si acaba en el navegador, la base queda abierta.
+
+### Cargar solo la agenda de ejemplo
+
+`seed.sql` empieza con un `truncate` de TODO. Contra un remoto que ya tiene
+datos de verdad no se lanza entero: la parte de la agenda (desde el comentario
+«Agenda: clases y reservas») solo borra y regenera `clases` y `reservas`, y se
+puede ejecutar sola con `db query --linked -f`. Así se cargó en el remoto el
+2 oct 2026, con 2 cobros reales ya registrados.
 
 ### Acceso del equipo
 
@@ -174,7 +183,7 @@ Una instructora no ve gastos a propósito: no tiene por qué conocer la nómina.
 ## Cómo la usa la app
 
 **Estado (2 oct 2026): la app lee y escribe en Supabase en todas las pantallas
-del panel, menos la agenda de Clases**, que no tiene tablas todavía. La foto
+del panel**, agenda de Clases incluida (paso 9). La foto
 de conjunto y los pendientes están en `docs/CONTEXTO.md` §7 y §8.
 
 Hecho:
@@ -204,8 +213,8 @@ Hecho:
    `getPresupuestos`, `getPlanes`, `getPlanesALaVenta`, `getDatosDashboard`
    (el cálculo, en `lib/admin/dashboard.ts`) y `getNotificaciones`. Tipos
    generados en `src/lib/supabase/tipos.ts`.
-   **Sigue en `mock.ts`**: la agenda de clases, el equipo de ejemplo que esa
-   agenda usa (`getInstructoras`) y dos avisos de ejemplo de la campana.
+   y `getClases`, `getInstructoras`, `getReservasPorDiaSemana` (agenda).
+   **Sigue en `mock.ts`**: solo dos avisos de ejemplo de la campana.
 6. ✅ **Escrituras** (server actions) en `src/lib/admin/acciones.ts`:
    `crearCliente`,
    `registrarGasto` (con subida del comprobante al bucket `comprobantes`),
@@ -213,7 +222,8 @@ Hecho:
    `registrar_membresia`), `crearMiembro`, `darAcceso`, `quitarAcceso`,
    `nuevaContrasenaTemporal`, `cambiarRol` (función `cambiar_rol_equipo`) y
    `cambiarMiContrasena`.
-   **Falta**: la agenda (tablas `clases` y `reservas`, paso 9).
+   Y la agenda: `guardarClase`, `cancelarClase`, `eliminarClase`, `reservar`
+   y `quitarReserva`.
    ⚠️ Toda función nueva en `public`: revocar EXECUTE a `public` **y a
    `anon`** por nombre; Supabase se lo concede a `anon` directamente.
 

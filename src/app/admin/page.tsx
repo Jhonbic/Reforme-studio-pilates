@@ -51,9 +51,8 @@ function SinDatos({ texto }: { texto: string }) {
  * Dashboard, leyendo de Supabase (paso 5 del plan).
  *
  * Todo sale de `getDatosDashboard()` —una sola ida a la base— y lo calcula
- * `lib/admin/dashboard.ts`. La excepción es «Reservas por día de la semana»:
- * la tabla de clases todavía no existe (paso 9), sigue leyendo `mock.ts`, y
- * la tarjeta lo dice.
+ * `lib/admin/dashboard.ts`. «Reservas por día de la semana» va aparte
+ * (`getReservasPorDiaSemana`): lee las tablas `clases` y `reservas`.
  *
  * ⚠️ **Las tarjetas de dinero son solo para Administración.** RLS no da los
  * gastos a Recepción ni los pagos a Instructora, y las consultas no fallan:
@@ -76,7 +75,7 @@ export default async function DashboardPage() {
   const movimiento = altasYBajas(datos, hoy);
   const renovacion = tasaRenovacion(datos, hoy);
   const gastos = gastosDelMes(datos, hoy);
-  const porDia = getReservasPorDiaSemana();
+  const porDia = await getReservasPorDiaSemana(hoy);
 
   const totalPlanes = planes.reduce((t, p) => t + p.importe, 0);
   const totalMetodos = metodos.reduce((t, m) => t + m.importe, 0);
@@ -251,17 +250,8 @@ export default async function DashboardPage() {
              del dashboard van sin párrafo a propósito, pero sin decir «de
              cuándo» la cifra no se puede interpretar. */
           accion={
-            <span className="flex flex-wrap gap-2">
-              {/* ⚠️ Es la ÚNICA tarjeta que sigue en `mock.ts`: la tabla de
-                  clases no existe todavía (paso 9). Con el resto del
-                  dashboard ya en datos reales, callarlo haría pasar por
-                  verdad unas reservas inventadas. */}
-              <span className="rounded-full border border-[color-mix(in_srgb,var(--color-estado-aviso)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-aviso)_10%,transparent)] px-3 py-1 text-xs text-[var(--color-estado-aviso)]">
-                <span aria-hidden="true">▲ </span>Datos de ejemplo
-              </span>
-              <span className={PASTILLA}>
-                Últimas {SEMANAS_RESERVAS} semanas
-              </span>
+            <span className={PASTILLA}>
+              Últimas {SEMANAS_RESERVAS} semanas
             </span>
           }
           tabla={{

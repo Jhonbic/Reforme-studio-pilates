@@ -1,11 +1,6 @@
 import { telefonoCO } from "./format";
 import { DIAS_CORTOS, diaSemana, finDe, sumarDias } from "./horario";
-import {
-  CLASES,
-  EQUIPO,
-  HOY,
-  NOTIFICACIONES,
-} from "./mock";
+import { NOTIFICACIONES } from "./mock";
 import { cache } from "react";
 import {
   DIAS_POR_VENCER,
@@ -111,19 +106,6 @@ export async function getPresupuestos(): Promise<Presupuesto[]> {
 }
 
 /**
- * La fecha que el panel considera «hoy».
- *
- * ⚠️ Existe para que las pantallas **no importen `HOY` de `mock.ts`**: la regla
- * del proyecto es que la UI llame siempre a esta capa, y Finanzas se la estaba
- * saltando. Hoy devuelve la constante congelada del mock —necesaria para que el
- * prerenderizado sea reproducible—; con base de datos pasará a ser la fecha
- * real del servidor y ninguna pantalla se enterará del cambio.
- */
-export function getHoy(): string {
-  return HOY;
-}
-
-/**
  * Una fila de la vista `clientes_vigentes` → el `Cliente` que pinta la UI.
  *
  * ⚠️ En una vista Postgres declara TODAS las columnas anulables, aunque en la
@@ -217,79 +199,131 @@ export async function getEquipo(esAdmin: boolean): Promise<MiembroEquipo[]> {
  * instructora dada de baja se siguen viendo —pasaron de verdad—, pero su nombre
  * desaparece del desplegable del formulario.
  */
-export function getInstructoras(): MiembroEquipo[] {
-  // ⚠️ Sigue en `mock.ts` a propósito: las clases de ejemplo apuntan a los ids
-  // del equipo de EJEMPLO. Pasará a la tabla `equipo` con la agenda (paso 9).
-  return EQUIPO.filter((m) => m.rol === "Instructora" && m.activo).sort((a, b) =>
-    a.nombre.localeCompare(b.nombre, "es"),
-  );
+export async function getInstructoras(): Promise<MiembroEquipo[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase
+    .from("equipo")
+    .select("*")
+    .eq("rol", "Instructora")
+    .eq("activo", true)
+    .order("nombre");
+  if (error) throw new Error(`No se pudieron leer las instructoras: ${error.message}`);
+  return data.map((m) => ({
+    id: m.id,
+    nombre: m.nombre,
+    correo: m.correo,
+    telefono: m.telefono ? telefonoCO(m.telefono) : "",
+    rol: m.rol,
+    clasesSemana: m.clases_semana,
+    activo: m.activo,
+    alta: m.alta,
+  }));
 }
 
 /**
  * En qué punto está una clase.
  *
  * ⚠️ **El orden de las comprobaciones ES la definición del estado**, igual que
- * el `CASE` de `estado_de_membresia()` en la base de datos. Cambiarlo cambia lo
- * que dice la agenda:
+ * el `CASE` de `estado_de_membresia()` en la base de datos:
  * - `Cancelada` va primero y gana incluso a una fecha pasada: para quien la
  *   tenía reservada, lo que cuenta es que se anuló.
  * - `Finalizada` gana a `Llena`: una clase de ayer no admite reservas porque
  *   terminó, no porque esté completa.
  *
- * ⚠️ **«Finalizada» se decide por FECHA, no por hora**, y es a propósito: no hay
- * reloj del que fiarse. `getHoy()` devuelve una constante congelada y el panel se
- * prerenderiza en el build, así que comparar contra la hora real haría que el
- * servidor y el navegador pintaran estados distintos — el mismo fallo de
- * hidratación que ya evitan `format.ts` y el alta de cliente. Con backend, el
- * reloj del servidor afinará esto hasta la hora y ninguna pantalla se enterará.
+ * Desde que la agenda lee la base (oct 2026), «Finalizada» se decide por la
+ * HORA de Bogotá y no solo por la fecha: la clase de las 07:00 ya ha terminado
+ * a las 10:00 del mismo día. Antes no se podía: `getHoy()` era una fecha
+ * congelada y el panel se prerenderizaba. Se calcula en el servidor y baja ya
+ * resuelto, así que servidor y navegador no pueden discrepar.
  */
-function estadoDeClase(c: Clase, hoy: string): EstadoClase {
+function estadoDeClase(
+  c: Clase,
+  horaFin: string,
+  hoy: string,
+  ahora: string,
+): EstadoClase {
   if (c.cancelada) return "Cancelada";
-  if (c.fecha < hoy) return "Finalizada";
+  if (c.fecha < hoy || (c.fecha === hoy && horaFin <= ahora)) return "Finalizada";
   if (c.reservas >= c.cupos) return "Llena";
   return "Programada";
 }
 
 /**
- * La agenda completa, ya resuelta: cada clase con el nombre de su instructora,
- * su hora de fin, su estado y los cupos libres.
+ * Ventana de la agenda que viaja al navegador: 5 semanas atrás y 13 por
+ * delante. Cambiar de día dentro de ella es instantáneo; fuera de ella la tira
+ * enseña días vacíos. Con un horario que se repite, cientos de clases; cuando
+ * sean miles, la página pedirá la semana que se mira.
+ */
+const AGENDA_DIAS_ATRAS = 35;
+const AGENDA_DIAS_ADELANTE = 91;
+
+/**
+ * La agenda, ya resuelta: cada clase con el nombre de su instructora, su hora
+ * de fin, su estado, los cupos libres y quién la reservó.
  *
  * ⚠️ **Todo eso se calcula aquí y no en la pantalla.** Si el estado se dedujera
  * en cada componente, la misma clase podría salir «Llena» en la fila y
- * «Programada» en el resumen del día. Es la misma regla por la que
- * `getRepartoPlanes()` cuenta los clientes en un solo sitio.
+ * «Programada» en el resumen del día.
  *
- * Sin filtros de servidor, como el libro de pagos: son unas 250 clases que ya
- * viajan al navegador, así que cambiar de día allí es instantáneo y la ruta
- * sigue prerenderizándose. Con base de datos, esto recibirá un rango de fechas.
+ * `reservas` ya no es un número escrito: es cuántas filas tiene en la tabla
+ * `reservas`.
  */
-export function getClases(): ClaseEnAgenda[] {
-  const hoy = getHoy();
-  const nombres = new Map(EQUIPO.map((m) => [m.id, m.nombre]));
+export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgenda[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase
+    .from("clases")
+    .select(
+      "id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos, cancelada, equipo(nombre), reservas(id, cliente_id, clientes(nombre))",
+    )
+    .gte("fecha", sumarDias(hoy, -AGENDA_DIAS_ATRAS))
+    .lte("fecha", sumarDias(hoy, AGENDA_DIAS_ADELANTE))
+    .order("fecha")
+    .order("hora_inicio");
+  if (error) throw new Error(`No se pudo leer la agenda: ${error.message}`);
 
-  return CLASES.map((c) => ({
-    ...c,
-    /* Una instructora borrada del equipo no debe dejar la fila en blanco: se
-       nota que falta el dato en vez de disimularlo. */
-    instructora: nombres.get(c.instructoraId) ?? "Sin asignar",
-    horaFin: finDe(c.horaInicio, c.duracionMin),
-    estado: estadoDeClase(c, hoy),
-    /* Nunca negativo: si alguna vez se recortara el aforo por debajo de las
-       reservas ya hechas, «−2 libres» sería ruido. El formulario, además, no
-       deja llegar ahí. */
-    libres: Math.max(0, c.cupos - c.reservas),
-  }));
+  return data.map((f) => {
+    const reservados = f.reservas
+      .map((r) => ({
+        id: r.id,
+        clienteId: r.cliente_id,
+        nombre: r.clientes?.nombre ?? "Cliente eliminado",
+      }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+    const clase: Clase = {
+      id: f.id,
+      tipo: f.tipo,
+      fecha: f.fecha,
+      // Postgres devuelve `time` como «07:00:00»; la agenda trabaja en «07:00»
+      // (se ordena igual alfabética que cronológicamente).
+      horaInicio: f.hora_inicio.slice(0, 5),
+      duracionMin: f.duracion_min,
+      instructoraId: f.instructora_id,
+      cupos: f.cupos,
+      reservas: reservados.length,
+      cancelada: f.cancelada,
+    };
+    const horaFin = finDe(clase.horaInicio, clase.duracionMin);
+    return {
+      ...clase,
+      /* Una instructora borrada del equipo no puede pasar (`restrict`), pero si
+         faltara el dato se nota en vez de disimularlo. */
+      instructora: f.equipo?.nombre ?? "Sin asignar",
+      horaFin,
+      estado: estadoDeClase(clase, horaFin, hoy, ahora),
+      /* Nunca negativo: la base no deja que haya más reservas que cupos, pero
+         «−2 libres» sería ruido si algún día pasara. */
+      libres: Math.max(0, clase.cupos - clase.reservas),
+      reservados,
+    };
+  });
 }
 
 /**
- * Cuántas semanas hacia atrás mira el reparto por día de la semana.
- *
- * Dos, porque **son las que hay**: la agenda de ejemplo se genera con dos
- * semanas de pasado. Con base de datos esto se sube a 8 o 12 (un patrón semanal
- * necesita repeticiones para no ser el ruido de una semana rara), y es el único
- * número que hay que tocar.
+ * Cuántas semanas hacia atrás mira el reparto por día de la semana. Un patrón
+ * semanal necesita repeticiones para no ser el ruido de una semana rara.
+ * (Los datos de ejemplo traen dos semanas de pasado: el resto suma cero.)
  */
-export const SEMANAS_RESERVAS = 2;
+export const SEMANAS_RESERVAS = 4;
 
 export type ReservasPorDia = {
   /** `"Lun"`, `"Mar"`… empezando en lunes. */
@@ -307,23 +341,25 @@ export type ReservasPorDia = {
  * fecha: un lunes suelto no dice nada, catorce lunes sí.
  *
  * ⚠️ **Son RESERVAS, no asistencias verificadas.** No existe todavía el
- * registro de quién apareció: `Clase.reservas` es cuánta gente apartó cupo.
- * Cuando ese registro exista, esta misma función devuelve un campo más y la
- * tarjeta pasa a dos series (reservado / asistió) — que es justo lo que hace
- * visible el problema del «reserva y no viene», hoy invisible.
+ * registro de quién apareció. Cuando exista, esta misma función devuelve un
+ * campo más y la tarjeta pasa a dos series (reservado / asistió).
  *
- * ⚠️ **Solo cuenta clases que ya pasaron** (`fecha < hoy`, misma frontera que
- * `Finalizada`) **y no canceladas**. Con las futuras dentro, el reparto mezclaría
- * lo que ocurrió con lo que aún puede cambiar, y los días que caen más adelante
- * en la ventana saldrían artificialmente flojos solo por estar más lejos.
+ * ⚠️ **Solo clases que ya pasaron** (`fecha < hoy`) **y no canceladas**: con
+ * las futuras dentro, el reparto mezclaría lo ocurrido con lo que aún puede
+ * cambiar.
  *
- * ⚠️ **Los siete días salen siempre, aunque el domingo sea cero.** Un hueco en
- * la semana es información —el estudio cierra— y quitarlo haría que la gráfica
- * dijera que la semana tiene seis días.
+ * ⚠️ **Los siete días salen siempre, aunque el domingo sea cero.** El hueco es
+ * información: el estudio cierra.
  */
-export function getReservasPorDiaSemana(): ReservasPorDia[] {
-  const hoy = getHoy();
-  const desde = sumarDias(hoy, -7 * SEMANAS_RESERVAS);
+export async function getReservasPorDiaSemana(hoy: string): Promise<ReservasPorDia[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase
+    .from("clases")
+    .select("fecha, cupos, reservas(count)")
+    .eq("cancelada", false)
+    .gte("fecha", sumarDias(hoy, -7 * SEMANAS_RESERVAS))
+    .lt("fecha", hoy);
+  if (error) throw new Error(`No se pudieron leer las reservas: ${error.message}`);
 
   const acumulado: ReservasPorDia[] = DIAS_CORTOS.map((dia) => ({
     dia,
@@ -331,17 +367,12 @@ export function getReservasPorDiaSemana(): ReservasPorDia[] {
     cupos: 0,
     clases: 0,
   }));
-
-  for (const c of CLASES) {
-    if (c.cancelada) continue;
-    if (c.fecha >= hoy || c.fecha < desde) continue;
-
+  for (const c of data) {
     const d = acumulado[diaSemana(c.fecha)];
-    d.reservas += c.reservas;
+    d.reservas += c.reservas[0]?.count ?? 0;
     d.cupos += c.cupos;
     d.clases += 1;
   }
-
   return acumulado;
 }
 

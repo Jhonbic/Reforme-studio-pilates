@@ -1,33 +1,48 @@
 import PanelClases from "@/components/admin/clases/PanelClases";
-import { getClases, getHoy, getInstructoras } from "@/lib/admin/queries";
+import { hoyEnBogota, horaEnBogota } from "@/lib/admin/horario";
+import {
+  getClases,
+  getClientes,
+  getInstructoras,
+  getUsuarioActual,
+} from "@/lib/admin/queries";
 
 /**
- * Agenda de clases.
+ * Agenda de clases, desde Supabase (tablas `clases` y `reservas`, paso 9).
  *
  * Página de servidor: pide los datos y los baja a `PanelClases`, que es de
  * cliente porque el día elegido, el filtro y los diálogos son estado local.
  *
- * ⚠️ **La agenda entera viaja al navegador de una vez** (unas 250 clases: cinco
- * semanas de horario). Es la misma decisión que el libro de pagos y el listado
- * de clientes: cambiar de día es instantáneo y la ruta sigue saliendo
- * `○ Static`. Con base de datos, `getClases()` recibirá un rango de fechas y
- * esta página no se entera.
+ * Viaja una ventana de la agenda (ver `getClases`): cambiar de día dentro de
+ * ella es instantáneo.
  *
- * ⚠️ **Nada de lo que se hace aquí se guarda**: crear, editar, cancelar y
- * eliminar avisan de ello al ejecutarse. El horario vive en `mock.ts`.
+ * Programar, cancelar y apuntar gente es del mostrador (Administración y
+ * Recepción); las instructoras la consultan. RLS lo vuelve a impedir.
  *
- * El `<h1>` va `sr-only` porque el visible lo pone `AdminTopbar` desde la ruta:
- * dos encabezados iguales, uno encima de otro, es lo que se corrigió al quitar
- * el `titulo` de `SeccionPendiente`.
+ * El `<h1>` va `sr-only` porque el visible lo pone `AdminTopbar` desde la ruta.
  */
-export default function ClasesPage() {
+export default async function ClasesPage() {
+  const hoy = hoyEnBogota();
+  const usuario = await getUsuarioActual();
+  const puedeEditar =
+    usuario?.rol === "Administración" || usuario?.rol === "Recepción";
+
+  const [clases, instructoras, clientes] = await Promise.all([
+    getClases(hoy, horaEnBogota()),
+    getInstructoras(),
+    // La lista para apuntar gente: solo hace falta a quien puede apuntar.
+    puedeEditar ? getClientes() : Promise.resolve([]),
+  ]);
+
   return (
     <div className="mx-auto w-full max-w-[1440px]">
       <h1 className="sr-only">Clases</h1>
       <PanelClases
-        clases={getClases()}
-        instructoras={getInstructoras()}
-        hoy={getHoy()}
+        clases={clases}
+        instructoras={instructoras}
+        clientes={clientes.map((c) => ({ id: c.id, nombre: c.nombre, estado: c.estado }))}
+        puedeEditar={puedeEditar}
+        hoy={hoy}
       />
     </div>
   );

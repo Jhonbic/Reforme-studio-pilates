@@ -958,6 +958,34 @@ sirviera: además de la página, funda el vocabulario de formularios del panel.
 
 #### Clases (`/admin/clases`) — construido jul 2026
 
+> ✅ **Desde oct 2026 (paso 9) la agenda lee y GUARDA en Supabase**: tablas
+> `clases` y `reservas` (migración `20261002120000`). Lo que sigue en esta
+> sección sobre `mock.ts`, `CLASES`, `getHoy()` y «no guarda» es historia.
+> - ⚠️ **Una instructora no puede tener dos clases a la vez, y lo impide la
+>   BASE** (restricción de exclusión `clases_instructora_sin_solapes`, con
+>   `btree_gist`), no solo el formulario. Rango `[)`: encadenar 07:00–07:50 y
+>   07:50–08:40 sí se puede. Las canceladas no cuentan. Si la base lo rechaza
+>   (`23P01`), el error vuelve al campo de instructora.
+> - ⚠️ **Aforo**: nunca más reservas que cupos (trigger `reservas_respetan_aforo`,
+>   que BLOQUEA la clase mientras cuenta, para que dos reservas simultáneas al
+>   último cupo no entren las dos) y el aforo no baja de las reservas hechas.
+> - ⚠️ **Una clase con reservas no se borra, se cancela** (`on delete restrict`):
+>   se queda con sus reservas para saber a quién avisar.
+> - `reservas` ya no es un número inventado: son filas. Cada clase tiene
+>   **«Reservas» / «Quién reservó»**, con la lista; el mostrador apunta y quita
+>   gente desde ahí (aviso si el cliente no tiene plan vigente, sin bloquear).
+> - Las **instructoras salen de la tabla `equipo`**. La agenda la programa el
+>   mostrador; las instructoras la consultan sin botones.
+> - ⚠️ **«Finalizada» se decide por la HORA de Bogotá** (`horaEnBogota()`), no
+>   solo por la fecha: ya no hay `getHoy()` congelado ni prerenderizado.
+> - Viaja una ventana de 5 semanas atrás y 13 adelante (`getClases`).
+> - La tarjeta «Reservas por día de la semana» del dashboard lee estas tablas
+>   (últimas 4 semanas) y perdió la pastilla «Datos de ejemplo».
+> - `mock.ts` quedó solo con los dos avisos de ejemplo de la campana.
+> - Verificado: las seis reglas de la base probadas en SQL; en el navegador,
+>   editar, crear, apuntar, quitar, eliminar y cancelar; el dashboard contra un
+>   recuento SQL independiente.
+
 La agenda del estudio: qué se da, cuándo, cuánto dura, quién lo da y cuánta
 gente cabe. Es la pantalla que prepara la **vista de cliente**, donde se
 reservará; por eso el aforo existe desde el primer día aunque todavía no haya
@@ -1339,7 +1367,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
 | Base de datos y cuentas | Supabase, proyecto `gdmxiqvmtegusevkqtgt` |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **10 migraciones, todas aplicadas en local y en remoto** |
+| Esquema | `supabase/migrations/` — **11 migraciones, todas aplicadas en local y en remoto** |
 
 ### Variables de entorno
 
@@ -1359,12 +1387,12 @@ prefijo `NEXT_PUBLIC_`. Solo la lee `src/lib/supabase/admin.ts` (`server-only`).
 | `/` | — | — | Público. Landing completa |
 | `/login` | Supabase Auth | Sesión | Público. Solo entra quien tiene perfil |
 | `/registro` | — | **No** (solo UI) | Público |
-| `/admin` | Supabase | — | Equipo. Dinero solo Administración. «Reservas por día» aún de ejemplo |
+| `/admin` | Supabase | — | Equipo. Dinero solo Administración |
 | `/admin/usuarios` (Clientes) | Supabase | — | Equipo. Filtros, paginación, CSV |
 | `/admin/usuarios` (Equipo) | Supabase | ✅ alta de miembro, dar/quitar acceso, rol, contraseña temporal | Gestión: solo Administración |
 | `/admin/usuarios/nuevo` | Supabase | ✅ alta de cliente (sin plan) | Administración y Recepción |
 | `/admin/usuarios/[id]` | Supabase | ✅ asignar plan y cobrar / renovar | Cobrar: Administración y Recepción |
-| `/admin/clases` | **`mock.ts`** | **No** | Equipo. Única pantalla sin base de datos |
+| `/admin/clases` | Supabase | ✅ programar, editar, cancelar, eliminar; apuntar y quitar reservas | Cambios: Administración y Recepción |
 | `/admin/planes` | Supabase | ✅ crear, editar, retirar, borrar | Cambios: solo Administración |
 | `/admin/finanzas` | Supabase | ✅ registrar gasto con comprobante | Solo Administración |
 | Menú de cuenta | Sesión | ✅ cambiar contraseña, cerrar sesión | Todo el equipo |
@@ -1391,9 +1419,9 @@ datos y el rol en el servidor, y RLS lo vuelve a impedir en la base.
 8. ✅ Equipo: dar y quitar acceso, roles, contraseñas.
 
 **Fase D — Clases y clientes** ⏳
-9. ⏳ **Siguiente:** tablas de clases y reservas; la agenda guarda y usa el
-   equipo real.
-10. ⏳ `/registro` real, área de cliente y reservar clase.
+9. ✅ Tablas `clases` y `reservas`; la agenda guarda, usa el equipo real, y
+   el mostrador apunta y quita reservas.
+10. ⏳ **Siguiente:** `/registro` real, área de cliente y reservar clase.
 11. ⏳ Calidad: tests, CI, `robots`, `sitemap`, imagen para compartir.
 
 ### Arreglos que salieron por el camino
@@ -1433,9 +1461,11 @@ de repetir:
 - [ ] **Cuando el estudio tenga datos reales**, decidir qué hacer con los 20
       clientes de ejemplo (`supabase/seed.sql`). La semilla **no** se debe volver
       a lanzar contra el remoto con datos reales: empieza con un `truncate`.
-- [ ] **Confirmar con el estudio las modalidades de clase** (`TipoClase`:
-      Reformer · Mat · Privada) y los cupos de `catalogos.ts`. Son una
-      suposición.
+- [ ] **Confirmar con el estudio las modalidades de clase** (`tipo_clase`:
+      Reformer · Mat · Privada, ahora un enum de la base) y los cupos de
+      `catalogos.ts`. Son una suposición; cambiar el enum es una migración.
+- [ ] **Programar el horario real** en producción: hoy tiene la agenda de
+      ejemplo (207 clases con las instructoras de ejemplo).
 - [ ] **`public/terminos-y-condiciones.pdf`** no existe: el alta de cliente
       enlaza ahí → 404 en un documento legal. Lo aporta el estudio.
 
@@ -1450,17 +1480,12 @@ de repetir:
 
 ### Funcionalidad pendiente (pasos 9–11 y más)
 
-- [ ] **Agenda de clases en la base** (paso 9): tablas `clases` y `reservas`.
-      Al escribirlas:
-      - `getClases()` recibirá un **rango de fechas** (hoy viajan las 203 clases
-        de ejemplo al navegador);
-      - el **solapamiento de instructora** tiene que ser además una restricción
-        de la base, no solo del formulario;
-      - `Clase.reservas` pasa de número inventado a un `COUNT`;
-      - las instructoras pasan a salir de la tabla `equipo` (hoy la agenda usa
-        el equipo de ejemplo de `mock.ts`, con nombres distintos);
-      - la tarjeta «Reservas por día de la semana» del dashboard deja de ser de
-        ejemplo y pierde la pastilla «▲ Datos de ejemplo».
+- [x] ~~Agenda de clases en la base~~ — hecho en el paso 9 (ver §6, Clases).
+- [ ] **Plantilla semanal del horario**: hoy cada clase se programa una a una
+      (la semilla las genera de una plantilla, pero el panel no). Cuando el
+      horario se repita, tabla de plantilla + «generar la semana».
+- [ ] **Avisar a quien tenía reservada una clase cancelada**: hoy hay que
+      llamar a mano (la lista está en «Quién reservó»).
 - [ ] **Registro de asistencias**: hoy se sabe quién reserva, no quién viene.
       Con él, «Reservas por día» pasa a dos series (reservó / asistió) y
       `clientes.ultima_asistencia` se actualiza sola.
@@ -1486,7 +1511,6 @@ de repetir:
       automatizado en el repo.
 - [ ] La rejilla bento sin validar a 768 y 1920 (sí a 375/390 y 1280/1440).
 - [ ] Sin `robots.ts`, `sitemap.ts` ni imagen Open Graph.
-- [ ] Hay tres «hoy» distintos: `hoyEnBogota()` (pantallas con base de datos),
-      `getHoy()` congelado en `2026-07-25` (solo la agenda de ejemplo) y
-      `hoyLocalIso()` (formularios en el navegador). `getHoy()` desaparece con
-      el paso 9.
+- [x] ~~Tres «hoy» distintos~~ — `getHoy()` desapareció en el paso 9. Quedan
+      `hoyEnBogota()` / `horaEnBogota()` (servidor) y `hoyLocalIso()`
+      (formularios en el navegador).

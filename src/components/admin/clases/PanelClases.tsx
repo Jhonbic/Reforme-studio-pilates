@@ -3,12 +3,14 @@
 import { useState } from "react";
 import Card from "@/components/admin/Card";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
+import { cancelarClase, eliminarClase } from "@/lib/admin/acciones";
 import { useToast } from "@/context/ToastContext";
 import { numero } from "@/lib/admin/format";
 import { diaLargo, diaRelativo } from "@/lib/admin/horario";
 import type { ClaseEnAgenda, MiembroEquipo } from "@/lib/admin/types";
 import FilaClase from "./FilaClase";
 import FormularioClase from "./FormularioClase";
+import ReservasClase, { type ClienteParaReservar } from "./ReservasClase";
 import SelectorDia from "./SelectorDia";
 
 const BOTON =
@@ -28,20 +30,28 @@ const TODAS = "Todas";
  * dentro de un cuadradito. La tira de la semana da el salto rápido y el día
  * abierto da el detalle.
  *
- * ⚠️ **Ninguna acción guarda**, y las tres lo dicen. El horario vive en
- * `mock.ts` como constante de módulo: mutarlo desde aquí se perdería en el
- * siguiente render del servidor y *parecería* que funciona. Mismo criterio que
- * el catálogo de planes y el alta de cliente.
+ * Guarda en Supabase desde oct 2026 (`lib/admin/acciones.ts`). Las acciones
+ * revalidan la página, así que la agenda se actualiza sola al cerrar cada
+ * diálogo. Las instructoras la ven sin botones (`puedeEditar`).
  */
 export default function PanelClases({
   clases,
   instructoras,
+  clientes,
+  puedeEditar,
   hoy,
 }: {
   clases: ClaseEnAgenda[];
   instructoras: MiembroEquipo[];
+  /** Para apuntar gente a una clase. Vacío si quien mira no puede. */
+  clientes: ClienteParaReservar[];
+  puedeEditar: boolean;
   hoy: string;
 }) {
+  /** La clase cuyo diálogo de reservas está abierto. Por ID y no el objeto:
+   *  tras apuntar o quitar, la agenda se revalida y el diálogo lee la versión
+   *  nueva. */
+  const [viendo, setViendo] = useState<string | null>(null);
   const { mostrarAviso } = useToast();
   const [dia, setDia] = useState(hoy);
   const [instructora, setInstructora] = useState<string>(TODAS);
@@ -95,6 +105,7 @@ export default function PanelClases({
             : `${numero(vivas.length)} ${vivas.length === 1 ? "clase" : "clases"} · ${numero(reservas)} de ${numero(cupos)} cupos reservados`}
         </p>
 
+        {puedeEditar && (
         <button type="button" onClick={abrirAlta} className={BOTON}>
           {/* `--lento` (1 s) porque es un botón de cabecera: en un control de
               ~150px, a 0,55 s el barrido termina antes de que el ojo lo
@@ -104,6 +115,7 @@ export default function PanelClases({
           <span aria-hidden="true">+</span>
           Nueva clase
         </button>
+        )}
       </div>
 
       {/* `resalte={false}` por lo mismo que el listado de Usuarios: la tarjeta
@@ -166,7 +178,7 @@ export default function PanelClases({
             {/* Siempre una salida, como `EstadoVacio` del listado: quien no
                 encuentra nada suele tener un filtro puesto sin darse cuenta. */}
             {instructora === TODAS ? (
-              <button
+              puedeEditar && <button
                 type="button"
                 onClick={abrirAlta}
                 className="mt-5 inline-flex min-h-[44px] items-center rounded-full border border-verde/40 px-5 text-sm text-verde transition-colors duration-300 hover:border-verde hover:bg-verde hover:text-arena"
@@ -189,8 +201,10 @@ export default function PanelClases({
               <FilaClase
                 key={c.id}
                 clase={c}
+                puedeEditar={puedeEditar}
                 onEditar={() => abrirEdicion(c)}
                 onQuitar={() => setQuitando(c)}
+                onReservas={() => setViendo(c.id)}
               />
             ))}
           </ul>
@@ -209,10 +223,8 @@ export default function PanelClases({
         onCerrar={() => setFormAbierto(false)}
         onGuardado={(resumen, esNueva) =>
           mostrarAviso(
-            esNueva
-              ? `La clase (${resumen}) NO se ha creado: el horario todavía vive en el código. Llegará con la base de datos.`
-              : `Los cambios (${resumen}) NO se han guardado: el horario todavía vive en el código.`,
-            "warning",
+            esNueva ? `Clase creada: ${resumen}.` : `Cambios guardados: ${resumen}.`,
+            "success",
           )
         }
       />
@@ -236,25 +248,37 @@ export default function PanelClases({
                 quitando.reservas === 1
                   ? "persona la tiene"
                   : "personas la tienen"
-              } reservada. La clase se queda en la agenda marcada como «Cancelada» para que quede constancia, pero hay que avisar ${quitando.reservas === 1 ? "a esa persona" : "a esas personas"} una por una: el sistema todavía no manda ningún mensaje.`
+              } reservada. La clase se queda en la agenda marcada como «Cancelada» con sus reservas, para que quede constancia de a quién avisar: hay que hacerlo una por una (ver «Quién reservó»), el sistema todavía no manda ningún mensaje.`
             : "Nadie la ha reservado, así que no afecta a nadie. Desaparecerá del horario y esta acción no se puede deshacer."
         }
         textoConfirmar={hayReservas ? "Cancelar la clase" : "Eliminar clase"}
         /* «Cancelar» a secas se confundiría con el botón de cerrar el diálogo. */
         textoCancelar="Volver"
         variante="peligro"
-        onConfirmar={() => {
-          const que = `${quitando?.tipo} de las ${quitando?.horaInicio}`;
-          const era = hayReservas;
+        onConfirmar={async () => {
+          if (!quitando) return;
+          const que = `${quitando.tipo} de las ${quitando.horaInicio}`;
+          const r = hayReservas
+            ? await cancelarClase(quitando.id)
+            : await eliminarClase(quitando.id);
           setQuitando(null);
           mostrarAviso(
-            era
-              ? `La clase (${que}) NO se ha cancelado: el horario todavía vive en el código.`
-              : `La clase (${que}) NO se ha eliminado: el horario todavía vive en el código.`,
-            "warning",
+            r.ok
+              ? hayReservas
+                ? `Clase cancelada (${que}). Avisa a quienes la tenían reservada.`
+                : `Clase eliminada (${que}).`
+              : r.error,
+            r.ok ? "success" : "warning",
           );
         }}
         onCancelar={() => setQuitando(null)}
+      />
+
+      <ReservasClase
+        clase={clases.find((c) => c.id === viendo) ?? null}
+        clientes={clientes}
+        puedeEditar={puedeEditar}
+        onCerrar={() => setViendo(null)}
       />
     </>
   );

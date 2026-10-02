@@ -23,18 +23,24 @@ const ACCION =
  */
 export default function FilaClase({
   clase,
+  puedeEditar,
   onEditar,
   onQuitar,
+  onReservas,
 }: {
   clase: ClaseEnAgenda;
+  /** Las instructoras ven la agenda sin botones de editar ni quitar. */
+  puedeEditar: boolean;
   onEditar: () => void;
   onQuitar: () => void;
+  onReservas: () => void;
 }) {
   /* Una clase que ya pasó o que se anuló no se toca: reprogramar el pasado no
      significa nada, y «editar» una cancelada esconde que lo que hay que hacer es
      crear otra. Por eso desaparecen los botones en vez de deshabilitarse: aquí
      no hay ningún porqué que leer, a diferencia del alta de cliente. */
-  const editable = clase.estado === "Programada" || clase.estado === "Llena";
+  const editable =
+    puedeEditar && (clase.estado === "Programada" || clase.estado === "Llena");
 
   /* Cancelar y eliminar NO son lo mismo, y lo que los separa es si hay alguien
      dentro. Ver el diálogo de `PanelClases`. */
@@ -115,6 +121,16 @@ export default function FilaClase({
             ? "Sin cupos libres"
             : `${numero(clase.libres)} ${clase.libres === 1 ? "libre" : "libres"}`}
         </p>
+        {/* Quién reservó lo ve todo el equipo (la instructora quiere saber
+            quién viene); apuntar y quitar, solo el mostrador, dentro. */}
+        <button
+          type="button"
+          onClick={onReservas}
+          className="mt-1 text-xs text-dorado-dark underline-offset-2 hover:underline"
+          aria-label={`Quién reservó ${clase.tipo} de las ${clase.horaInicio}`}
+        >
+          {editable ? "Reservas" : "Quién reservó"}
+        </button>
       </div>
 
       {/* Acciones. En móvil ocupan el ancho para que sean fáciles de acertar. */}

@@ -15,7 +15,7 @@
 
 -- Idempotente: la semilla se puede volver a lanzar sin duplicar.
 -- `restart identity cascade` limpia también lo que cuelga por clave foránea.
-truncate table pagos, membresias, clientes, gastos, presupuestos, equipo, planes
+truncate table reservas, clases, pagos, membresias, clientes, gastos, presupuestos, equipo, planes
   restart identity cascade;
 
 
@@ -236,3 +236,93 @@ from perfiles p
 join auth.users u on u.id = p.id
 where not exists (select 1 from equipo e where e.cuenta_id = p.id)
 on conflict (correo) do nothing;
+
+
+-- =============================================================================
+-- Agenda: clases y reservas (paso 9)
+--
+-- Va AL FINAL, después de enlazar el equipo con las cuentas: así las
+-- instructoras con cuenta local también dan clase.
+--
+-- ⚠️ Se GENERA de una plantilla semanal, que es como funciona un estudio de
+-- verdad: dos semanas atrás (para que «Finalizada» y el reparto por día del
+-- dashboard tengan algo que enseñar) y tres por delante. Domingo cerrado.
+-- Determinista: nada de `random()`; la variedad sale de `hashtext()`.
+-- =============================================================================
+
+delete from reservas;
+delete from clases;
+
+with
+-- Lunes a viernes. Las dos de las 18:00 son SIMULTÁNEAS a propósito (dos salas,
+-- dos instructoras) y van en posiciones consecutivas: el reparto de
+-- instructoras es por posición, y así nunca les toca la misma.
+comun (idx, hora, tipo, dur) as (values
+  (0, '06:00', 'Reformer', 50),
+  (1, '07:00', 'Reformer', 50),
+  (2, '09:00', 'Mat',      55),
+  (3, '17:00', 'Reformer', 50),
+  (4, '18:00', 'Reformer', 50),
+  (5, '18:00', 'Mat',      55),
+  (6, '19:00', 'Reformer', 50)
+),
+plantilla (dow, idx, hora, tipo, dur) as (
+  select d, c.idx, c.hora, c.tipo, c.dur
+  from generate_series(1, 5) d cross join comun c
+  -- Privada martes y jueves.
+  union all select d, 7, '16:00', 'Privada', 55 from (values (2), (4)) v(d)
+  -- Sábado, solo mañana.
+  union all select 6, s.idx, s.hora, s.tipo, s.dur from (values
+    (0, '07:00', 'Reformer', 50),
+    (1, '08:00', 'Reformer', 50),
+    (2, '09:00', 'Mat',      55)
+  ) s(idx, hora, tipo, dur)
+),
+instructoras as (
+  select id, (row_number() over (order by nombre))::int - 1 as n,
+         (count(*) over ())::int as total
+  from equipo
+  where rol = 'Instructora' and activo
+),
+dias as (
+  select current_date + d as fecha, d + 14 as desde_inicio
+  from generate_series(-14, 21) d
+)
+insert into clases (tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos, cancelada)
+select
+  p.tipo::tipo_clase,
+  dd.fecha,
+  p.hora::time,
+  p.dur,
+  i.id,
+  case p.tipo when 'Reformer' then 8 when 'Mat' then 12 else 1 end,
+  -- ~2 % anuladas: las justas para que el estado exista sin que la agenda
+  -- parezca rota.
+  abs(hashtext(dd.fecha::text || p.hora || p.tipo || 'anulada')) % 45 = 0
+from dias dd
+join plantilla p on p.dow = extract(isodow from dd.fecha)
+-- Desplazada un puesto cada día, para que no siempre den la misma clase.
+join instructoras i on i.n = (p.idx + dd.desde_inicio) % i.total;
+
+-- Reservas: cuántas, por hash; quiénes, los clientes ordenados por otro hash.
+-- Más allá de una semana el techo baja a la mitad del aforo: una clase a tres
+-- semanas vista llena no se la cree nadie. Nunca más que cupos (además lo
+-- impide el trigger `reservas_respetan_aforo`).
+with objetivo as (
+  select c.id, c.fecha, c.hora_inicio, c.tipo,
+    abs(hashtext(c.fecha::text || c.hora_inicio::text || c.tipo::text))
+      % (case when c.fecha > current_date + 7 then ceil(c.cupos / 2.0)::int else c.cupos end + 1)
+      as cuantas
+  from clases c
+),
+candidatos as (
+  select o.id as clase_id, cl.id as cliente_id, o.cuantas,
+    row_number() over (
+      partition by o.id
+      order by abs(hashtext(cl.identificacion || o.fecha::text || o.hora_inicio::text || o.tipo::text))
+    ) as orden
+  from objetivo o
+  cross join clientes cl
+)
+insert into reservas (clase_id, cliente_id)
+select clase_id, cliente_id from candidatos where orden <= cuantas;

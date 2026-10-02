@@ -95,8 +95,8 @@ export function sumarDias(iso: string, dias: number): string {
  * Londres, no Florencia). Se pide la zona horaria por nombre. `en-CA` porque es
  * el locale que formatea como `AAAA-MM-DD`.
  *
- * No sustituye a `getHoy()`, que sigue congelada para el mock: esta es para las
- * pantallas que ya leen de la base, donde los datos son de verdad.
+ * Desde que la agenda lee la base (paso 9) es el ÚNICO «hoy» del panel: el
+ * `getHoy()` congelado en `2026-07-25` desapareció con `mock.ts`.
  */
 export function hoyEnBogota(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -104,6 +104,20 @@ export function hoyEnBogota(): string {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+  }).format(new Date());
+}
+
+/**
+ * La hora de ahora **en Colombia**, `"HH:MM"` en 24 h, calculada en el
+ * servidor. Mismo motivo que `hoyEnBogota()`: en Vercel el servidor va en UTC.
+ * La usa la agenda para dar por «Finalizada» una clase que ya terminó hoy.
+ */
+export function horaEnBogota(): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Bogota",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
   }).format(new Date());
 }
 
