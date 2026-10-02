@@ -1,6 +1,5 @@
 import type {
   Cliente,
-  FichaAlta,
   MiembroEquipo,
   Movimiento,
 } from "@/lib/admin/types";
@@ -84,8 +83,7 @@ export function csvEquipo(equipo: MiembroEquipo[]): string {
  * ⚠️ No es `csvClientes` con una sola fila. Un listado se abre para ordenar,
  * filtrar y sumar —por eso va en columnas—, mientras que la ficha de una
  * persona se abre para leerla: en horizontal habría que ir arrastrando la barra
- * lateral para ver los diez campos. Es la misma decisión, y por el mismo
- * motivo, que ya tomó `csvFicha`.
+ * lateral para ver los diez campos.
  *
  * Fechas en ISO e importe sin `$`, como en todo este archivo: formateados,
  * Excel los tomaría por texto.
@@ -127,43 +125,6 @@ export function csvMovimientos(movimientos: Movimiento[]): string {
         : [m.fecha, "Gasto", m.concepto, m.categoria, m.metodo, -m.importe],
     ),
   );
-}
-
-/**
- * La ficha de un alta recién rellenada.
- *
- * ⚠️ **No añade columnas a `csvClientes`.** Son dos cosas distintas: una ficha de
- * admisión tiene EPS, acudiente y contacto de emergencia, datos que los 118
- * clientes del listado no tienen. Mezclarlas dejaría 118 filas con la mitad de
- * las celdas vacías y rompería cualquier plantilla de Excel ya guardada.
- *
- * Va en **dos columnas, campo y valor**, y no en una fila ancha: es una sola
- * persona, y así se lee de un vistazo al abrirla.
- */
-export function csvFicha(f: FichaAlta): string {
-  const filas: [string, string][] = [
-    ["Nombre", f.nombre],
-    ["Tipo de documento", f.tipoIdentificacion],
-    ["Número de documento", f.identificacion],
-    ["Fecha de nacimiento", f.fechaNacimiento],
-    ["Teléfono", f.telefono],
-    ["Correo", f.correo],
-    ["EPS", f.eps],
-    ["Contacto de emergencia", f.contactoEmergencia.nombre],
-    ["Teléfono de emergencia", f.contactoEmergencia.telefono],
-  ];
-
-  if (f.acudiente) {
-    filas.push(
-      ["Acudiente", f.acudiente.nombre],
-      ["Cédula del acudiente", f.acudiente.identificacion],
-      ["Teléfono del acudiente", f.acudiente.telefono],
-    );
-  }
-
-  filas.push(["Acepta términos", f.aceptaTerminos ? "Sí" : "No"]);
-
-  return aCsv(["Campo", "Valor"], filas);
 }
 
 /**

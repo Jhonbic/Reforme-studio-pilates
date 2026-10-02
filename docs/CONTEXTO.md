@@ -756,6 +756,34 @@ Listado de personas del estudio, con su ficha individual
 
 #### Alta de cliente (`/admin/usuarios/nuevo`) — construido jul 2026
 
+> ✅ **GUARDA en Supabase desde oct 2026** (paso 6). Lo que sigue en esta
+> sección sobre «no guarda», `FichaAlta` y la descarga en CSV es historia: se
+> sustituyó así —
+> - Server action **`crearCliente`** (`lib/admin/acciones.ts`). ⚠️ **Vuelve a
+>   validar todo y comprueba el rol**: una server action es un endpoint
+>   público y se puede llamar sin el formulario. La minoría de edad la decide
+>   con la fecha del servidor. RLS (`es_mostrador()`) lo vuelve a impedir.
+> - ⚠️ **Teléfonos en dígitos crudos.** El formulario los formateaba
+>   («+57 320…») para el CSV; la base solo acepta `^3\d{9}$` y los rechazaba.
+> - ⚠️ **Documento repetido lo frena la BASE** (`unique`), no solo el aviso del
+>   formulario: ese usa la lista de cuando se abrió la página, y otra
+>   recepcionista pudo dar de alta a la misma persona entre medias. El error
+>   (`23505`) vuelve al campo y al resumen. Probado con dos pestañas.
+> - **Nuevo estado «Sin plan»** (`◇`, neutro): el alta no pregunta el plan y,
+>   sin membresía, la vista lo daba por «Activa». Enum + vista recreada
+>   (migraciones `20261001140000` y `…140100`, separadas porque un valor de
+>   enum no se puede usar en la transacción que lo crea). La vista se recrea
+>   con `security_invoker = on` **explícito**. En el listado la pastilla
+>   «Sin plan» solo aparece si hay alguno; la fila dice «— · Por asignar» y la
+>   ficha «Sin plan todavía», nunca «$0».
+> - Éxito: «X ya es cliente del estudio» (`role="status"`) con «Ver su ficha».
+>   `revalidatePath` de `/admin/usuarios` y `/admin`.
+> - **Se borraron `csvFicha` y `FichaAlta`**: la descarga era el apaño de
+>   cuando no se guardaba.
+> - ⚠️ **Instructora**: la página le dice que el alta es de recepción ANTES del
+>   formulario, no tras rellenar catorce campos.
+> - Asignar el plan sigue pendiente (va con los cobros).
+
 Primera pantalla de **captura** de datos del panel. Antes de esto no había ni un
 formulario en `/admin`, ni utilidad de validación, ni componente de campo que
 sirviera: además de la página, funda el vocabulario de formularios del panel.
@@ -1235,7 +1263,7 @@ Nueve rutas, todas `○ Static` o `● SSG`:
 | `/registro` | Solo UI, no envía a ningún sitio |
 | `/admin` | Dashboard bento **desde Supabase** (reservas aún de ejemplo) · dinero solo para Administración |
 | `/admin/usuarios` | Clientes **desde Supabase** · filtros, paginación, export CSV real · equipo aún de `mock.ts` |
-| `/admin/usuarios/nuevo` | Formulario validado · **no guarda** |
+| `/admin/usuarios/nuevo` | Formulario validado · **guarda en Supabase** (sin plan) |
 | `/admin/usuarios/[id]` | Ficha de solo lectura, **desde Supabase** |
 | `/admin/clases` | Agenda por día + alta, edición, cancelación · **no guarda** |
 | `/admin/planes` | Catálogo **desde Supabase** + CRUD · **no guarda** |
@@ -1253,9 +1281,9 @@ filtros y búsquedas (en cliente) y el selector de periodo del dashboard.
 - [x] ~~El registro abierto daba rol de Recepción a cualquiera~~ — quitado el
       trigger `al_crear_usuario` (migración `20261001120000`). **Falta aplicarla
       en el remoto** con `npx supabase db push`.
-- [ ] **Nada de lo que se escribe se guarda.** No existe `src/app/api/`. Alta de
-      cliente, CRUD de planes, registro de gasto y la agenda de clases validan y
-      avisan honestamente de que no persisten.
+- [ ] **Casi nada de lo que se escribe se guarda.** El **alta de cliente sí**
+      (oct 2026, server action). CRUD de planes, registro de gasto y la agenda
+      de clases validan y avisan honestamente de que no persisten.
 - [ ] **La agenda no tiene reservas todavía.** `Clase.reservas` es un número
       generado, no un `COUNT`: falta la tabla de reservas y la vista de cliente
       que las cree. La agenda ya reserva el sitio para ello (aforo, cupos libres,

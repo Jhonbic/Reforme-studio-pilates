@@ -40,7 +40,14 @@ export type CategoriaGasto =
  * De aquí salen dos cifras del dashboard: **clientes activos** = `Activa` +
  * `Por vencer`, y **inactivos 30d** = `Inactiva`.
  */
-export type EstadoMembresia = "Activa" | "Por vencer" | "Vencida" | "Inactiva";
+export type EstadoMembresia =
+  | "Activa"
+  | "Por vencer"
+  | "Vencida"
+  | "Inactiva"
+  /** Dado de alta y sin ninguna membresía todavía: el alta no pregunta por
+   *  el plan. Ni plan, ni vencimiento, ni importe. */
+  | "Sin plan";
 
 /**
  * Una persona que entrena en el estudio.
@@ -86,50 +93,6 @@ export type TipoIdentificacion =
   | "C.E."
   | "Pasaporte"
   | "R.C.";
-
-export type ContactoEmergencia = {
-  nombre: string;
-  /** Dígitos en crudo, sin prefijo ni espacios. */
-  telefono: string;
-};
-
-/** El acudiente de un menor. Solo existe si la persona era menor al darse de alta. */
-export type Acudiente = {
-  nombre: string;
-  identificacion: string;
-  telefono: string;
-};
-
-/**
- * Lo que se rellena en recepción al dar de alta a alguien.
- *
- * ⚠️ **No es un `Cliente`, y es a propósito.** Un `Cliente` necesita plan,
- * estado, vencimiento e importe, y el alta **no pregunta por el plan**: se asigna
- * después. Como además hoy no hay backend ni mutador, nada de esto entra en
- * `CLIENTES`, así que no hace falta forzar la forma de `Cliente` ni volver sus
- * campos opcionales — que habría roto la columna de plan del listado, su filtro,
- * `REPARTO_PLANES` y el CSV.
- *
- * El día que haya base de datos, `crearCliente(ficha)` mapeará ficha → cliente y
- * será ahí donde se elija el plan.
- */
-export type FichaAlta = {
-  nombre: string;
-  tipoIdentificacion: TipoIdentificacion;
-  /** Dígitos en crudo (o alfanumérico en pasaporte), sin puntos. */
-  identificacion: string;
-  /** ISO corto. */
-  fechaNacimiento: string;
-  telefono: string;
-  /** Cadena vacía si no lo dio: el correo es opcional. */
-  correo: string;
-  eps: string;
-  contactoEmergencia: ContactoEmergencia;
-  /** Solo si es menor de edad. */
-  acudiente?: Acudiente;
-  /** Lo acepta el cliente, o su acudiente si es menor. */
-  aceptaTerminos: boolean;
-};
 
 /**
  * Modalidades de clase que se programan en la agenda.
@@ -222,7 +185,7 @@ export type ClaseEnAgenda = Clase & {
 /**
  * Una clase que se está creando o editando en el formulario.
  *
- * ⚠️ **No es una `Clase`, igual que `FichaAlta` no es un `Cliente`.** Faltan
+ * ⚠️ **No es una `Clase`, igual que `AltaCliente` no es un `Cliente`.** Faltan
  * tres campos y falta cada uno por su motivo: `id` lo pone quien guarda,
  * `reservas` lo ponen los clientes al reservar y `cancelada` es una acción
  * aparte con su propia confirmación. Un formulario que pudiera escribir esos
@@ -301,7 +264,7 @@ export type CondicionesPlan = {
 /**
  * Un plan que se está creando o editando en el formulario.
  *
- * ⚠️ **No es un `CondicionesPlan`, igual que `FichaAlta` no es un `Cliente`.**
+ * ⚠️ **No es un `CondicionesPlan`, igual que `AltaCliente` no es un `Cliente`.**
  * El motivo es `TipoPlan`: es una unión de cuatro literales porque cada cliente
  * guarda el suyo, así que un plan nuevo —con nombre libre— no encaja en ese
  * tipo. Forzarlo a `string` obligaría a tocar `Cliente`, `REPARTO_PLANES`, el

@@ -145,7 +145,7 @@ function aCliente(f: FilaClienteVigente): Cliente {
     // En la base va en crudo («3209078814»); el formato es cosa de la UI.
     telefono: f.telefono ? telefonoCO(f.telefono) : "",
     plan: (f.plan ?? "") as TipoPlan,
-    estado: f.estado ?? "Inactiva",
+    estado: f.estado ?? "Sin plan",
     vencimiento: f.vencimiento ?? "",
     alta: f.alta ?? "",
     ultimaAsistencia: f.ultima_asistencia,
@@ -418,6 +418,7 @@ export function getConteoEstados(
     "Por vencer": 0,
     Vencida: 0,
     Inactiva: 0,
+    "Sin plan": 0,
   };
   // Se cuenta sobre la lista que ya se pidió, no con otra consulta: así las
   // pastillas y las filas no pueden decir cosas distintas.

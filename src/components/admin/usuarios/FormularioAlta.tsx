@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  useTransition,
   type FormEvent,
 } from "react";
 import CampoCheck from "@/components/admin/campos/CampoCheck";
@@ -12,7 +13,6 @@ import CampoSelect from "@/components/admin/campos/CampoSelect";
 import CampoTexto from "@/components/admin/campos/CampoTexto";
 import Seccion from "@/components/admin/campos/Seccion";
 import ResumenErrores from "./ResumenErrores";
-import { descargarCsv, csvFicha } from "./exportar";
 import {
   EPS,
   EPS_OTRA,
@@ -21,8 +21,9 @@ import {
   TIPOS_IDENTIFICACION,
   URL_TERMINOS,
 } from "@/lib/admin/catalogos";
-import { documento, fechaCompacta, telefonoCO } from "@/lib/admin/format";
-import type { FichaAlta, TipoIdentificacion } from "@/lib/admin/types";
+import { crearCliente } from "@/lib/admin/acciones";
+import { documento, fechaCompacta } from "@/lib/admin/format";
+import type { TipoIdentificacion } from "@/lib/admin/types";
 import {
   DOC_MAX,
   DOC_MIN,
@@ -302,7 +303,14 @@ export default function FormularioAlta({
   const [v, setV] = useState<Valores>(INICIAL);
   const [errores, setErrores] = useState<Errores>({});
   const [intentado, setIntentado] = useState(false);
-  const [ficha, setFicha] = useState<FichaAlta | null>(null);
+  /** El cliente recién guardado: su id para enlazar a la ficha y el nombre
+   *  para el saludo. `null` mientras se rellena. */
+  const [creado, setCreado] = useState<{ id: string; nombre: string } | null>(
+    null,
+  );
+  /** Error del servidor que no es de ningún campo (rol, red, base caída). */
+  const [errorEnvio, setErrorEnvio] = useState("");
+  const [guardando, iniciarGuardado] = useTransition();
   /** Si nadie ha tocado el tipo de documento, la edad puede sugerirlo. */
   const [tipoTocado, setTipoTocado] = useState(false);
 
@@ -397,28 +405,46 @@ export default function FormularioAlta({
       return;
     }
 
-    const eps = v.eps === EPS_OTRA ? v.epsOtra.trim() : v.eps;
-    setFicha({
-      nombre: v.nombre.trim(),
-      tipoIdentificacion: v.tipoIdentificacion,
-      identificacion: v.identificacion,
-      fechaNacimiento: v.fechaNacimiento,
-      telefono: telefonoCO(v.telefono),
-      correo: v.correo.trim().toLowerCase(),
-      eps,
-      contactoEmergencia: {
-        nombre: v.emergenciaNombre.trim(),
-        telefono: telefonoCO(v.emergenciaTelefono),
-      },
-      acudiente:
-        esMenor === true
-          ? {
-              nombre: tutorNombre.trim(),
-              identificacion: v.tutorIdentificacion,
-              telefono: telefonoCO(tutorTelefono),
-            }
-          : undefined,
-      aceptaTerminos: v.terminos,
+    /* ⚠️ Teléfonos en dígitos CRUDOS: la base solo acepta «3209078814». Antes
+       se formateaban aquí («+57 320…») porque la ficha iba a un CSV; ahora va
+       a la base, y formateados los rechazaría. */
+    const nombre = v.nombre.trim();
+    setErrorEnvio("");
+    iniciarGuardado(async () => {
+      const r = await crearCliente({
+        nombre,
+        tipoIdentificacion: v.tipoIdentificacion,
+        identificacion: v.identificacion,
+        fechaNacimiento: v.fechaNacimiento,
+        telefono: v.telefono,
+        correo: v.correo.trim().toLowerCase(),
+        eps: v.eps === EPS_OTRA ? v.epsOtra.trim() : v.eps,
+        emergenciaNombre: v.emergenciaNombre.trim(),
+        emergenciaTelefono: v.emergenciaTelefono,
+        acudiente:
+          esMenor === true
+            ? {
+                nombre: tutorNombre.trim(),
+                identificacion: v.tutorIdentificacion,
+                telefono: tutorTelefono,
+              }
+            : undefined,
+        aceptaTerminos: v.terminos,
+      });
+
+      if (r.ok) {
+        setCreado({ id: r.id, nombre });
+        return;
+      }
+      /* Documento repetido: lo detectó la base (otra persona lo dio de alta
+         mientras se rellenaba esto). Va al campo y al resumen, como cualquier
+         otro error, para que el foco lleve justo ahí. */
+      if (r.campo) {
+        setErrores((e) => ({ ...e, [r.campo as string]: r.error }));
+        refResumen.current?.focus();
+        return;
+      }
+      setErrorEnvio(r.error);
     });
   }
 
@@ -430,40 +456,35 @@ export default function FormularioAlta({
 
   /* ------------------------------------------------------------- éxito */
 
-  if (ficha) {
+  if (creado) {
     return (
       <div className="rounded-2xl border border-beige bg-white p-6 text-center shadow-card sm:p-8">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-dorado/15 text-3xl text-dorado-dark">
           ✦
         </div>
-        <h2 className="mt-6 font-display text-3xl text-verde">
-          Ficha de {ficha.nombre.split(" ")[0]} completada
-        </h2>
-        {/* Sin eufemismos: el mismo criterio que el aviso del botón de alta. */}
-        <p className="mx-auto mt-3 max-w-md text-sm text-verde-700">
-          <strong>No se ha guardado en ningún sitio:</strong> el panel todavía no
-          tiene base de datos. Descarga la ficha para no perder lo que acabas de
-          escribir.
-        </p>
+        {/* `role="status"`: el formulario desaparece de golpe, y quien usa
+            lector de pantalla tiene que oír que se guardó. */}
+        <div role="status">
+          <h2 className="mt-6 font-display text-3xl text-verde">
+            {creado.nombre.split(" ")[0]} ya es cliente del estudio
+          </h2>
+          <p className="mx-auto mt-3 max-w-md text-sm text-verde-700">
+            Queda en el listado como <strong>«Sin plan»</strong> hasta que se le
+            asigne uno.
+          </p>
+        </div>
         <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-          <button
-            type="button"
-            onClick={() =>
-              descargarCsv(
-                `ficha-${ficha.identificacion}.csv`,
-                csvFicha(ficha),
-              )
-            }
+          <Link
+            href={`/admin/usuarios/${creado.id}`}
             className="control-fx relative inline-flex min-h-[44px] items-center gap-2 overflow-hidden rounded-full bg-verde px-5 text-sm text-arena transition-colors duration-300 hover:bg-verde-700"
           >
             <span className="control-sheen" aria-hidden="true" />
-            <span aria-hidden="true">↓</span>
-            Descargar la ficha
-          </button>
+            Ver su ficha
+          </Link>
           <button
             type="button"
             onClick={() => {
-              setFicha(null);
+              setCreado(null);
               setV(INICIAL);
               setErrores({});
               setIntentado(false);
@@ -837,6 +858,18 @@ export default function FormularioAlta({
         </CampoCheck>
       </div>
 
+      {/* Un fallo que no es de ningún campo (rol, red, base caída). Solo
+          cuando NO hay resumen de errores: `role="alert"` existe una sola vez
+          en pantalla, o un lector anuncia dos cosas a la vez. */}
+      {errorEnvio && listaErrores.length === 0 && (
+        <p
+          role="alert"
+          className="rounded-xl border border-[color-mix(in_srgb,var(--color-estado-grave)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-grave)_8%,transparent)] px-4 py-3 text-sm text-[var(--color-estado-grave)]"
+        >
+          {errorEnvio}
+        </p>
+      )}
+
       {/* Pegada abajo: en móvil el formulario mide más de una pantalla, y
           «Guardar» al final de un scroll largo es donde se pierde la gente. */}
       <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center justify-end gap-3 border-t border-beige bg-arena/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
@@ -847,12 +880,16 @@ export default function FormularioAlta({
           <span className="control-sheen" aria-hidden="true" />
           Cancelar
         </Link>
+        {/* `disabled` mientras guarda: dos pulsaciones seguidas intentarían
+            dos altas (la segunda la frenaría la base por documento repetido,
+            pero con un error que no se entiende). */}
         <button
           type="submit"
-          className="control-fx relative inline-flex min-h-[44px] items-center gap-2 overflow-hidden rounded-full bg-verde px-6 text-sm text-arena transition-colors duration-300 hover:bg-verde-700"
+          disabled={guardando}
+          className="control-fx relative inline-flex min-h-[44px] items-center gap-2 overflow-hidden rounded-full bg-verde px-6 text-sm text-arena transition-colors duration-300 hover:bg-verde-700 disabled:opacity-60"
         >
           <span className="control-sheen" aria-hidden="true" />
-          Guardar cliente
+          {guardando ? "Guardando…" : "Guardar cliente"}
         </button>
       </div>
     </form>

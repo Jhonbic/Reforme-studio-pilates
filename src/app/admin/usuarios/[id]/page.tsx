@@ -137,12 +137,14 @@ export default async function FichaClientePage({
         <Card>
           <CardHeader titulo="Membresía" />
           <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-            <Dato etiqueta="Plan">{cliente.plan}</Dato>
+            {/* Recién dado de alta no tiene membresía: se dice con palabras, no
+                con «$0» ni una fecha vacía. */}
+            <Dato etiqueta="Plan">{cliente.plan || "Sin plan todavía"}</Dato>
             <Dato etiqueta="Renovación" numerico>
-              {moneda(cliente.importeRenovacion)}
+              {cliente.plan ? moneda(cliente.importeRenovacion) : "—"}
             </Dato>
             <Dato etiqueta="Vence" numerico>
-              {fecha(cliente.vencimiento, true)}
+              {cliente.vencimiento ? fecha(cliente.vencimiento, true) : "—"}
             </Dato>
             <Dato etiqueta="Cliente desde" numerico>
               {fecha(cliente.alta, true)}

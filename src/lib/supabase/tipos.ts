@@ -369,7 +369,7 @@ export type Database = {
     };
     Enums: {
       categoria_gasto: "Arriendo" | "Nómina" | "Servicios" | "Mantenimiento" | "Marketing";
-      estado_membresia: "Activa" | "Por vencer" | "Vencida" | "Inactiva";
+      estado_membresia: "Activa" | "Por vencer" | "Vencida" | "Inactiva" | "Sin plan";
       metodo_pago: "Efectivo" | "Nequi" | "Transferencia" | "Tarjeta";
       rol_equipo: "Instructora" | "Administración" | "Recepción";
       tipo_identificacion: "C.C." | "T.I." | "C.E." | "Pasaporte" | "R.C.";
@@ -492,7 +492,7 @@ export const Constants = {
   public: {
     Enums: {
       categoria_gasto: ["Arriendo", "Nómina", "Servicios", "Mantenimiento", "Marketing"],
-      estado_membresia: ["Activa", "Por vencer", "Vencida", "Inactiva"],
+      estado_membresia: ["Activa", "Por vencer", "Vencida", "Inactiva", "Sin plan"],
       metodo_pago: ["Efectivo", "Nequi", "Transferencia", "Tarjeta"],
       rol_equipo: ["Instructora", "Administración", "Recepción"],
       tipo_identificacion: ["C.C.", "T.I.", "C.E.", "Pasaporte", "R.C."],

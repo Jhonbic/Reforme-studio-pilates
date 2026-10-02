@@ -266,7 +266,7 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
               aria-disabled="true"
               onClick={() =>
                 mostrarAviso(
-                  "El alta de equipo llegará cuando haya base de datos.",
+                  "El alta de equipo todavía no existe: llega con la gestión de accesos.",
                   "info",
                 )
               }

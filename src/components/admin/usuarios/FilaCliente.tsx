@@ -42,9 +42,11 @@ export default function FilaCliente({ cliente }: { cliente: Cliente }) {
         </span>
 
         <span className="min-w-0 text-sm text-verde-700">
-          <span className="block truncate">{cliente.plan}</span>
+          {/* Sin plan no hay ni plan ni importe: una raya, no «$0», que se
+              leería como «renueva gratis». */}
+          <span className="block truncate">{cliente.plan || "—"}</span>
           <span className="block text-xs tabular-nums text-verde-300">
-            {moneda(cliente.importeRenovacion)}
+            {cliente.plan ? moneda(cliente.importeRenovacion) : "Por asignar"}
           </span>
         </span>
 
@@ -57,7 +59,7 @@ export default function FilaCliente({ cliente }: { cliente: Cliente }) {
               por su posición, pero un lector de pantalla no ve columnas y leería
               una fecha suelta. `sr-only` es absoluto, así que no ocupa. */}
           <span className="md:sr-only">Vence </span>
-          {fecha(cliente.vencimiento)}
+          {cliente.vencimiento ? fecha(cliente.vencimiento) : "—"}
         </span>
       </span>
 

@@ -16,6 +16,8 @@ supabase/
     20260727130100_revocar_execute_public.sql      Quita EXECUTE a PUBLIC
     20261001120000_perfil_no_automatico.sql        Registrarse ya no da acceso
     20261001130000_zona_horaria_bogota.sql         current_date en hora de Bogotá
+    20261001140000_estado_sin_plan.sql             Nuevo estado «Sin plan»
+    20261001140100_vista_sin_plan.sql              La vista lo usa (security_invoker)
   seed.sql                                         20 clientes, determinista
 ```
 
@@ -197,6 +199,7 @@ Falta:
    `src/lib/supabase/tipos.ts`. **Las pantallas apenas se tocan**: toda la UI pasa por ahí, y
    esa disciplina se mantuvo justo para este día.
 6. Mutaciones (server actions) para los formularios que hoy no guardan.
+   **Hecha: `crearCliente`** (`src/lib/admin/acciones.ts`), el alta de cliente.
 
 ⚠️ **Las rutas de `/admin` ya no se prerenderizan** (salen `ƒ` en el build):
 leer la sesión usa cookies. `/login` también es dinámica, porque lee

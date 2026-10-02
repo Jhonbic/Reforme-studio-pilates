@@ -52,7 +52,7 @@ export default function AccionesCliente({ cliente }: { cliente: Cliente }) {
       <DropdownItem deshabilitado>Editar datos</DropdownItem>
       <DropdownItem deshabilitado>Dar de baja</DropdownItem>
       <p className="px-4 py-2 text-xs leading-snug text-verde-300">
-        Editar y dar de baja necesitan base de datos.
+        Editar y dar de baja todavía no existen.
       </p>
     </Dropdown>
   );
