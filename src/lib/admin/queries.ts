@@ -1,4 +1,4 @@
-import { calcularVariacion, moneda } from "./format";
+import { calcularVariacion, moneda, telefonoCO } from "./format";
 import { DIAS_CORTOS, diaSemana, finDe, sumarDias } from "./horario";
 import {
   CLASES,
@@ -19,6 +19,10 @@ import {
 } from "./mock";
 import { cache } from "react";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/tipos";
+
+type FilaClienteVigente =
+  Database["public"]["Views"]["clientes_vigentes"]["Row"];
 import type {
   Clase,
   ClaseEnAgenda,
@@ -113,10 +117,56 @@ export function getHoy(): string {
   return HOY;
 }
 
-/** La base de clientes, ordenada alfabéticamente. Es el orden por defecto de
- *  `/admin/usuarios`; los demás criterios los aplica la propia pantalla. */
-export function getClientes(): Cliente[] {
-  return [...CLIENTES].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+/**
+ * Una fila de la vista `clientes_vigentes` → el `Cliente` que pinta la UI.
+ *
+ * ⚠️ En una vista Postgres declara TODAS las columnas anulables, aunque en la
+ * tabla no lo sean; de ahí los `??`. Los de verdad anulables son correo,
+ * teléfono y última asistencia.
+ *
+ * ⚠️ Plan, vencimiento y estado vienen de la ÚLTIMA MEMBRESÍA. Hoy todos los
+ * clientes tienen una, pero el alta de cliente no pregunta por el plan
+ * (decisión del usuario), así que al conectar el alta (paso 6) aparecerán
+ * clientes sin membresía, y `estado_de_membresia(null, …)` los da por
+ * «Activa». Eso hay que resolverlo ahí, no aquí.
+ */
+function aCliente(f: FilaClienteVigente): Cliente {
+  return {
+    id: f.id ?? "",
+    nombre: f.nombre ?? "",
+    identificacion: f.identificacion ?? "",
+    tipoIdentificacion: f.tipo_identificacion ?? undefined,
+    correo: f.correo ?? "",
+    // En la base va en crudo («3209078814»); el formato es cosa de la UI.
+    telefono: f.telefono ? telefonoCO(f.telefono) : "",
+    plan: (f.plan ?? "") as TipoPlan,
+    estado: f.estado ?? "Inactiva",
+    vencimiento: f.vencimiento ?? "",
+    alta: f.alta ?? "",
+    ultimaAsistencia: f.ultima_asistencia,
+    importeRenovacion: f.importe_renovacion ?? 0,
+  };
+}
+
+/**
+ * La base de clientes, ordenada alfabéticamente. Es el orden por defecto de
+ * `/admin/usuarios`; los demás criterios los aplica la propia pantalla.
+ *
+ * Lee de Supabase (vista `clientes_vigentes`), con la sesión de quien mira:
+ * lo que devuelve lo decide RLS. Un error se LANZA en vez de devolver `[]`:
+ * una lista vacía diría «no hay clientes», que es mentira.
+ *
+ * ⚠️ El orden lo hace JS con `localeCompare("es")` y no `order by`: la
+ * colación de Postgres pondría «Álvaro» detrás de «Zoe».
+ */
+export async function getClientes(): Promise<Cliente[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("clientes_vigentes").select("*");
+  if (error) throw new Error(`No se pudieron leer los clientes: ${error.message}`);
+
+  return data
+    .map(aCliente)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
 export function getEquipo(): MiembroEquipo[] {
@@ -255,30 +305,34 @@ export function getReservasPorDiaSemana(): ReservasPorDia[] {
   return acumulado;
 }
 
-/** Un cliente por su id, o `undefined` si no existe (→ 404 en la ficha). */
-export function getCliente(id: string): Cliente | undefined {
-  return CLIENTES.find((c) => c.id === id);
-}
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Los ids de todos los clientes, para `generateStaticParams`.
+ * Un cliente por su id, o `undefined` si no existe (→ 404 en la ficha).
  *
- * ⚠️ Existe para que la ficha se prerenderice y la ruta siga saliendo
- * `○ Static` como las demás. El día que haya base de datos con miles de
- * clientes, prerenderizarlos todos deja de tener sentido: ahí esta función se
- * cambia por las fichas más visitadas (o por ninguna, aceptando que la ruta
- * pase a dinámica).
+ * ⚠️ El id se valida ANTES de preguntar: la columna es `uuid`, y con
+ * `/admin/usuarios/loquesea` Postgres no respondería «no existe», sino un
+ * error de sintaxis, que acabaría en un 500 en vez de en el 404 que es.
+ *
+ * `cache()` porque la ficha la pide dos veces —`generateMetadata` y la
+ * página— y así es una sola consulta.
  */
-export function getClienteIds(): string[] {
-  return CLIENTES.map((c) => c.id);
-}
+export const getCliente = cache(
+  async (id: string): Promise<Cliente | undefined> => {
+    if (!UUID.test(id)) return undefined;
 
-/**
- * Cuántos clientes hay en cada estado, más el total.
- *
- * Va aquí y no en la pantalla porque es un dato del dominio: los recuentos que
- * se enseñan dentro de los filtros son los mismos que alimentan el dashboard.
- */
+    const supabase = await crearClienteServidor();
+    const { data, error } = await supabase
+      .from("clientes_vigentes")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(`No se pudo leer el cliente: ${error.message}`);
+
+    return data ? aCliente(data) : undefined;
+  },
+);
+
 /**
  * El catálogo de planes con lo que ha pasado con cada uno.
  *
@@ -302,15 +356,26 @@ export function getPlanes(): PlanConMetricas[] {
   }));
 }
 
-export function getConteoEstados(): Record<EstadoMembresia | "Todas", number> {
+/**
+ * Cuántos clientes hay en cada estado, más el total: los números de las
+ * pastillas de filtro de `/admin/usuarios`.
+ *
+ * ⚠️ Mientras el dashboard siga en `mock.ts` (paso 5), sus cifras y estas NO
+ * coinciden: aquí son los clientes de Supabase.
+ */
+export function getConteoEstados(
+  clientes: Cliente[],
+): Record<EstadoMembresia | "Todas", number> {
   const conteo: Record<EstadoMembresia | "Todas", number> = {
-    Todas: CLIENTES.length,
+    Todas: clientes.length,
     Activa: 0,
     "Por vencer": 0,
     Vencida: 0,
     Inactiva: 0,
   };
-  for (const c of CLIENTES) conteo[c.estado] += 1;
+  // Se cuenta sobre la lista que ya se pidió, no con otra consulta: así las
+  // pastillas y las filas no pueden decir cosas distintas.
+  for (const c of clientes) conteo[c.estado] += 1;
   return conteo;
 }
 

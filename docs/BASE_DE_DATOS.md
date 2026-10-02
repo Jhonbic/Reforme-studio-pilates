@@ -188,7 +188,9 @@ Hecho:
 Falta:
 
 5. Reescribir las ~17 funciones de datos de `queries.ts` para que sean `async`
-   y consulten. **Las pantallas apenas se tocan**: toda la UI pasa por ahí, y
+   y consulten. **Hechas: `getClientes`, `getCliente`** (y `getConteoEstados`,
+   que ahora cuenta sobre la lista recibida). Tipos generados en
+   `src/lib/supabase/tipos.ts`. **Las pantallas apenas se tocan**: toda la UI pasa por ahí, y
    esa disciplina se mantuvo justo para este día.
 6. Mutaciones (server actions) para los formularios que hoy no guardan.
 

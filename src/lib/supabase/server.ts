@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import type { Database } from "./tipos";
 
 /**
  * Cliente de Supabase para código de SERVIDOR (layouts, páginas, server actions).
@@ -7,13 +8,18 @@ import { cookies } from "next/headers";
  * Se crea uno por petición, nunca a nivel de módulo: lleva dentro las cookies de
  * QUIEN pregunta, y uno compartido mezclaría las sesiones de dos personas.
  *
+ * Tipado con `Database` (`tipos.ts`), que se GENERA desde el esquema y no se
+ * edita a mano. Tras cambiar una migración:
+ *   npx supabase gen types typescript --local > src/lib/supabase/tipos.ts
+ *   npx oxfmt src/lib/supabase/tipos.ts
+ *
  * ⚠️ Usa la clave anónima, no la `service_role`. Lo que esta cuenta puede leer lo
  * decide RLS con la sesión de la cookie — que es justo lo que se quiere.
  */
 export async function crearClienteServidor() {
   const almacen = await cookies();
 
-  return createServerClient(
+  return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {

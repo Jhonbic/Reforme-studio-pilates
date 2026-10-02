@@ -36,7 +36,8 @@ export default function FilaCliente({ cliente }: { cliente: Cliente }) {
               resultado de búsqueda que no muestra lo que buscaste no se puede
               verificar de un vistazo. El correo vive en la ficha. */}
           <span className="block truncate text-xs tabular-nums text-verde-300">
-            C.C. {documento(cliente.identificacion)}
+            {cliente.tipoIdentificacion ?? "C.C."}{" "}
+            {documento(cliente.identificacion)}
           </span>
         </span>
 

@@ -473,10 +473,23 @@ con la llamada que ya existía:
 
 #### Usuarios (`/admin/usuarios`) — construido jul 2026
 
-Listado de personas del estudio. La ficha individual (`/admin/usuarios/[id]`)
-**ya existe**: durante un tiempo las filas enlazaban a una ruta inexistente y
-los 118 clientes daban 404. Hoy se prerenderizan las 118 con
-`generateStaticParams`, que excluye `"nuevo"` a propósito.
+Listado de personas del estudio, con su ficha individual
+(`/admin/usuarios/[id]`).
+
+> ✅ **Los CLIENTES leen de Supabase desde oct 2026** (vista
+> `clientes_vigentes`, 20 de ejemplo): listado, ficha, pastillas de recuento y
+> el aviso de duplicados del alta. **El Equipo sigue en `mock.ts`**, y el
+> dashboard también (paso 5 del plan): hasta entonces sus cifras no coinciden
+> con las de aquí. Los recuentos citados más abajo (118, 87…) son de cuando
+> el listado leía el mock, y se conservan como historia de cada decisión.
+> - La ficha ya **no** se prerenderiza (`generateStaticParams` quitado): los
+>   clientes cambian en la base, y el panel ya se pinta por petición.
+> - Un id que no es UUID da **404 sin preguntar a la base**: Postgres
+>   respondería un error de sintaxis, que acabaría en 500.
+> - El orden alfabético lo hace JS (`localeCompare("es")`), no `order by`: la
+>   colación de Postgres pondría «Álvaro» detrás de «Zoe».
+> - La fila y la ficha pintan el **tipo de documento real** (T.I., C.E…), no
+>   «C.C.» fijo; correo y teléfono vacíos dicen «No lo ha dado».
 
 - **Dos pestañas, Clientes y Equipo, como estado de cliente y NO como ruta.**
   Podrían vivir en la URL, pero leer `searchParams` volvería la página dinámica y
@@ -1069,8 +1082,7 @@ Implementado en la constante `PALETA` de `charts/LineChart.tsx` (prop `tono`), q
 fondo oscuro: `--color-estado-ok-claro` / `--color-estado-grave-claro`.
 
 Build y lint verificados. Nueve rutas: las ocho anteriores más `/admin/clases`.
-`/admin/usuarios/[id]` sale `● SSG` con 118 fichas prerenderizadas y el resto
-`○ Static`. Ninguna es dinámica.
+(Desde oct 2026 todo `/admin` es `ƒ`, dinámico, por la sesión.)
 
 ## Mobile-first (dispositivo principal de los usuarios)
 
@@ -1120,9 +1132,9 @@ Nueve rutas, todas `○ Static` o `● SSG`:
 | `/login` | Auth real con Supabase (solo equipo; clientes aún sin área) |
 | `/registro` | Solo UI, no envía a ningún sitio |
 | `/admin` | Dashboard bento + vista contable alternable |
-| `/admin/usuarios` | Listado, filtros, paginación, export CSV **real** |
+| `/admin/usuarios` | Clientes **desde Supabase** · filtros, paginación, export CSV real · equipo aún de `mock.ts` |
 | `/admin/usuarios/nuevo` | Formulario validado · **no guarda** |
-| `/admin/usuarios/[id]` | Ficha de solo lectura (118 prerenderizadas) |
+| `/admin/usuarios/[id]` | Ficha de solo lectura, **desde Supabase** |
 | `/admin/clases` | Agenda por día + alta, edición, cancelación · **no guarda** |
 | `/admin/planes` | Catálogo en tarjetas + CRUD · **no guarda** |
 | `/admin/finanzas` | Libro de movimientos con filtros + alta de gasto · **no guarda** |

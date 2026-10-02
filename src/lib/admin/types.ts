@@ -59,8 +59,14 @@ export type Cliente = {
    * buscar «1045» no encontraría a «1.045.678.912».
    */
   identificacion: string;
+  /**
+   * C.C., T.I., pasaporte… Opcional solo porque los clientes de `mock.ts` no
+   * lo traen; los de la base de datos siempre. Sin él se pinta «C.C.».
+   */
+  tipoIdentificacion?: TipoIdentificacion;
+  /** Cadena vacía si no lo dio: en la base es opcional. */
   correo: string;
-  /** Formato colombiano "+57 320 907 8814" */
+  /** Formato colombiano "+57 320 907 8814", o cadena vacía si no lo dio. */
   telefono: string;
   plan: TipoPlan;
   estado: EstadoMembresia;

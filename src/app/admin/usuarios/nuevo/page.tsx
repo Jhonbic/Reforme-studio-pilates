@@ -2,10 +2,11 @@ import FormularioAlta from "@/components/admin/usuarios/FormularioAlta";
 import { getClientes } from "@/lib/admin/queries";
 import { claveNombre } from "@/lib/validacion";
 
-export default function NuevoClientePage() {
+export default async function NuevoClientePage() {
   const documentosExistentes: Record<string, string> = {};
   const nombresExistentes: Record<string, string> = {};
-  for (const c of getClientes()) {
+  // Para avisar de duplicados mientras se escribe: los clientes de Supabase.
+  for (const c of await getClientes()) {
     documentosExistentes[c.identificacion] = c.nombre;
     nombresExistentes[claveNombre(c.nombre)] = c.nombre;
   }

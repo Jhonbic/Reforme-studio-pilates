@@ -6,7 +6,7 @@ import AccionesCliente from "@/components/admin/usuarios/AccionesCliente";
 import Avatar from "@/components/admin/usuarios/Avatar";
 import EstadoBadge from "@/components/admin/usuarios/EstadoBadge";
 import { documento, fecha, moneda } from "@/lib/admin/format";
-import { getCliente, getClienteIds } from "@/lib/admin/queries";
+import { getCliente } from "@/lib/admin/queries";
 
 /**
  * Ficha de un cliente.
@@ -15,30 +15,19 @@ import { getCliente, getClienteIds } from "@/lib/admin/queries";
  * una pantalla nueva que se le ocurra a nadie, es el destino que el listado
  * llevaba prometiendo desde que se construyó.
  *
- * Es de **solo lectura**, y no por falta de ganas: sin base de datos no hay
- * dónde escribir. Lo que sí puede hacer —descargar la ficha— lo hace de verdad.
- */
-
-/**
- * ⚠️ `generateStaticParams` es lo que mantiene la ruta en `○ Static`, como las
- * otras del panel. Sin ella la ficha sería `ƒ` y se renderizaría por petición.
+ * Lee de Supabase y es de **solo lectura** por ahora. Lo que sí puede hacer
+ * —descargar la ficha— lo hace de verdad.
  *
- * ⚠️ **No emite `"nuevo"`.** El segmento estático gana al dinámico en el
- * enrutador, así que `/admin/usuarios/nuevo` iría a su página igualmente; pero
- * emitirlo generaría además una ficha inútil en el build, y dejaría escrito
- * que este id existe cuando no es un cliente.
+ * Sin `generateStaticParams`: los clientes viven en la base y cambian, y el
+ * panel ya se pinta por petición desde que hay sesión. Prerenderizar fichas en
+ * el build las dejaría desfasadas.
  */
-export function generateStaticParams() {
-  return getClienteIds()
-    .filter((id) => id !== "nuevo")
-    .map((id) => ({ id }));
-}
 
 export async function generateMetadata({
   params,
 }: PageProps<"/admin/usuarios/[id]">): Promise<Metadata> {
   const { id } = await params;
-  const cliente = getCliente(id);
+  const cliente = await getCliente(id);
   return {
     title: cliente
       ? `${cliente.nombre} · Panel administrativo`
@@ -76,7 +65,7 @@ export default async function FichaClientePage({
   params,
 }: PageProps<"/admin/usuarios/[id]">) {
   const { id } = await params;
-  const cliente = getCliente(id);
+  const cliente = await getCliente(id);
 
   /* Un id que no existe es un 404 de verdad, no una tarjeta vacía: la ficha de
      alguien que no está no es «sin datos», es otra dirección. */
@@ -95,7 +84,8 @@ export default async function FichaClientePage({
               {cliente.nombre}
             </h1>
             <p className="mt-0.5 text-sm tabular-nums text-verde-300">
-              C.C. {documento(cliente.identificacion)}
+              {cliente.tipoIdentificacion ?? "C.C."}{" "}
+              {documento(cliente.identificacion)}
             </p>
           </div>
 
@@ -116,20 +106,30 @@ export default async function FichaClientePage({
             <Dato etiqueta="Correo">
               {/* Enlaces de verdad: en recepción se llama y se escribe desde
                   aquí, y en móvil `tel:` abre el marcador. */}
-              <a
-                href={`mailto:${cliente.correo}`}
-                className="break-all underline decoration-dorado underline-offset-4 transition-colors duration-300 hover:text-verde"
-              >
-                {cliente.correo}
-              </a>
+              {/* En la base son opcionales: sin dato se dice, no se pinta un
+                  enlace vacío que abriría el correo sin destinatario. */}
+              {cliente.correo ? (
+                <a
+                  href={`mailto:${cliente.correo}`}
+                  className="break-all underline decoration-dorado underline-offset-4 transition-colors duration-300 hover:text-verde"
+                >
+                  {cliente.correo}
+                </a>
+              ) : (
+                <span className="text-verde-300">No lo ha dado</span>
+              )}
             </Dato>
             <Dato etiqueta="Teléfono" numerico>
-              <a
-                href={`tel:${cliente.telefono.replace(/\s/g, "")}`}
-                className="whitespace-nowrap underline decoration-dorado underline-offset-4 transition-colors duration-300 hover:text-verde"
-              >
-                {cliente.telefono}
-              </a>
+              {cliente.telefono ? (
+                <a
+                  href={`tel:${cliente.telefono.replace(/\s/g, "")}`}
+                  className="whitespace-nowrap underline decoration-dorado underline-offset-4 transition-colors duration-300 hover:text-verde"
+                >
+                  {cliente.telefono}
+                </a>
+              ) : (
+                <span className="text-verde-300">No lo ha dado</span>
+              )}
             </Dato>
           </dl>
         </Card>
