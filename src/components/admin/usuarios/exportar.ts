@@ -1,4 +1,9 @@
-import type { Cliente, FichaAlta, MiembroEquipo, Pago } from "@/lib/admin/types";
+import type {
+  Cliente,
+  FichaAlta,
+  MiembroEquipo,
+  Movimiento,
+} from "@/lib/admin/types";
 
 /**
  * Exportación del listado a CSV.
@@ -104,15 +109,23 @@ export function csvCliente(c: Cliente): string {
 }
 
 /**
- * El libro de pagos, para la contadora.
+ * El libro de movimientos de Finanzas, para la contadora.
  *
  * Va en columnas —y no en dos, campo y valor, como las fichas— porque es
  * justamente lo que se abre para ordenar, sumar y hacer tablas dinámicas.
+ *
+ * ⚠️ **El importe va CON SIGNO** (los gastos en negativo), al revés que en
+ * pantalla, donde el signo lo pone el tipo. En Excel la gracia es que
+ * `=SUMA(F:F)` dé el neto del periodo sin tener que filtrar antes.
  */
-export function csvPagos(pagos: Pago[]): string {
+export function csvMovimientos(movimientos: Movimiento[]): string {
   return aCsv(
-    ["Fecha", "Cliente", "Plan", "Método", "Importe"],
-    pagos.map((p) => [p.fecha, p.cliente, p.plan, p.metodo, p.importe]),
+    ["Fecha", "Tipo", "Concepto", "Detalle", "Método", "Importe"],
+    movimientos.map((m) =>
+      m.tipo === "cobro"
+        ? [m.fecha, "Cobro", m.cliente, m.plan ?? "Sin plan", m.metodo, m.importe]
+        : [m.fecha, "Gasto", m.concepto, m.categoria, m.metodo, -m.importe],
+    ),
   );
 }
 

@@ -15,6 +15,7 @@ supabase/
     20260727130000_seguridad_vista_y_funciones.sql Cierra el fallo de la vista
     20260727130100_revocar_execute_public.sql      Quita EXECUTE a PUBLIC
     20261001120000_perfil_no_automatico.sql        Registrarse ya no da acceso
+    20261001130000_zona_horaria_bogota.sql         current_date en hora de Bogotá
   seed.sql                                         20 clientes, determinista
 ```
 
@@ -188,7 +189,8 @@ Hecho:
 Falta:
 
 5. Reescribir las ~17 funciones de datos de `queries.ts` para que sean `async`
-   y consulten. **Hechas: `getClientes`, `getCliente`** (y `getConteoEstados`,
+   y consulten. **Hechas: `getClientes`, `getCliente`, `getMovimientos`
+   (pagos + gastos), `getPresupuestos`** (y `getConteoEstados`,
    que ahora cuenta sobre la lista recibida). Tipos generados en
    `src/lib/supabase/tipos.ts`. **Las pantallas apenas se tocan**: toda la UI pasa por ahí, y
    esa disciplina se mantuvo justo para este día.

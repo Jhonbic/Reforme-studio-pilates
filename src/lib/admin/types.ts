@@ -388,6 +388,44 @@ export type Pago = {
   importe: number;
 };
 
+/**
+ * Una línea del libro de Finanzas: un cobro a un cliente o un gasto del
+ * estudio. Las dos tablas de la base (`pagos` y `gastos`) se juntan aquí
+ * porque se leen juntas: un libro que solo enseña lo que entra no cuadra.
+ *
+ * `importe` va SIEMPRE en positivo; el signo lo pone `tipo`. Así sumar un
+ * filtro de solo gastos da «cuánto salió», no un número negativo que hay que
+ * leer al revés.
+ */
+export type Movimiento =
+  | {
+      tipo: "cobro";
+      id: string;
+      fecha: string;
+      metodo: MetodoPago;
+      importe: number;
+      clienteId: string;
+      cliente: string;
+      /** Plan de la membresía que se cobró, o `null` si el pago no la tiene. */
+      plan: string | null;
+    }
+  | {
+      tipo: "gasto";
+      id: string;
+      fecha: string;
+      metodo: MetodoPago;
+      importe: number;
+      concepto: string;
+      categoria: CategoriaGasto;
+    };
+
+/** Lo previsto para una categoría en un mes. `mes` es el día 1, ISO corto. */
+export type Presupuesto = {
+  categoria: CategoriaGasto;
+  mes: string;
+  importe: number;
+};
+
 /** Tramos de antigüedad de cartera, el estándar contable. */
 export type TramoCartera = "1-30 días" | "31-60 días" | "Más de 60 días";
 
@@ -416,10 +454,8 @@ export type Indicador = {
 /**
  * Quién ha entrado al panel.
  *
- * ⚠️ **Hoy es un dato inventado, no una sesión.** `/admin` no está protegido y
- * el reparto por rol del login (dominio `@reforme.com`) es un marcador, no
- * autenticación. Existe como tipo para que el día que haya auth real solo
- * cambie de dónde sale, no quién lo consume.
+ * Sale de la sesión de Supabase más la fila de `perfiles`
+ * (`getUsuarioActual()`).
  */
 export type UsuarioActual = {
   nombre: string;

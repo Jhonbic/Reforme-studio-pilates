@@ -1,68 +1,61 @@
 import Card from "@/components/admin/Card";
-import CardHeader from "@/components/admin/CardHeader";
-import StatTile from "@/components/admin/StatTile";
-import LibroPagos from "@/components/admin/finanzas/LibroPagos";
-import RegistrarGasto from "@/components/admin/finanzas/RegistrarGasto";
+import PanelFinanzas from "@/components/admin/finanzas/PanelFinanzas";
+import { hoyEnBogota } from "@/lib/admin/horario";
 import {
-  getHoy,
-  getIndicadoresFinanzas,
-  getPagos,
+  getMovimientos,
+  getPresupuestos,
+  getUsuarioActual,
 } from "@/lib/admin/queries";
 
 /**
- * Finanzas.
+ * Finanzas, leyendo de Supabase (`pagos`, `gastos`, `presupuestos`).
  *
- * ⚠️ **«Ingresos frente a gastos» y «Gastos por categoría» se fueron al
- * Dashboard**, juntas en una sola tarjeta con desplegable. Aquí quedaba el
- * detalle contable en dos gráficos anuales que competían con el libro, que es
- * a lo que de verdad se entra a esta pantalla. Ojo: es la decisión contraria a
- * la que documentaba `CONTEXTO.md` («son detalle contable, no resumen de
- * negocio»), y se revierte a petición del usuario.
+ * ⚠️ **Solo para Administración.** RLS solo le da gastos y presupuestos a ese
+ * rol: Recepción vería los cobros sin los gastos y una utilidad inflada, sin
+ * nada que lo advirtiera. Mejor decirlo que enseñar una cifra falsa.
  *
- * ⚠️ **Ya no hay lista de «pendiente en esta sección».** Tenía tres puntos:
- * registrar gastos —que ahora existe como formulario—, cierre de caja y
- * presupuesto anual, los dos descartados por el usuario. Lo que falta de
- * verdad lo dice el propio formulario al enviarlo: que todavía no guarda.
+ * ⚠️ «Hoy» es la fecha REAL de Bogotá (`hoyEnBogota()`), no la `getHoy()`
+ * congelada del mock: aquí los datos son de verdad, y con la fecha de julio
+ * «este mes» enseñaría un mes en el que la base no tiene nada.
+ *
+ * Las dos tarjetas de gráficas («Ingresos frente a gastos», «Gastos por
+ * categoría») siguen en el Dashboard: aquí se entra a mirar el detalle de un
+ * periodo, no la tendencia del año.
  */
-export default function FinanzasPage() {
-  const indicadores = getIndicadoresFinanzas();
-  const pagos = getPagos();
-  const hoy = getHoy();
+export default async function FinanzasPage() {
+  const usuario = await getUsuarioActual();
+
+  if (usuario?.rol !== "Administración") {
+    return (
+      <div className="mx-auto w-full max-w-3xl">
+        <h1 className="sr-only">Finanzas</h1>
+        <Card>
+          <p className="font-display text-2xl text-verde">
+            Finanzas es de Administración
+          </p>
+          <p className="mt-2 text-sm text-verde-700">
+            Los gastos y los presupuestos solo los ve ese rol, y sin ellos las
+            cifras de esta pantalla saldrían falseadas. Si necesitas ver los
+            cobros, pídeselos a administración.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
+  const [movimientos, presupuestos] = await Promise.all([
+    getMovimientos(),
+    getPresupuestos(),
+  ]);
 
   return (
     <div className="mx-auto w-full max-w-[1440px]">
       <h1 className="sr-only">Finanzas</h1>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-6 xl:grid-cols-12 xl:gap-5">
-        {/* Las cuatro cifras del mes, antes de cualquier detalle. Reutilizan
-            `StatTile`, el mismo componente del Dashboard. */}
-        <section
-          aria-label="Cifras del mes"
-          className="grid gap-4 sm:grid-cols-2 md:col-span-6 xl:col-span-12 xl:grid-cols-4"
-        >
-          {indicadores.map((i) => (
-            <StatTile key={i.etiqueta} indicador={i} />
-          ))}
-        </section>
-
-        {/* El libro es LA pantalla, a ancho completo. Con la tabla a cinco
-            columnas —fecha, cliente, plan, método e importe— una columna
-            estrecha obligaba a recortar el nombre del cliente casi siempre. */}
-        <Card densidad="plana" className="md:col-span-6 xl:col-span-12">
-          {/* El alta de gasto vive en la cabecera del libro, no en una barra
-              propia: un gasto es un movimiento más, y se registra mirando los
-              que ya están. `CardHeader` deja su hueco a la derecha justo para
-              esto. */}
-          <div className="flex flex-wrap items-start justify-between gap-3 p-5 sm:p-6">
-            <CardHeader
-              titulo="Libro de movimientos"
-              descripcion="Todos los cobros, con su plan y su método. Cada fila lleva a la ficha del cliente."
-            />
-            <RegistrarGasto hoy={hoy} />
-          </div>
-          <LibroPagos pagos={pagos} hoy={hoy} />
-        </Card>
-      </div>
+      <PanelFinanzas
+        movimientos={movimientos}
+        presupuestos={presupuestos}
+        hoy={hoyEnBogota()}
+      />
     </div>
   );
 }

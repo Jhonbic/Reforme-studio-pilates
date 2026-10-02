@@ -1,0 +1,21 @@
+-- =============================================================================
+-- La base de datos piensa en hora de Bogotá, no en UTC.
+--
+-- ⚠️ `current_date` depende de la zona horaria de la SESIÓN, y en Supabase es
+-- UTC por defecto. Colombia va a UTC−5, así que desde las 19:00 de Bogotá la
+-- base ya cree que es mañana. Se notó en Finanzas: la semilla fechó los
+-- gastos el 2 de octubre cuando en Florencia era el 1, y la pantalla —que
+-- calcula «hoy» en Bogotá— los trataba como futuros.
+--
+-- Lo que usa `current_date` y se arregla con esto:
+--   · `clientes.alta default current_date` (un alta a las 20:00 salía con
+--     fecha de mañana);
+--   · el trigger `pago_no_futuro` y la vista `clientes_vigentes`
+--     (`estado_de_membresia`), que decidían «vencida» un día antes de tiempo.
+--
+-- `alter database` cambia el valor por defecto de las sesiones NUEVAS; las
+-- conexiones del pool que ya estaban abiertas lo toman al reciclarse.
+-- `timestamptz` no cambia: se guarda en UTC igual, solo se muestra distinto.
+-- =============================================================================
+
+alter database postgres set timezone to 'America/Bogota';

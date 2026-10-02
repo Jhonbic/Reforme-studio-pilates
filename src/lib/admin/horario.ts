@@ -87,6 +87,26 @@ export function sumarDias(iso: string, dias: number): string {
   return aIso(d);
 }
 
+/**
+ * La fecha de hoy **en Colombia**, ISO corto, calculada en el servidor.
+ *
+ * ⚠️ Ni `toISOString()` (da UTC: desde las 19:00 de Bogotá ya sería mañana) ni
+ * los getters locales (en Vercel el servidor corre en UTC, así que «local» es
+ * Londres, no Florencia). Se pide la zona horaria por nombre. `en-CA` porque es
+ * el locale que formatea como `AAAA-MM-DD`.
+ *
+ * No sustituye a `getHoy()`, que sigue congelada para el mock: esta es para las
+ * pantallas que ya leen de la base, donde los datos son de verdad.
+ */
+export function hoyEnBogota(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 /** Días de `desde` a `hasta` (negativo si `hasta` es anterior). */
 export function diasEntre(desde: string, hasta: string): number {
   const ms = aFechaUTC(hasta).getTime() - aFechaUTC(desde).getTime();

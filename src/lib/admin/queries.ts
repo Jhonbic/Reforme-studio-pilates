@@ -11,7 +11,6 @@ import {
   MESES,
   MOVIMIENTO_CLIENTES,
   NOTIFICACIONES,
-  PAGOS,
   PRECIO_PLAN,
   REPARTO_METODOS,
   REPARTO_PLANES,
@@ -32,8 +31,9 @@ import type {
   Indicador,
   MiembroEquipo,
   Notificacion,
-  Pago,
+  Movimiento,
   PlanConMetricas,
+  Presupuesto,
   TipoPlan,
   UsuarioActual,
 } from "./types";
@@ -93,15 +93,72 @@ export function getMovimientoClientes() {
 }
 
 /**
- * El libro completo, del pago más reciente al más antiguo.
+ * El libro de Finanzas: todos los cobros y todos los gastos, del más reciente
+ * al más antiguo.
  *
- * Sin filtros de servidor a propósito: son ~100 registros que ya viajan al
- * navegador, así que filtrarlos allí es instantáneo y evita que la ruta deje de
- * prerenderizarse. Con base de datos y miles de pagos, esto pasará a recibir
- * periodo y método y a paginar en servidor.
+ * ⚠️ **Sin filtro de periodo en la consulta, a propósito.** El periodo lo
+ * cambia la pantalla al vuelo y compara con el periodo anterior: con un
+ * estudio de este tamaño son unos cientos de filas al año, y traerlas una vez
+ * hace que cambiar de mes sea instantáneo. Cuando pasen de unos miles, esta
+ * función recibirá `[desde, hasta]` y el cambio de periodo irá al servidor.
+ *
+ * ⚠️ Los gastos solo los devuelve RLS a Administración. Por eso la página de
+ * Finanzas es solo para ese rol: a Recepción le llegarían los cobros sin los
+ * gastos, y la utilidad saldría inflada sin que nada lo advirtiera.
  */
-export function getPagos(): Pago[] {
-  return PAGOS;
+export async function getMovimientos(): Promise<Movimiento[]> {
+  const supabase = await crearClienteServidor();
+  const [pagos, gastos] = await Promise.all([
+    supabase
+      .from("pagos")
+      .select(
+        "id, fecha, metodo, importe, cliente_id, clientes(nombre), membresias(planes(nombre))",
+      ),
+    supabase
+      .from("gastos")
+      .select("id, fecha, metodo, importe, concepto, categoria"),
+  ]);
+  if (pagos.error) throw new Error(`No se pudieron leer los cobros: ${pagos.error.message}`);
+  if (gastos.error) throw new Error(`No se pudieron leer los gastos: ${gastos.error.message}`);
+
+  const movimientos: Movimiento[] = [
+    ...pagos.data.map(
+      (p): Movimiento => ({
+        tipo: "cobro",
+        id: p.id,
+        fecha: p.fecha,
+        metodo: p.metodo,
+        importe: p.importe,
+        clienteId: p.cliente_id,
+        cliente: p.clientes?.nombre ?? "Cliente eliminado",
+        plan: p.membresias?.planes?.nombre ?? null,
+      }),
+    ),
+    ...gastos.data.map(
+      (g): Movimiento => ({
+        tipo: "gasto",
+        id: g.id,
+        fecha: g.fecha,
+        metodo: g.metodo,
+        importe: g.importe,
+        concepto: g.concepto,
+        categoria: g.categoria,
+      }),
+    ),
+  ];
+
+  // Comparar cadenas ISO basta: se ordenan igual que cronológicamente.
+  return movimientos.sort((a, b) => b.fecha.localeCompare(a.fecha));
+}
+
+/** Presupuestos por categoría y mes. Solo Administración (RLS). */
+export async function getPresupuestos(): Promise<Presupuesto[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase
+    .from("presupuestos")
+    .select("categoria, mes, importe");
+  if (error) throw new Error(`No se pudieron leer los presupuestos: ${error.message}`);
+  return data;
 }
 
 /**
@@ -453,83 +510,6 @@ export function getIndicadores(): Indicador[] {
       // Que suba significa más plata pendiente de renovar: no es buena noticia.
       subirEsBueno: false,
       detalle: `${getMembresiasPorVencer(DIAS_POR_VENCER).length} clientes por vencer`,
-    },
-  ];
-}
-
-/**
- * Las cifras de cabecera de Finanzas: el mes cerrado frente al anterior.
- *
- * ⚠️ **No repiten las del Dashboard.** Allí se pregunta «¿cómo vamos de
- * plata?» y se responde con ingresos, utilidad y clientes. Aquí se entra a
- * mirar la contabilidad, así que lo que importa es el **margen** (qué
- * proporción de lo que entra se queda) y la **desviación del presupuesto** (si
- * se está gastando lo previsto). Ninguna de las dos estaba visible en ningún
- * sitio: el presupuesto solo se veía como marca dentro de una barra.
- */
-export function getIndicadoresFinanzas(): Indicador[] {
-  const actual = MESES[MESES.length - 1];
-  const anterior = MESES[MESES.length - 2];
-
-  const utilidad = actual.ingresos - actual.gastos;
-  const utilidadAnterior = anterior.ingresos - anterior.gastos;
-
-  /* Margen sobre ingresos. Con ingresos a 0 no hay margen que calcular, y eso
-     no es «0 %»: es que la pregunta no aplica. */
-  const margen = actual.ingresos ? (utilidad / actual.ingresos) * 100 : 0;
-  const margenAnterior = anterior.ingresos
-    ? (utilidadAnterior / anterior.ingresos) * 100
-    : 0;
-
-  const presupuestado = GASTOS.reduce((t, g) => t + g.presupuesto, 0);
-  const gastado = GASTOS.reduce((t, g) => t + g.importe, 0);
-  const pasadas = GASTOS.filter((g) => g.importe > g.presupuesto).length;
-
-  return [
-    {
-      etiqueta: "Ingresos del mes",
-      valor: actual.ingresos,
-      formato: "moneda",
-      variacion: calcularVariacion(actual.ingresos, anterior.ingresos),
-      subirEsBueno: true,
-      detalle: `${actual.mes} ${actual.anio} · frente a ${anterior.mes}`,
-    },
-    {
-      etiqueta: "Gastos del mes",
-      valor: actual.gastos,
-      formato: "moneda",
-      variacion: calcularVariacion(actual.gastos, anterior.gastos),
-      // Gastar más que el mes pasado no es una buena noticia.
-      subirEsBueno: false,
-      detalle: `frente a ${moneda(anterior.gastos)} en ${anterior.mes}`,
-    },
-    {
-      etiqueta: "Margen",
-      valor: margen,
-      formato: "porcentaje",
-      /* ⚠️ En PUNTOS porcentuales, no en variación relativa: pasar de 30 % a
-         33 % son 3 puntos. Decir «+10 %» ahí se confundiría con el margen. */
-      variacion: margen - margenAnterior,
-      subirEsBueno: true,
-      detalle: "de cada peso que entra",
-    },
-    {
-      /* ⚠️ Se enseña como PORCENTAJE de lo presupuestado, no como la
-         desviación en pesos. En pesos, quedarse corto sale en negativo
-         («−$200.000») y hay que pararse a pensar si eso es bueno; en
-         porcentaje, 102 % se lee al instante como «nos pasamos un 2 %». */
-      etiqueta: "Presupuesto usado",
-      valor: presupuestado ? (gastado / presupuestado) * 100 : 0,
-      formato: "porcentaje",
-      variacion: null,
-      subirEsBueno: false,
-      detalle: `de ${moneda(presupuestado)} · ${
-        pasadas === 0
-          ? "ninguna categoría por encima"
-          : pasadas === 1
-            ? "1 categoría por encima"
-            : `${pasadas} categorías por encima`
-      }`,
     },
   ];
 }

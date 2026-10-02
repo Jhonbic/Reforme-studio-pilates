@@ -1044,6 +1044,55 @@ nadie que reserve.
 
 ⚠️ **Tampoco guarda nada**, y las tres acciones lo dicen con un aviso `warning`.
 
+#### Finanzas (`/admin/finanzas`) — rediseñada oct 2026, desde Supabase
+
+**Estructura tomada de JainSportBox** (`../JainSportBox/frontend/src/views/FinanzasView.vue`,
+otro proyecto del usuario, decisión suya): periodo arriba → cifras → de dónde
+entra y a dónde se va → libro. **Solo la estructura**: su rojo, gris y letra
+muy gruesa son de un box de crossfit; aquí manda la marca.
+
+- ⚠️ **Solo Administración.** RLS solo le da `gastos` y `presupuestos` a ese
+  rol. Recepción vería los cobros sin los gastos y una utilidad inflada, sin
+  que nada lo avisara; la página le dice que no en vez de mentirle.
+- ⚠️ **Un periodo manda en TODA la pantalla** (`SelectorPeriodo`): Este mes ·
+  Mes anterior · Por mes (rejilla de 12 meses) · Rango. Es un par
+  `[desde, hasta]` en `PanelFinanzas` y los atajos solo lo escriben
+  (`lib/admin/periodo.ts`); qué chip va encendido se deduce del par. Meses
+  futuros deshabilitados y calendarios con `min`/`max` cruzados: lo imposible
+  no se elige. Al teclear una fecha el navegador se salta `min`/`max`, así que
+  además se ignora lo que no cuadre.
+- ⚠️ **La comparación es con el MISMO TRAMO del mes anterior**
+  (`periodoAnterior`): el 1 de octubre, «este mes» es un día y se compara con
+  el 1 de septiembre, no con septiembre entero (daría siempre «▼ −97 %»). Un
+  mes entero se compara con el anterior entero. La etiqueta lo dice: «frente a
+  1 sep 2026», no «septiembre».
+- **Utilidad es la cifra principal** (tarjeta verde con motas); Ingresos y
+  Gastos al lado. El margen se compara en **puntos**, no en % relativo.
+- **«De dónde entra»**: cobros por plan con barra de %. **«A dónde se va»**:
+  gastos por categoría **frente a `presupuestos`**, tabla que existía y ninguna
+  pantalla leía; pasarse sale con `▲ +5 %` (símbolo + texto), no solo en rojo.
+  El presupuesto que se compara es la suma de los meses que toca el periodo.
+- ⚠️ **El libro junta cobros y gastos** (`LibroMovimientos`). Antes solo
+  enseñaba cobros y un gasto registrado no aparecía en ninguna parte. Filtros:
+  búsqueda, tipo (Todos/Cobros/Gastos) y método. La línea de totales dice
+  «Entra» y «Sale» por separado y se recalcula con los filtros. Dos vacíos
+  distintos: «no hubo movimientos» y «tu filtro no deja ver ninguno».
+- Los **cobros enlazan a la ficha** del cliente; los gastos no (no tienen).
+- **Exportar** baja lo que el libro tiene filtrado, con el importe **con
+  signo** (gastos en negativo) para que `=SUMA()` dé el neto.
+- ⚠️ **Todo se calcula en el cliente** sobre los movimientos ya cargados:
+  cambiar de periodo es instantáneo. Cuando sean miles, `getMovimientos()`
+  recibirá el rango y esto pasa al servidor.
+- ⚠️ **«Hoy» es la fecha real de Bogotá** (`hoyEnBogota()` en `horario.ts`),
+  no la `getHoy()` congelada del mock. Ni `toISOString()` (UTC) ni getters
+  locales: en Vercel el servidor corre en UTC.
+- ⚠️ **La base de datos estaba en UTC** y se pasó a `America/Bogota`
+  (migración `20261001130000`): `current_date` daba mañana desde las 19:00 de
+  Colombia. Se vio aquí, con gastos de la semilla fechados en el «futuro».
+- **Registrar gasto sigue sin guardar** (paso 7 del plan).
+- Fuera de esta pantalla: «Ingresos frente a gastos» y «Gastos por categoría»
+  siguen en el Dashboard, que aún lee `mock.ts`.
+
 **⚠️ shadcn/ui se evaluó y se descartó (jul 2026).** Se probó instalar el bloque
 `@efferd/dashboard-3` en la rama `shadcn-dashboard-3`, ya borrada. Qué se aprendió,
 por si se vuelve a plantear:
@@ -1137,7 +1186,7 @@ Nueve rutas, todas `○ Static` o `● SSG`:
 | `/admin/usuarios/[id]` | Ficha de solo lectura, **desde Supabase** |
 | `/admin/clases` | Agenda por día + alta, edición, cancelación · **no guarda** |
 | `/admin/planes` | Catálogo en tarjetas + CRUD · **no guarda** |
-| `/admin/finanzas` | Libro de movimientos con filtros + alta de gasto · **no guarda** |
+| `/admin/finanzas` | **Desde Supabase**, solo Administración · periodo, utilidad, desgloses, libro unificado, export · alta de gasto **no guarda** |
 
 **Lo único que funciona de verdad** sin backend: la exportación a CSV, los
 filtros y búsquedas (en cliente) y el selector de periodo del dashboard.
