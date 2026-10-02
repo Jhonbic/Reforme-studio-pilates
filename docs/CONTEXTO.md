@@ -68,7 +68,7 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 | Comando | Qué comprueba |
 |---|---|
 | `npm run lint` | ESLint (0 avisos) |
-| `npm run typecheck` | TypeScript (`tsc --noEmit`) |
+| `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
 | `npm test` | **Vitest**, 37 tests de la lógica pura: periodos, fechas, validaciones, formato y cálculos del dashboard (`src/**/*.test.ts`) |
 | `npm run test:db` | **pgTAP**, 20 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
