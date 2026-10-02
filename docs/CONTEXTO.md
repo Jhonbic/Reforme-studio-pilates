@@ -215,8 +215,9 @@ En `src/components/`:
     con el logo real en primer plano sobraban.
   - **3 pilares:** icono en círculo dorado (ver `icons/PilarIcons.tsx`), sin
     numeración.
-- `/login` (**real**, Supabase Auth) y `/registro` (**solo UI**, confirmación
-  simulada). Comparten [`auth/AuthShell.tsx`](../src/components/auth/AuthShell.tsx).
+- `/login` y `/registro`, **reales desde oct 2026** (Supabase Auth). Comparten
+  [`auth/AuthShell.tsx`](../src/components/auth/AuthShell.tsx). Ver «Área de
+  cliente» más abajo.
   - **`/registro` valida en cliente** (nombre, email, contraseña ≥8, confirmación,
     términos). **`/login` es real desde oct 2026**: server action con Supabase Auth
     (ver Panel administrativo y `docs/BASE_DE_DATOS.md`).
@@ -1297,6 +1298,55 @@ de la ficha. Solo Administración y Recepción: a la instructora no se le enseñ
   cliente nuevo salía «Inactiva» el primer día. Cambió un cliente de ejemplo
   (pagó después de su última visita): Activa 12 · Inactiva 1.
 
+#### Área de cliente (`/registro`, `/login`, `/mi-cuenta`) — oct 2026 (paso 10)
+
+Decisiones del usuario (2 oct 2026): **registro libre + acceso desde
+recepción**; **reservar exige un plan vigente**; **se cancela hasta 2 horas
+antes**.
+
+- **`/registro`** crea la cuenta y la ficha («Sin plan»), deja la sesión
+  abierta y lleva a `/mi-cuenta`. Pide ahora **documento** (C.C., C.E. o
+  pasaporte; los menores se dan de alta en recepción con su acudiente).
+  - ⚠️ **Una cédula que ya está en el estudio NO se enlaza a una cuenta
+    nueva**: el correo no se verifica (el SMTP gratuito de Supabase solo envía
+    a los miembros del proyecto), así que cualquiera podría quedarse con la
+    ficha de otro. Se le dice «Ya eres cliente: pide el acceso en recepción».
+  - Crea la cuenta y la ficha con la clave `service_role` (quien se registra
+    no tiene sesión aún). **Sin `SUPABASE_SERVICE_ROLE_KEY` el registro dice
+    que no está disponible.** Si la ficha falla, borra la cuenta.
+  - El enlace «política de privacidad» (a `#`) se unió al de términos (PDF).
+- **«Acceso web»** en la ficha del cliente (recepción y administración): el
+  único camino para los clientes que ya existen. Contraseña temporal mostrada
+  una vez, como con el equipo; si ya tiene acceso, genera otra.
+- **`/login`** es una sola puerta: perfil del equipo → `/admin`; ficha de
+  cliente → `/mi-cuenta`; ninguna → se cierra la sesión. `?siguiente=` solo
+  vale dentro de la zona de cada uno. Un cliente que escribe `/admin` va a su
+  área; alguien del equipo que entra a `/mi-cuenta`, al panel.
+- **`/mi-cuenta`**: su plan (o «Aún no tienes un plan» con WhatsApp), sus
+  próximas clases (3 a la vista + «Ver todas») con «Cancelar», y la agenda de
+  los próximos 14 días por día, con «Reservar». Cabecera verde con motas, sin
+  goteo; «Contraseña» reutiliza el diálogo del panel.
+- ⚠️ **Las reglas viven en la BASE** (migración `20261002130000`), no en la
+  página: el cliente puede llamar a la API con su sesión.
+  - `reservar_mi_clase`: plan vigente **el día de la clase** (no hoy), clase
+    futura y no cancelada, sin repetir; el aforo, el trigger de siempre.
+  - `cancelar_mi_reserva`: hasta 2 h antes.
+  - `agenda_cliente`: solo clases futuras, con el nombre de la instructora y
+    los cupos libres, **sin** exponer `equipo` (correos, teléfonos) ni las
+    reservas de otros.
+  - El cliente **no puede escribir en `reservas`**: solo a través de esas
+    funciones. Lee solo su ficha, sus membresías y sus reservas.
+  - Todas con EXECUTE revocado a `public` y `anon`.
+- La pantalla **anuncia** las reglas antes de pulsar (botón «Sin plan ese
+  día», «Llena», «Faltan menos de 2 h: escríbenos»); la hora llega del
+  servidor para que no haya error de hidratación en el límite.
+- Probado como cliente contra la API (ve 1 ficha, 0 del equipo, solo sus
+  reservas; no puede insertar en `reservas`; anon y personal rechazados) y en
+  el navegador (registro, cédula y correo repetidos, reservar, cancelar,
+  `/admin` → `/mi-cuenta`, acceso web desde recepción). Arreglado por el
+  camino: dos botones se anunciaban igual («Cancelar… de las 07:00» en días
+  distintos); ahora llevan el día.
+
 **⚠️ shadcn/ui se evaluó y se descartó (jul 2026).** Se probó instalar el bloque
 `@efferd/dashboard-3` en la rama `shadcn-dashboard-3`, ya borrada. Qué se aprendió,
 por si se vuelve a plantear:
@@ -1367,7 +1417,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
 | Base de datos y cuentas | Supabase, proyecto `gdmxiqvmtegusevkqtgt` |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **11 migraciones, todas aplicadas en local y en remoto** |
+| Esquema | `supabase/migrations/` — **12 migraciones, todas aplicadas en local y en remoto** |
 
 ### Variables de entorno
 
@@ -1375,7 +1425,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto | `.env.local` y Vercel ✅ |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave pública (RLS manda) | `.env.local` y Vercel ✅ |
-| `SUPABASE_SERVICE_ROLE_KEY` | Solo «Dar acceso» y contraseñas temporales | `.env.local` ✅ · **Vercel: pendiente** |
+| `SUPABASE_SERVICE_ROLE_KEY` | Crear cuentas: registro de clientes, «Dar acceso», contraseñas temporales | `.env.local` ✅ · **Vercel: pendiente** |
 
 ⚠️ `SUPABASE_SERVICE_ROLE_KEY` se salta toda la seguridad de la base: nunca con
 prefijo `NEXT_PUBLIC_`. Solo la lee `src/lib/supabase/admin.ts` (`server-only`).
@@ -1385,13 +1435,14 @@ prefijo `NEXT_PUBLIC_`. Solo la lee `src/lib/supabase/admin.ts` (`server-only`).
 | Ruta | Lee de | Guarda | Quién |
 |---|---|---|---|
 | `/` | — | — | Público. Landing completa |
-| `/login` | Supabase Auth | Sesión | Público. Solo entra quien tiene perfil |
-| `/registro` | — | **No** (solo UI) | Público |
+| `/login` | Supabase Auth | Sesión | Público. Equipo → `/admin`, clientes → `/mi-cuenta` |
+| `/registro` | — | ✅ cuenta + ficha de cliente | Público (necesita `SUPABASE_SERVICE_ROLE_KEY`) |
+| `/mi-cuenta` | Supabase (RLS del cliente) | ✅ reservar, cancelar, contraseña | Clientes con cuenta |
 | `/admin` | Supabase | — | Equipo. Dinero solo Administración |
 | `/admin/usuarios` (Clientes) | Supabase | — | Equipo. Filtros, paginación, CSV |
 | `/admin/usuarios` (Equipo) | Supabase | ✅ alta de miembro, dar/quitar acceso, rol, contraseña temporal | Gestión: solo Administración |
 | `/admin/usuarios/nuevo` | Supabase | ✅ alta de cliente (sin plan) | Administración y Recepción |
-| `/admin/usuarios/[id]` | Supabase | ✅ asignar plan y cobrar / renovar | Cobrar: Administración y Recepción |
+| `/admin/usuarios/[id]` | Supabase | ✅ asignar plan y cobrar / renovar · acceso web | Administración y Recepción |
 | `/admin/clases` | Supabase | ✅ programar, editar, cancelar, eliminar; apuntar y quitar reservas | Cambios: Administración y Recepción |
 | `/admin/planes` | Supabase | ✅ crear, editar, retirar, borrar | Cambios: solo Administración |
 | `/admin/finanzas` | Supabase | ✅ registrar gasto con comprobante | Solo Administración |
@@ -1421,8 +1472,10 @@ datos y el rol en el servidor, y RLS lo vuelve a impedir en la base.
 **Fase D — Clases y clientes** ⏳
 9. ✅ Tablas `clases` y `reservas`; la agenda guarda, usa el equipo real, y
    el mostrador apunta y quita reservas.
-10. ⏳ **Siguiente:** `/registro` real, área de cliente y reservar clase.
-11. ⏳ Calidad: tests, CI, `robots`, `sitemap`, imagen para compartir.
+10. ✅ `/registro` real, `/mi-cuenta`, reservar y cancelar (reglas en la
+    base), acceso web desde recepción.
+11. ⏳ **Siguiente:** calidad — tests, CI, `robots`, `sitemap`, imagen para
+    compartir.
 
 ### Arreglos que salieron por el camino
 
@@ -1451,8 +1504,9 @@ de repetir:
 ### Lo que tiene que hacer alguien (no es código)
 
 - [ ] **Añadir `SUPABASE_SERVICE_ROLE_KEY` en Vercel** (Production y Preview) y
-      volver a desplegar. Sin ella, «Dar acceso» en producción solo avisa de
-      que falta. Valor: Supabase → Project Settings → API → `service_role`.
+      volver a desplegar. **Sin ella, en producción no funcionan ni el registro
+      de clientes ni «Dar acceso» / «Acceso web».** Valor: Supabase → Project
+      Settings → API → `service_role`.
 - [ ] **Cambiar la contraseña de la cuenta de administración** del remoto: la
       temporal se compartió por chat. Menú de cuenta → «Cambiar contraseña».
 - [ ] **Quitar el equipo de ejemplo del remoto** (Juliana Cardona, Daniela
@@ -1489,9 +1543,14 @@ de repetir:
 - [ ] **Registro de asistencias**: hoy se sabe quién reserva, no quién viene.
       Con él, «Reservas por día» pasa a dos series (reservó / asistió) y
       `clientes.ultima_asistencia` se actualiza sola.
-- [ ] **`/registro` real y área de cliente** (paso 10): cuenta de cliente
-      (sin perfil del equipo: RLS no le da nada del panel), ver sus clases y
-      reservar. Las políticas RLS para clientes están por escribir.
+- [x] ~~`/registro` real y área de cliente~~ — hecho en el paso 10.
+- [ ] **Registro sin protección contra spam**: cualquiera puede crear cuentas
+      en bucle. Antes de anunciarlo: CAPTCHA (Turnstile/hCaptcha) o límite
+      por IP en la server action.
+- [ ] **Verificar el correo** al registrarse: necesita SMTP propio en
+      Supabase. Con él se podría enlazar sola una cédula existente.
+- [ ] **Quitar el acceso web** a un cliente (hoy solo se da o se cambia la
+      contraseña) y **lista de espera** cuando una clase está llena.
 - [ ] **Recuperar contraseña** desde `/login`. Necesita SMTP propio en Supabase
       (el gratuito solo envía a los miembros del proyecto de Supabase).
 - [ ] **Ficha del cliente**: editar datos, dar de baja, e historial de pagos y

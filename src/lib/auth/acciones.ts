@@ -10,16 +10,17 @@ export type EstadoLogin = {
 };
 
 /**
- * A dónde volver después de entrar.
+ * A dónde volver después de entrar, dentro de la zona que le toca a cada uno.
  *
- * ⚠️ Solo se aceptan rutas del panel. `?siguiente=` viene en la URL y lo puede
- * escribir cualquiera: aceptar lo que llegue convertiría el login en un
- * trampolín hacia otra web («entra aquí y te mando a donde yo quiera»). Por
- * eso tampoco vale `//otra-web.com`, que el navegador lee como dominio.
+ * ⚠️ Solo se aceptan rutas de esa zona (`/admin…` para el equipo, `/mi-cuenta…`
+ * para los clientes). `?siguiente=` viene en la URL y lo puede escribir
+ * cualquiera: aceptar lo que llegue convertiría el login en un trampolín hacia
+ * otra web. Por eso tampoco vale `//otra-web.com`, que el navegador lee como
+ * dominio.
  */
-function destinoSeguro(siguiente: FormDataEntryValue | null): string {
-  if (typeof siguiente !== "string") return "/admin";
-  if (siguiente !== "/admin" && !siguiente.startsWith("/admin/")) return "/admin";
+function destinoSeguro(siguiente: FormDataEntryValue | null, zona: "/admin" | "/mi-cuenta"): string {
+  if (typeof siguiente !== "string") return zona;
+  if (siguiente !== zona && !siguiente.startsWith(`${zona}/`)) return zona;
   return siguiente;
 }
 
@@ -54,25 +55,26 @@ export async function iniciarSesion(
     return { correo, error: "El correo o la contraseña no son correctos." };
   }
 
-  // Con sesión pero sin perfil: es una cuenta, pero no del estudio. Se cierra
-  // la sesión en vez de dejarla abierta para nada.
-  const { data: perfil } = await supabase
-    .from("perfiles")
-    .select("id")
-    .eq("id", data.user.id)
-    .maybeSingle();
+  // Una sola puerta para equipo y clientes: decide qué es la cuenta, no la URL.
+  //   · con perfil → es del equipo → panel;
+  //   · con ficha de cliente → área de cliente;
+  //   · con ninguna de las dos → una cuenta que no sirve: se cierra la sesión.
+  const [{ data: perfil }, { data: ficha }] = await Promise.all([
+    supabase.from("perfiles").select("id").eq("id", data.user.id).maybeSingle(),
+    supabase.from("clientes").select("id").eq("cuenta_id", data.user.id).maybeSingle(),
+  ]);
 
-  if (!perfil) {
+  if (!perfil && !ficha) {
     await supabase.auth.signOut();
     return {
       correo,
       error:
-        "El área de clientes todavía no está disponible. Si eres del equipo, pide a administración que te dé acceso.",
+        "Esta cuenta no tiene acceso. Si eres cliente del estudio, pide en recepción que te lo activen.",
     };
   }
 
   // `redirect` lanza: tiene que ir FUERA de cualquier try/catch.
-  redirect(destinoSeguro(datos.get("siguiente")));
+  redirect(destinoSeguro(datos.get("siguiente"), perfil ? "/admin" : "/mi-cuenta"));
 }
 
 export async function cerrarSesion() {

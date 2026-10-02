@@ -21,6 +21,7 @@ supabase/
     20261001150000_registrar_membresia.sql         Membresía + pago atómicos; «Inactiva» desde el pago
     20261001160000_equipo_y_cuentas.sql            equipo.cuenta_id + cambiar_rol_equipo
     20261002120000_clases_y_reservas.sql           Agenda: sin solapes de instructora, aforo
+    20261002130000_area_de_cliente.sql             clientes.cuenta_id; reservar/cancelar como cliente
   seed.sql                                         20 clientes, determinista
 ```
 

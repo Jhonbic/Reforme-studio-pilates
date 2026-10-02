@@ -878,3 +878,77 @@ export async function quitarReserva(reservaId: string): Promise<ResultadoClase> 
   revalidarAgenda();
   return { ok: true };
 }
+
+/* ======================================================================
+   Acceso a la web de un cliente que ya existe
+   ====================================================================== */
+
+/**
+ * Le da acceso a `/mi-cuenta` a un cliente que dio de alta recepción, con una
+ * contraseña temporal que se enseña UNA vez (mismo mecanismo que el equipo).
+ * Si ya tenía cuenta, le genera otra contraseña temporal (la olvidó).
+ *
+ * ⚠️ Es el ÚNICO camino para que un cliente que ya existe entre a la web: el
+ * registro libre no enlaza una cédula existente a una cuenta nueva, porque sin
+ * verificar el correo cualquiera podría quedarse con la ficha de otro.
+ * Recepción, en cambio, tiene a la persona delante.
+ *
+ * Usa el mismo correo de la ficha como usuario: sin correo no se puede.
+ */
+export async function accesoWebCliente(clienteId: string): Promise<ResultadoEquipo> {
+  const usuario = await getUsuarioActual();
+  if (usuario?.rol !== "Administración" && usuario?.rol !== "Recepción") {
+    return { ok: false, error: "Solo Administración y Recepción pueden dar acceso a la web." };
+  }
+  if (!UUID_VALIDO.test(clienteId)) return { ok: false, error: "Cliente no válido." };
+
+  const admin = crearClienteAdmin();
+  if (!admin) return { ok: false, error: "Falta configurar SUPABASE_SERVICE_ROLE_KEY en el servidor." };
+
+  const supabase = await crearClienteServidor();
+  const { data: c } = await supabase
+    .from("clientes")
+    .select("id, nombre, correo, cuenta_id")
+    .eq("id", clienteId)
+    .maybeSingle();
+  if (!c) return { ok: false, error: "Ese cliente no existe." };
+
+  const contrasena = contrasenaTemporal();
+
+  if (c.cuenta_id) {
+    const { error } = await admin.auth.admin.updateUserById(c.cuenta_id, { password: contrasena });
+    if (error) return { ok: false, error: `No se pudo cambiar la contraseña: ${error.message}` };
+    return { ok: true, contrasena };
+  }
+
+  if (!c.correo) {
+    return { ok: false, error: "Su ficha no tiene correo, y el correo es su usuario. Añádeselo antes." };
+  }
+
+  const creada = await admin.auth.admin.createUser({
+    email: c.correo,
+    password: contrasena,
+    email_confirm: true,
+    user_metadata: { nombre: c.nombre },
+  });
+  if (creada.error || !creada.data.user) {
+    // Ese correo ya es una cuenta (de otra ficha, o del equipo): no se enlaza
+    // a ciegas.
+    if (creada.error?.code === "email_exists") {
+      return { ok: false, error: "Ese correo ya tiene una cuenta. Revisa que la ficha tenga el correo correcto." };
+    }
+    return { ok: false, error: `No se pudo crear la cuenta: ${creada.error?.message}` };
+  }
+
+  const { error } = await supabase
+    .from("clientes")
+    .update({ cuenta_id: creada.data.user.id })
+    .eq("id", c.id);
+  if (error) {
+    await admin.auth.admin.deleteUser(creada.data.user.id);
+    return { ok: false, error: `No se pudo dar acceso: ${error.message}` };
+  }
+
+  revalidatePath(`/admin/usuarios/${c.id}`);
+  return { ok: true, contrasena };
+}

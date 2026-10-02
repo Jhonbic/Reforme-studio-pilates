@@ -2,7 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Portero del panel: sin sesión no se entra a `/admin`.
+ * Portero del panel y del área de cliente: sin sesión no se entra a `/admin`
+ * ni a `/mi-cuenta`.
  *
  * Hace dos cosas en cada petición al panel:
  * 1. **Refresca la sesión.** El token de Supabase caduca cada hora; si nadie lo
@@ -60,5 +61,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  // El panel y el área de cliente. Quién entra a cuál lo decide cada layout
+  // (perfil del equipo o ficha de cliente); aquí solo se exige sesión.
+  matcher: ["/admin/:path*", "/mi-cuenta/:path*"],
 };

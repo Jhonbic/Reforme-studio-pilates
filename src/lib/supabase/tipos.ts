@@ -76,6 +76,7 @@ export type Database = {
           alta: string;
           correo: string | null;
           creado_en: string;
+          cuenta_id: string | null;
           emergencia_nombre: string | null;
           emergencia_telefono: string | null;
           eps: string | null;
@@ -95,6 +96,7 @@ export type Database = {
           alta?: string;
           correo?: string | null;
           creado_en?: string;
+          cuenta_id?: string | null;
           emergencia_nombre?: string | null;
           emergencia_telefono?: string | null;
           eps?: string | null;
@@ -114,6 +116,7 @@ export type Database = {
           alta?: string;
           correo?: string | null;
           creado_en?: string;
+          cuenta_id?: string | null;
           emergencia_nombre?: string | null;
           emergencia_telefono?: string | null;
           eps?: string | null;
@@ -445,16 +448,32 @@ export type Database = {
       };
     };
     Functions: {
+      agenda_cliente: {
+        Args: { p_desde: string; p_hasta: string };
+        Returns: {
+          cupos: number;
+          duracion_min: number;
+          fecha: string;
+          hora_inicio: string;
+          id: string;
+          instructora: string;
+          reservada: boolean;
+          reservas: number;
+          tipo: Database["public"]["Enums"]["tipo_clase"];
+        }[];
+      };
       cambiar_rol_equipo: {
         Args: { p_equipo: string; p_rol: Database["public"]["Enums"]["rol_equipo"] };
         Returns: undefined;
       };
+      cancelar_mi_reserva: { Args: { p_clase: string }; Returns: undefined };
       es_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       es_mostrador: { Args: Record<PropertyKey, never>; Returns: boolean };
       estado_de_membresia: {
         Args: { p_hoy?: string; p_ultima_asistencia: string; p_vencimiento: string };
         Returns: Database["public"]["Enums"]["estado_membresia"];
       };
+      mi_cliente_id: { Args: Record<PropertyKey, never>; Returns: string };
       mi_rol: {
         Args: Record<PropertyKey, never>;
         Returns: Database["public"]["Enums"]["rol_equipo"];
@@ -467,6 +486,7 @@ export type Database = {
         };
         Returns: string;
       };
+      reservar_mi_clase: { Args: { p_clase: string }; Returns: undefined };
       tiene_perfil: { Args: Record<PropertyKey, never>; Returns: boolean };
     };
     Enums: {

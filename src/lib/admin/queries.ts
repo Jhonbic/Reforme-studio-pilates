@@ -468,6 +468,17 @@ export async function getPlanes(
   }));
 }
 
+/** Si el cliente puede entrar a la web (`/mi-cuenta`): tiene cuenta enlazada. */
+export async function tieneAccesoWeb(clienteId: string): Promise<boolean> {
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase
+    .from("clientes")
+    .select("cuenta_id")
+    .eq("id", clienteId)
+    .maybeSingle();
+  return Boolean(data?.cuenta_id);
+}
+
 /** Un plan que se puede contratar hoy, con lo justo para elegirlo y calcular
  *  hasta cuándo dura. */
 export type PlanALaVenta = {

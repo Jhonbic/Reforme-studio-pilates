@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Card from "@/components/admin/Card";
 import CardHeader from "@/components/admin/CardHeader";
 import AccionesCliente from "@/components/admin/usuarios/AccionesCliente";
+import AccesoWebCliente from "@/components/admin/usuarios/AccesoWebCliente";
 import AsignarPlan from "@/components/admin/usuarios/AsignarPlan";
 import Avatar from "@/components/admin/usuarios/Avatar";
 import EstadoBadge from "@/components/admin/usuarios/EstadoBadge";
@@ -12,6 +13,7 @@ import {
   getCliente,
   getPlanesALaVenta,
   getUsuarioActual,
+  tieneAccesoWeb,
 } from "@/lib/admin/queries";
 
 /**
@@ -79,7 +81,9 @@ export default async function FichaClientePage({
   // se le enseña un botón que acabaría en «no tienes permiso».
   const puedeCobrar =
     usuario?.rol === "Administración" || usuario?.rol === "Recepción";
-  const planes = puedeCobrar ? await getPlanesALaVenta() : [];
+  const [planes, accesoWeb] = puedeCobrar
+    ? await Promise.all([getPlanesALaVenta(), tieneAccesoWeb(id)])
+    : [[], false];
 
   /* Un id que no existe es un 404 de verdad, no una tarjeta vacía: la ficha de
      alguien que no está no es «sin datos», es otra dirección. */
@@ -112,6 +116,14 @@ export default async function FichaClientePage({
                 vencimiento={cliente.vencimiento}
                 planes={planes}
                 hoy={hoyEnBogota()}
+              />
+            )}
+            {puedeCobrar && (
+              <AccesoWebCliente
+                clienteId={cliente.id}
+                nombre={cliente.nombre}
+                correo={cliente.correo}
+                tieneAcceso={accesoWeb}
               />
             )}
             <AccionesCliente cliente={cliente} />

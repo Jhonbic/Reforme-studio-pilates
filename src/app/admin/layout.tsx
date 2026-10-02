@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { getMiCuenta } from "@/lib/cliente/datos";
 import AdminTopbar from "@/components/admin/AdminTopbar";
 import AppSidebar from "@/components/admin/AppSidebar";
 import { SidebarProvider } from "@/context/SidebarContext";
@@ -34,7 +35,11 @@ export const metadata: Metadata = {
  */
 export default async function AdminLayout(props: LayoutProps<"/admin">) {
   const usuario = await getUsuarioActual();
-  if (!usuario) redirect("/login?error=sin-acceso");
+  if (!usuario) {
+    // Un cliente que escribe /admin en la barra no es un intruso: se le lleva
+    // a su área. A cualquier otro, al login.
+    redirect((await getMiCuenta()) ? "/mi-cuenta" : "/login?error=sin-acceso");
+  }
   const avisos = await getNotificaciones(hoyEnBogota());
 
   return (
