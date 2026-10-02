@@ -342,6 +342,42 @@ pero como menú de cuenta en la cabecera, no como bloque del dashboard: ver
 - **No usar `grid-flow-dense`:** reordena visualmente sin reordenar el DOM y rompe
   el orden de tabulación.
 
+> ✅ **El Dashboard lee de Supabase desde oct 2026** (paso 5). Una sola ida a
+> la base (`getDatosDashboard()` en `queries.ts`) y el cálculo en funciones
+> puras (`lib/admin/dashboard.ts`). Verificado tarjeta por tarjeta contra un
+> cálculo SQL independiente. Lo que cambió respecto a lo que se describe
+> abajo (que es de la época del mock):
+> - ⚠️ **Las tarjetas de dinero son solo para Administración** (ingresos,
+>   utilidad, ingresos por plan, cómo pagan, vista contable). RLS no da gastos
+>   a Recepción ni pagos a Instructora y las consultas devuelven vacío, no
+>   error: sin el filtro saldrían cifras falseadas. Sin ellas, renovación y
+>   altas/bajas se reparten la fila a medias.
+> - ⚠️ **«Clientes activos» = membresía vigente** (inactivos incluidos). Antes
+>   contaba «Activa + Por vencer» y el texto de debajo hablaba de inactivos que
+>   no estaban dentro. Ahora se compara con hace 30 días, porque «vigente» se
+>   sabe para cualquier fecha y la inactividad no.
+> - Mes en curso frente al **mismo tramo** del anterior, como Finanzas.
+> - **Ingresos por plan y Cómo pagan**: últimos 30 días (pastilla en la
+>   tarjeta), no «este mes»: el día 1 estarían vacíos. Máximo 4 porciones; la
+>   5ª se agrupa en «Otros».
+> - **Tasa de renovación**: de las membresías que vencieron en los últimos 30
+>   días, cuántas tienen otra posterior del mismo cliente. Sin vencimientos es
+>   «—», no «0 %». Variación en puntos.
+> - **Altas y bajas**: alta = `clientes.alta`; baja = la ÚLTIMA membresía de
+>   un cliente venció ese mes. Renovar no es irse.
+> - La serie mensual saca los **12 meses aunque estén a cero**: quitarlos
+>   uniría meses no consecutivos.
+> - Con todo a cero, donut y barras enseñan un texto en vez de dividir por
+>   cero (`HBars` además acota su máximo a ≥ 1).
+> - ⚠️ **«Reservas por día de la semana» sigue en `mock.ts`** (no hay tabla de
+>   clases, paso 9) y lleva la pastilla **«▲ Datos de ejemplo»**: con el resto
+>   del dashboard real, callarlo haría pasar por verdad reservas inventadas.
+> - La **campana** cuenta las membresías por vencer de la base, con la misma
+>   función que «Cartera por vencer».
+> - De `mock.ts` se borraron los datos que ya no lee nadie (clientes, pagos,
+>   meses, repartos, gastos, resumen, precios y condiciones de planes). Solo
+>   quedan el equipo, la agenda, los avisos de ejemplo y el `HOY` de la agenda.
+
 **Contenido actual del Dashboard** (tras la poda de jul 2026). Reparto en `xl`:
 
 | Fila | Bloques |
@@ -1197,7 +1233,7 @@ Nueve rutas, todas `○ Static` o `● SSG`:
 | `/` | Landing completa |
 | `/login` | Auth real con Supabase (solo equipo; clientes aún sin área) |
 | `/registro` | Solo UI, no envía a ningún sitio |
-| `/admin` | Dashboard bento + vista contable alternable |
+| `/admin` | Dashboard bento **desde Supabase** (reservas aún de ejemplo) · dinero solo para Administración |
 | `/admin/usuarios` | Clientes **desde Supabase** · filtros, paginación, export CSV real · equipo aún de `mock.ts` |
 | `/admin/usuarios/nuevo` | Formulario validado · **no guarda** |
 | `/admin/usuarios/[id]` | Ficha de solo lectura, **desde Supabase** |

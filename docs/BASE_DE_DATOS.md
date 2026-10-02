@@ -190,7 +190,9 @@ Falta:
 
 5. Reescribir las ~17 funciones de datos de `queries.ts` para que sean `async`
    y consulten. **Hechas: `getClientes`, `getCliente`, `getMovimientos`
-   (pagos + gastos), `getPresupuestos`, `getPlanes`** (y `getConteoEstados`,
+   (pagos + gastos), `getPresupuestos`, `getPlanes`, `getDatosDashboard`,
+   `getNotificaciones`**. Sigue en `mock.ts`: equipo, clases y los avisos de
+   ejemplo de la campana. (y `getConteoEstados`,
    que ahora cuenta sobre la lista recibida). Tipos generados en
    `src/lib/supabase/tipos.ts`. **Las pantallas apenas se tocan**: toda la UI pasa por ahí, y
    esa disciplina se mantuvo justo para este día.

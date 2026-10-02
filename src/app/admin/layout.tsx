@@ -4,6 +4,7 @@ import AdminTopbar from "@/components/admin/AdminTopbar";
 import AppSidebar from "@/components/admin/AppSidebar";
 import { SidebarProvider } from "@/context/SidebarContext";
 import { ToastProvider } from "@/context/ToastContext";
+import { hoyEnBogota } from "@/lib/admin/horario";
 import { getNotificaciones, getUsuarioActual } from "@/lib/admin/queries";
 
 export const metadata: Metadata = {
@@ -34,6 +35,7 @@ export const metadata: Metadata = {
 export default async function AdminLayout(props: LayoutProps<"/admin">) {
   const usuario = await getUsuarioActual();
   if (!usuario) redirect("/login?error=sin-acceso");
+  const avisos = await getNotificaciones(hoyEnBogota());
 
   return (
     <SidebarProvider>
@@ -49,7 +51,7 @@ export default async function AdminLayout(props: LayoutProps<"/admin">) {
           <div className="flex min-w-0 flex-1 flex-col">
             <AdminTopbar
               usuario={usuario}
-              avisos={getNotificaciones()}
+              avisos={avisos}
             />
 
             <main className="flex-1 px-4 py-5 sm:px-6 lg:px-6 lg:py-6 xl:px-8">

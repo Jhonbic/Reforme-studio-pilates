@@ -30,7 +30,9 @@ export default function HBars({
   formatoValor,
   etiquetaReferencia,
 }: Props) {
-  const max = Math.max(...datos.flatMap((d) => [d.value, d.referencia ?? 0]));
+  // Al menos 1: con todo a cero (un mes sin cobros) el máximo sería 0 y cada
+  // barra mediría `0 / 0 = NaN`. Con datos reales eso pasa, con el mock no.
+  const max = Math.max(1, ...datos.flatMap((d) => [d.value, d.referencia ?? 0]));
 
   return (
     <div className="space-y-4">

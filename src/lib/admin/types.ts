@@ -261,7 +261,8 @@ export type MesFinanciero = {
 };
 
 export type RepartoPlan = {
-  plan: TipoPlan;
+  /** Texto libre: los planes son una tabla, no un enum. Puede ser «Otros». */
+  plan: string;
   importe: number;
   /** Nº de clientes en esa modalidad */
   clientes: number;

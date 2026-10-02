@@ -1,20 +1,17 @@
-import { calcularVariacion, moneda, telefonoCO } from "./format";
+import { telefonoCO } from "./format";
 import { DIAS_CORTOS, diaSemana, finDe, sumarDias } from "./horario";
 import {
   CLASES,
-  CLIENTES,
   EQUIPO,
-  GASTOS,
   HOY,
-  MEMBRESIAS_POR_VENCER,
-  MESES,
-  MOVIMIENTO_CLIENTES,
   NOTIFICACIONES,
-  REPARTO_METODOS,
-  REPARTO_PLANES,
-  RESUMEN,
 } from "./mock";
 import { cache } from "react";
+import {
+  DIAS_POR_VENCER,
+  avisoPorVencer,
+  type DatosDashboard,
+} from "./dashboard";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/tipos";
 
@@ -26,7 +23,6 @@ import type {
   Cliente,
   EstadoClase,
   EstadoMembresia,
-  Indicador,
   MiembroEquipo,
   Notificacion,
   Movimiento,
@@ -43,52 +39,6 @@ import type {
  * que haya base de datos, se cambia el cuerpo de estas funciones (pasarán a ser
  * `async` y harán la consulta) y las pantallas no se tocan.
  */
-
-export function getMesesFinancieros() {
-  return MESES;
-}
-
-/** Cuántos clientes tiene cada modalidad ahora mismo, contados sobre `CLIENTES`. */
-function contarClientesPorPlan(): Map<TipoPlan, number> {
-  const porPlan = new Map<TipoPlan, number>();
-  for (const c of CLIENTES) {
-    porPlan.set(c.plan, (porPlan.get(c.plan) ?? 0) + 1);
-  }
-  return porPlan;
-}
-
-/**
- * Reparto de ingresos por modalidad.
- *
- * ⚠️ **El recuento de clientes se DERIVA de `CLIENTES`; solo el importe sale de
- * `REPARTO_PLANES`.** Los números escritos a mano en el mock sumaban 121
- * clientes mientras la base tiene 118: era un dato que se quedó atrás cuando
- * `CLIENTES` pasó a ser la fuente de verdad. Con esto, la tabla del donut del
- * dashboard y la pantalla de Planes cuentan lo mismo por construcción, que es
- * la misma regla que ya seguían `MEMBRESIAS_POR_VENCER` y `RESUMEN`.
- *
- * El importe no se puede derivar: es cuánto factura el plan al mes, no algo
- * deducible de la ficha de cada cliente.
- */
-export function getRepartoPlanes() {
-  const porPlan = contarClientesPorPlan();
-  return REPARTO_PLANES.map((r) => ({
-    ...r,
-    clientes: porPlan.get(r.plan) ?? 0,
-  }));
-}
-
-export function getRepartoMetodos() {
-  return REPARTO_METODOS;
-}
-
-export function getGastos() {
-  return GASTOS;
-}
-
-export function getMovimientoClientes() {
-  return MOVIMIENTO_CLIENTES;
-}
 
 /**
  * El libro de Finanzas: todos los cobros y todos los gastos, del más reciente
@@ -476,94 +426,6 @@ export function getConteoEstados(
 }
 
 /**
- * Horizonte de "por vencer" del indicador de cabecera: una semana. Es el plazo
- * en el que todavía da tiempo a llamar al cliente antes de que se le caiga la
- * membresía.
- */
-export const DIAS_POR_VENCER = 7;
-
-/** Membresías que vencen dentro de `dias`, de la más urgente a la menos. */
-export function getMembresiasPorVencer(dias = 15) {
-  return MEMBRESIAS_POR_VENCER.filter((m) => m.diasRestantes <= dias).sort(
-    (a, b) => a.diasRestantes - b.diasRestantes,
-  );
-}
-
-export function getIngresoEnRiesgo(dias = 7) {
-  return getMembresiasPorVencer(dias).reduce(
-    (t, m) => t + m.importeRenovacion,
-    0,
-  );
-}
-
-/**
- * Las cuatro cifras de cabecera: lo que la administración mira primero.
- * Responden "¿cómo vamos de plata?" — facturación, utilidad, tamaño de la base
- * de clientes y qué hay que renovar esta semana.
- */
-export function getIndicadores(): Indicador[] {
-  const actual = MESES[MESES.length - 1];
-  const anterior = MESES[MESES.length - 2];
-  const utilidad = actual.ingresos - actual.gastos;
-  const utilidadAnterior = anterior.ingresos - anterior.gastos;
-
-  return [
-    {
-      // "por mes" y no "del mes": la tarjeta ya no muestra solo la cifra del
-      // mes en curso, sino la serie. El mes concreto al que se refiere el
-      // número grande lo dice `detalle` ("Jul 2026 · frente a Jun").
-      etiqueta: "Ingresos por mes",
-      valor: actual.ingresos,
-      formato: "moneda",
-      variacion: calcularVariacion(actual.ingresos, anterior.ingresos),
-      subirEsBueno: true,
-      detalle: `${actual.mes} ${actual.anio} · frente a ${anterior.mes}`,
-    },
-    {
-      etiqueta: "Utilidad del mes",
-      valor: utilidad,
-      formato: "moneda",
-      variacion: calcularVariacion(utilidad, utilidadAnterior),
-      subirEsBueno: true,
-      detalle: "Ingresos menos gastos",
-    },
-    {
-      etiqueta: "Clientes activos",
-      valor: RESUMEN.clientesActivos,
-      formato: "numero",
-      variacion: calcularVariacion(
-        RESUMEN.clientesActivos,
-        RESUMEN.clientesActivosMesAnterior,
-      ),
-      subirEsBueno: true,
-      detalle: `${RESUMEN.clientesInactivos30d} sin reservar hace 30 días`,
-    },
-    {
-      // OJO: no es la cartera vencida (dinero que ya se debe), sino la que
-      // está A PUNTO de vencer: lo que hay que renovar esta semana. Es un
-      // aviso accionable, no un pasivo.
-      etiqueta: "Cartera por vencer",
-      valor: getIngresoEnRiesgo(DIAS_POR_VENCER),
-      formato: "moneda",
-      variacion: null,
-      // Que suba significa más plata pendiente de renovar: no es buena noticia.
-      subirEsBueno: false,
-      detalle: `${getMembresiasPorVencer(DIAS_POR_VENCER).length} clientes por vencer`,
-    },
-  ];
-}
-
-export function getTasaRenovacion() {
-  return {
-    valor: RESUMEN.tasaRenovacion,
-    variacion: calcularVariacion(
-      RESUMEN.tasaRenovacion,
-      RESUMEN.tasaRenovacionMesAnterior,
-    ),
-  };
-}
-
-/**
  * Quién está usando el panel: la sesión de Supabase más su fila de `perfiles`.
  *
  * Devuelve `null` en los dos casos en que no se debe entrar, y el layout echa a
@@ -599,25 +461,95 @@ export const getUsuarioActual = cache(
 );
 
 /**
+ * Todo lo que el Dashboard necesita de la base, en una sola ida.
+ *
+ * Se trae una vez y lo calcula `lib/admin/dashboard.ts` (funciones puras):
+ * varias tarjetas leen las mismas filas —los pagos alimentan la cifra del mes,
+ * la serie, el donut y los métodos—, y pedirlas cuatro veces haría cuatro
+ * consultas que podrían no coincidir si entra un pago entre medias.
+ *
+ * ⚠️ Lo que RLS no da a un rol llega VACÍO, no con error: los gastos para
+ * Recepción, gastos y pagos para Instructora. La página no pinta las
+ * tarjetas de dinero a quien no es Administración, para que no salgan cifras
+ * falseadas.
+ */
+export async function getDatosDashboard(): Promise<DatosDashboard> {
+  const supabase = await crearClienteServidor();
+  const [pagos, gastos, presupuestos, vigentes, clientes, membresias] =
+    await Promise.all([
+      supabase.from("pagos").select("fecha, importe, metodo, membresias(planes(nombre))"),
+      supabase.from("gastos").select("fecha, importe, categoria"),
+      supabase.from("presupuestos").select("categoria, mes, importe"),
+      supabase.from("clientes_vigentes").select("plan, estado, vencimiento, importe_renovacion"),
+      supabase.from("clientes").select("alta"),
+      supabase.from("membresias").select("cliente_id, inicio, vencimiento"),
+    ]);
+  for (const r of [pagos, gastos, presupuestos, vigentes, clientes, membresias]) {
+    if (r.error) throw new Error(`No se pudo leer el dashboard: ${r.error.message}`);
+  }
+
+  return {
+    pagos: (pagos.data ?? []).map((p) => ({
+      fecha: p.fecha,
+      importe: p.importe,
+      metodo: p.metodo,
+      plan: p.membresias?.planes?.nombre ?? null,
+    })),
+    gastos: gastos.data ?? [],
+    presupuestos: presupuestos.data ?? [],
+    vigentes: (vigentes.data ?? []).map((v) => ({
+      plan: v.plan,
+      estado: v.estado,
+      vencimiento: v.vencimiento,
+      importeRenovacion: v.importe_renovacion ?? 0,
+    })),
+    altas: (clientes.data ?? []).map((c) => c.alta),
+    membresias: (membresias.data ?? []).map((m) => ({
+      clienteId: m.cliente_id,
+      inicio: m.inicio,
+      vencimiento: m.vencimiento,
+    })),
+  };
+}
+
+/**
  * Avisos de la campana, del más reciente al más viejo.
  *
- * ⚠️ **El primero se DERIVA de las membresías por vencer**, no está escrito en
- * `mock.ts`: si fuera un texto suelto podría decir «5 vencen» mientras la cifra
- * de cabecera del dashboard dice otra cosa. Es la misma regla por la que
- * `MEMBRESIAS_POR_VENCER` sale de `CLIENTES`.
+ * ⚠️ **El primero se DERIVA de las membresías por vencer de la base**, con la
+ * misma función que la cifra «Cartera por vencer» del Dashboard: si fuera un
+ * texto suelto podría decir «5 vencen» mientras la cabecera dice otra cosa.
  *
- * Los otros dos sí son de ejemplo: no hay ningún sistema de notificaciones
- * detrás todavía.
+ * Los otros dos siguen siendo de ejemplo (`mock.ts`): no hay ningún sistema
+ * de notificaciones detrás todavía, y el propio menú lo dice.
  */
-export function getNotificaciones(): Notificacion[] {
-  const porVencer = getMembresiasPorVencer(DIAS_POR_VENCER);
+export async function getNotificaciones(hoy: string): Promise<Notificacion[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase
+    .from("clientes_vigentes")
+    .select("vencimiento, importe_renovacion");
+  if (error) throw new Error(`No se pudieron leer los avisos: ${error.message}`);
+
+  const { cuantos, importe } = avisoPorVencer(
+    {
+      vigentes: data.map((v) => ({
+        plan: null,
+        estado: null,
+        vencimiento: v.vencimiento,
+        importeRenovacion: v.importe_renovacion ?? 0,
+      })),
+    },
+    hoy,
+  );
 
   return [
     {
       id: "n1",
       tipo: "aviso",
-      titulo: `${porVencer.length} membresías vencen esta semana`,
-      detalle: `${moneda(getIngresoEnRiesgo(DIAS_POR_VENCER))} en renovaciones por confirmar`,
+      titulo:
+        cuantos === 1
+          ? `1 membresía vence en ${DIAS_POR_VENCER} días`
+          : `${cuantos} membresías vencen en ${DIAS_POR_VENCER} días`,
+      detalle: `${importe} en renovaciones por confirmar`,
       cuando: "hoy",
       leida: false,
       href: "/admin/usuarios",

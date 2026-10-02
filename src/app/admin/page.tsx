@@ -7,32 +7,75 @@ import Variacion from "@/components/admin/Variacion";
 import Donut from "@/components/admin/charts/Donut";
 import GroupedBars from "@/components/admin/charts/GroupedBars";
 import HBars from "@/components/admin/charts/HBars";
+import {
+  altasYBajas,
+  gastosDelMes,
+  indicadores,
+  repartoMetodos,
+  repartoPlanes,
+  serieMensual,
+  tasaRenovacion,
+} from "@/lib/admin/dashboard";
 import { moneda, monedaCorta, numero, porcentaje } from "@/lib/admin/format";
+import { hoyEnBogota } from "@/lib/admin/horario";
 import {
   SEMANAS_RESERVAS,
-  getGastos,
-  getIndicadores,
-  getMesesFinancieros,
-  getMovimientoClientes,
-  getRepartoMetodos,
-  getRepartoPlanes,
+  getDatosDashboard,
   getReservasPorDiaSemana,
-  getTasaRenovacion,
+  getUsuarioActual,
 } from "@/lib/admin/queries";
 
 const C1 = "var(--color-chart-1)";
 const C2 = "var(--color-chart-2)";
 const C3 = "var(--color-chart-3)";
 const C4 = "var(--color-chart-4)";
+/** En orden fijo, nunca cíclico: ver la nota de la paleta en CONTEXTO. */
+const COLORES = [C1, C2, C3, C4];
 
-export default function DashboardPage() {
-  const [ingresosMes, ...tiles] = getIndicadores();
-  const meses = getMesesFinancieros();
-  const planes = getRepartoPlanes();
-  const metodos = getRepartoMetodos();
-  const movimiento = getMovimientoClientes();
-  const renovacion = getTasaRenovacion();
-  const gastos = getGastos();
+const PASTILLA =
+  "rounded-full border border-beige bg-arena px-3 py-1 text-xs text-verde-700";
+
+/** La ventana de los repartos, dicha en la cabecera de la tarjeta: sin decir
+ *  «de cuándo», la cifra no se puede interpretar. */
+function Pastilla30() {
+  return <span className={PASTILLA}>Últimos 30 días</span>;
+}
+
+/** Lo que se pinta en lugar de un gráfico sin datos: un donut o unas barras de
+ *  ceros no dicen nada (y dividirían por cero). */
+function SinDatos({ texto }: { texto: string }) {
+  return <p className="py-10 text-center text-sm text-verde-300">{texto}</p>;
+}
+
+/**
+ * Dashboard, leyendo de Supabase (paso 5 del plan).
+ *
+ * Todo sale de `getDatosDashboard()` —una sola ida a la base— y lo calcula
+ * `lib/admin/dashboard.ts`. La excepción es «Reservas por día de la semana»:
+ * la tabla de clases todavía no existe (paso 9), sigue leyendo `mock.ts`, y
+ * la tarjeta lo dice.
+ *
+ * ⚠️ **Las tarjetas de dinero son solo para Administración.** RLS no da los
+ * gastos a Recepción ni los pagos a Instructora, y las consultas no fallan:
+ * devuelven vacío. Sin este filtro, a Recepción le saldría una utilidad sin
+ * gastos y a una instructora «$0» de ingresos.
+ */
+export default async function DashboardPage() {
+  const hoy = hoyEnBogota();
+  const [usuario, datos] = await Promise.all([
+    getUsuarioActual(),
+    getDatosDashboard(),
+  ]);
+  const esAdmin = usuario?.rol === "Administración";
+
+  const [ingresosMes, utilidad, activos, porVencer] = indicadores(datos, hoy);
+  const tiles = esAdmin ? [utilidad, activos, porVencer] : [activos, porVencer];
+  const meses = serieMensual(datos, hoy);
+  const planes = repartoPlanes(datos, hoy);
+  const metodos = repartoMetodos(datos, hoy);
+  const movimiento = altasYBajas(datos, hoy);
+  const renovacion = tasaRenovacion(datos, hoy);
+  const gastos = gastosDelMes(datos, hoy);
   const porDia = getReservasPorDiaSemana();
 
   const totalPlanes = planes.reduce((t, p) => t + p.importe, 0);
@@ -45,85 +88,124 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-6 xl:grid-cols-12 xl:gap-5">
         <section
           aria-label="Cifras principales"
-          className="grid gap-4 sm:grid-cols-3 md:col-span-6 xl:col-span-12"
+          className={`grid gap-4 md:col-span-6 xl:col-span-12 ${
+            tiles.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"
+          }`}
         >
           {tiles.map((i) => (
             <StatTile key={i.etiqueta} indicador={i} />
           ))}
         </section>
 
-        <TarjetaIngresos
-          indicador={ingresosMes}
-          meses={meses}
-          className="md:col-span-6 xl:col-span-8"
-        />
-
-        <ChartCard
-          titulo="Ingresos por tipo de plan"
-          className="md:col-span-6 xl:col-span-4"
-          tabla={{
-            cabeceras: ["Plan", "Clientes", "Importe"],
-            filas: planes.map((p) => [
-              p.plan,
-              numero(p.clientes),
-              moneda(p.importe),
-            ]),
-          }}
-        >
-          <Donut
-            totalEtiqueta="Facturado"
-            totalValor={monedaCorta(totalPlanes)}
-            formato="moneda"
-            datos={[
-              { label: planes[0].plan, value: planes[0].importe, color: C1 },
-              { label: planes[1].plan, value: planes[1].importe, color: C2 },
-              { label: planes[2].plan, value: planes[2].importe, color: C3 },
-              { label: planes[3].plan, value: planes[3].importe, color: C4 },
-            ]}
+        {esAdmin && (
+          <TarjetaIngresos
+            indicador={ingresosMes}
+            meses={meses}
+            className="md:col-span-6 xl:col-span-8"
           />
-        </ChartCard>
+        )}
+
+        {esAdmin && (
+          <ChartCard
+            titulo="Ingresos por tipo de plan"
+            className="md:col-span-6 xl:col-span-4"
+            accion={<Pastilla30 />}
+            tabla={{
+              cabeceras: ["Plan", "Clientes", "Importe"],
+              filas: planes.map((p) => [
+                p.plan,
+                numero(p.clientes),
+                moneda(p.importe),
+              ]),
+            }}
+          >
+            {totalPlanes === 0 ? (
+              <SinDatos texto="No hubo cobros en los últimos 30 días." />
+            ) : (
+              <Donut
+                totalEtiqueta="Cobrado"
+                totalValor={monedaCorta(totalPlanes)}
+                formato="moneda"
+                datos={planes.map((p, i) => ({
+                  label: p.plan,
+                  value: p.importe,
+                  color: COLORES[i],
+                }))}
+              />
+            )}
+          </ChartCard>
+        )}
 
         <Card
           tono="oscuro"
           fx
-          className="flex flex-col justify-center md:col-span-3 xl:col-span-4"
+          className={`flex flex-col justify-center ${
+            esAdmin ? "md:col-span-3 xl:col-span-4" : "md:col-span-3 xl:col-span-6"
+          }`}
         >
           <h2 className="text-base font-bold text-arena">
             Tasa de renovación
           </h2>
           <p className="mt-6 font-cifra text-5xl leading-none text-arena xl:text-6xl">
-            {porcentaje(renovacion.valor)}
+            {renovacion.valor === null ? "—" : porcentaje(renovacion.valor)}
           </p>
-          {renovacion.variacion !== null && (
+          {/* Sin vencimientos en la ventana, la tasa no es «0 %» —eso sería
+              «nadie renovó»—: es que la pregunta no aplica. */}
+          {renovacion.valor === null ? (
+            <p className="mt-3 text-sm text-beige/75">
+              No venció ninguna membresía en los últimos 30 días.
+            </p>
+          ) : (
             <p className="mt-3 flex flex-wrap items-center gap-x-2 text-sm">
+              {/* En PUNTOS: de 60 % a 70 % son 10 puntos, no «+16,7 %». */}
               <Variacion valor={renovacion.variacion} tono="oscuro" />
-              <span className="text-beige/75">frente al mes anterior</span>
+              <span className="text-beige/75">
+                {renovacion.variacion === null
+                  ? "de las que vencieron en 30 días"
+                  : "frente a los 30 días anteriores"}
+              </span>
             </p>
           )}
         </Card>
 
-        <ChartCard
-          titulo="Cómo pagan los clientes"
-          className="md:col-span-3 xl:col-span-4"
-          tabla={{
-            cabeceras: ["Método", "Importe", "% del total"],
-            filas: metodos.map((m) => [
-              m.metodo,
-              moneda(m.importe),
-              porcentaje((m.importe / totalMetodos) * 100, 0),
-            ]),
-          }}
-        >
-          <HBars
-            datos={metodos.map((m) => ({ label: m.metodo, value: m.importe }))}
-            color={C1}
-            formatoValor={moneda}
-          />
-        </ChartCard>
+        {esAdmin && (
+          <ChartCard
+            titulo="Cómo pagan los clientes"
+            className="md:col-span-3 xl:col-span-4"
+            accion={<Pastilla30 />}
+            tabla={{
+              cabeceras: ["Método", "Importe", "% del total"],
+              filas: metodos.map((m) => [
+                m.metodo,
+                moneda(m.importe),
+                totalMetodos
+                  ? porcentaje((m.importe / totalMetodos) * 100, 0)
+                  : "—",
+              ]),
+            }}
+          >
+            {totalMetodos === 0 ? (
+              <SinDatos texto="No hubo cobros en los últimos 30 días." />
+            ) : (
+              <HBars
+                datos={metodos.map((m) => ({
+                  label: m.metodo,
+                  value: m.importe,
+                }))}
+                color={C1}
+                formatoValor={moneda}
+              />
+            )}
+          </ChartCard>
+        )}
 
         <ChartCard
           titulo="Altas y bajas por mes"
-          className="md:col-span-6 xl:col-span-4"
+          /* Sin las dos tarjetas de dinero de su fila, renovación y altas se
+             reparten la fila a medias en vez de dejar un tercio vacío. */
+          className={
+            esAdmin ? "md:col-span-6 xl:col-span-4" : "md:col-span-3 xl:col-span-6"
+          }
           tabla={{
             cabeceras: ["Mes", "Altas", "Bajas", "Neto"],
             filas: movimiento.map((m) => [
@@ -169,8 +251,17 @@ export default function DashboardPage() {
              del dashboard van sin párrafo a propósito, pero sin decir «de
              cuándo» la cifra no se puede interpretar. */
           accion={
-            <span className="rounded-full border border-beige bg-arena px-3 py-1 text-xs text-verde-700">
-              Últimas {SEMANAS_RESERVAS} semanas
+            <span className="flex flex-wrap gap-2">
+              {/* ⚠️ Es la ÚNICA tarjeta que sigue en `mock.ts`: la tabla de
+                  clases no existe todavía (paso 9). Con el resto del
+                  dashboard ya en datos reales, callarlo haría pasar por
+                  verdad unas reservas inventadas. */}
+              <span className="rounded-full border border-[color-mix(in_srgb,var(--color-estado-aviso)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-aviso)_10%,transparent)] px-3 py-1 text-xs text-[var(--color-estado-aviso)]">
+                <span aria-hidden="true">▲ </span>Datos de ejemplo
+              </span>
+              <span className={PASTILLA}>
+                Últimas {SEMANAS_RESERVAS} semanas
+              </span>
             </span>
           }
           tabla={{
@@ -201,11 +292,13 @@ export default function DashboardPage() {
             con desplegable en vez de dos: responden a la misma pregunta y
             juntas obligaban a cruzar cuatro series a ojo. Va al final porque
             es detalle: lo primero que se mira son las cifras de cabecera. */}
-        <GraficaContable
-          meses={meses}
-          gastos={gastos}
-          className="md:col-span-6 xl:col-span-12"
-        />
+        {esAdmin && (
+          <GraficaContable
+            meses={meses}
+            gastos={gastos}
+            className="md:col-span-6 xl:col-span-12"
+          />
+        )}
       </div>
     </div>
   );
