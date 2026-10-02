@@ -1,10 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { TIPOS_IDENTIFICACION } from "./catalogos";
+import {
+  MAX_COMPROBANTE,
+  TIPOS_COMPROBANTE,
+  TIPOS_IDENTIFICACION,
+} from "./catalogos";
 import { hoyEnBogota } from "./horario";
 import { getUsuarioActual } from "./queries";
-import type { TipoIdentificacion } from "./types";
+import type { CategoriaGasto, MetodoPago, TipoIdentificacion } from "./types";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { MAYORIA_DE_EDAD, edad, esCorreo, esMovilCO } from "@/lib/validacion";
 
@@ -129,4 +133,123 @@ export async function crearCliente(a: AltaCliente): Promise<ResultadoAlta> {
   revalidatePath("/admin/usuarios");
   revalidatePath("/admin");
   return { ok: true, id: data.id };
+}
+
+/* ======================================================================
+   Gastos
+   ====================================================================== */
+
+const CATEGORIAS_GASTO: CategoriaGasto[] = [
+  "Arriendo",
+  "Nómina",
+  "Servicios",
+  "Mantenimiento",
+  "Marketing",
+];
+const METODOS_PAGO: MetodoPago[] = ["Efectivo", "Nequi", "Transferencia", "Tarjeta"];
+
+/* Guardas de tipo: lo que llega en un `FormData` es texto cualquiera, y así
+   el `insert` recibe el tipo del enum sin forzarlo con `as`. */
+const esCategoria = (v: string): v is CategoriaGasto =>
+  (CATEGORIAS_GASTO as string[]).includes(v);
+const esMetodo = (v: string): v is MetodoPago =>
+  (METODOS_PAGO as string[]).includes(v);
+
+export type ResultadoGasto = { ok: true } | { ok: false; error: string };
+
+/**
+ * Registra un gasto, con su comprobante si lo hay.
+ *
+ * Llega como `FormData` y no como objeto porque trae un archivo: los `File`
+ * solo cruzan a una server action dentro de un `FormData`.
+ *
+ * Solo Administración (RLS: `gastos` y el bucket `comprobantes` son de ese
+ * rol). El archivo se sube PRIMERO y, si luego falla el `insert`, se borra:
+ * un comprobante sin gasto es un archivo huérfano que nadie encontraría.
+ *
+ * ⚠️ El comprobante se guarda como RUTA dentro del bucket, no como URL: el
+ * bucket es privado y las URL firmadas caducan.
+ */
+export async function registrarGasto(datos: FormData): Promise<ResultadoGasto> {
+  const usuario = await getUsuarioActual();
+  if (usuario?.rol !== "Administración") {
+    return { ok: false, error: "Solo Administración puede registrar gastos." };
+  }
+
+  const categoria = String(datos.get("categoria") ?? "");
+  const concepto = String(datos.get("concepto") ?? "").trim();
+  const importe = Number(datos.get("importe"));
+  const fecha = String(datos.get("fecha") ?? "");
+  const metodo = String(datos.get("metodo") ?? "");
+  const archivo = datos.get("comprobante");
+
+  if (!esCategoria(categoria)) return { ok: false, error: "Categoría no válida." };
+  if (concepto.length < 3) return { ok: false, error: "Falta el concepto." };
+  if (!Number.isInteger(importe) || importe <= 0) return { ok: false, error: "Importe no válido." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || fecha > hoyEnBogota())
+    return { ok: false, error: "La fecha no puede ser posterior a hoy." };
+  if (!esMetodo(metodo)) return { ok: false, error: "Método de pago no válido." };
+
+  const supabase = await crearClienteServidor();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let ruta: string | null = null;
+  if (archivo instanceof File && archivo.size > 0) {
+    if (!TIPOS_COMPROBANTE.includes(archivo.type))
+      return { ok: false, error: "El comprobante tiene que ser una foto o un PDF." };
+    if (archivo.size > MAX_COMPROBANTE)
+      return { ok: false, error: "El comprobante pasa de 3,5 MB." };
+
+    // Por año y mes para que el bucket se pueda recorrer a mano; el nombre es
+    // aleatorio para que dos facturas «factura.pdf» no se pisen.
+    const ext = archivo.name.split(".").pop()?.toLowerCase() || "bin";
+    ruta = `${fecha.slice(0, 7)}/${crypto.randomUUID()}.${ext}`;
+    const subida = await supabase.storage
+      .from("comprobantes")
+      .upload(ruta, archivo, { contentType: archivo.type });
+    if (subida.error) return { ok: false, error: `No se pudo subir el comprobante: ${subida.error.message}` };
+  }
+
+  const { error } = await supabase.from("gastos").insert({
+    categoria,
+    concepto,
+    importe,
+    fecha,
+    metodo,
+    comprobante_path: ruta,
+    registrado_por: user?.id ?? null,
+  });
+
+  if (error) {
+    if (ruta) await supabase.storage.from("comprobantes").remove([ruta]);
+    return { ok: false, error: `No se pudo guardar el gasto: ${error.message}` };
+  }
+
+  revalidatePath("/admin/finanzas");
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+/**
+ * Enlace temporal (60 s) para ver el comprobante de un gasto.
+ *
+ * Se pide al pulsar «Ver comprobante» y no al cargar el libro: firmar una URL
+ * por fila en cada carga sería un viaje al servidor de Storage por gasto, y
+ * caducarían antes de que nadie las usara. RLS del bucket: solo Administración.
+ */
+export async function urlComprobante(gastoId: string): Promise<string | null> {
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase
+    .from("gastos")
+    .select("comprobante_path")
+    .eq("id", gastoId)
+    .maybeSingle();
+  if (!data?.comprobante_path) return null;
+
+  const firmada = await supabase.storage
+    .from("comprobantes")
+    .createSignedUrl(data.comprobante_path, 60);
+  return firmada.data?.signedUrl ?? null;
 }

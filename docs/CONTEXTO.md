@@ -1153,7 +1153,18 @@ muy gruesa son de un box de crossfit; aquí manda la marca.
 - ⚠️ **La base de datos estaba en UTC** y se pasó a `America/Bogota`
   (migración `20261001130000`): `current_date` daba mañana desde las 19:00 de
   Colombia. Se vio aquí, con gastos de la semilla fechados en el «futuro».
-- **Registrar gasto sigue sin guardar** (paso 7 del plan).
+- ✅ **Registrar gasto GUARDA** (paso 7, oct 2026): server action
+  `registrarGasto`, solo Administración. El **comprobante** (foto o PDF,
+  ≤ 3,5 MB) se sube al bucket privado `comprobantes` y se guarda su RUTA, no
+  una URL (las firmadas caducan). Si el `insert` falla, el archivo se borra.
+  - ⚠️ `serverActions.bodySizeLimit: "4mb"` en `next.config.ts`: por defecto
+    Next corta en 1 MB y una foto de móvil pasa de eso. No más de 4: Vercel
+    rechaza peticiones de más de 4,5 MB. El tamaño se avisa al ELEGIR el
+    archivo, no al enviar.
+  - **«Ver comprobante»** en el libro firma un enlace de 60 s al pulsar. La
+    pestaña se abre ANTES del `await`: abierta después, el navegador la trata
+    como ventana emergente y la bloquea.
+  - Guarda `registrado_por` (quién lo registró).
 - Fuera de esta pantalla: «Ingresos frente a gastos» y «Gastos por categoría»
   siguen en el Dashboard, que aún lee `mock.ts`.
 
@@ -1267,7 +1278,7 @@ Nueve rutas, todas `○ Static` o `● SSG`:
 | `/admin/usuarios/[id]` | Ficha de solo lectura, **desde Supabase** |
 | `/admin/clases` | Agenda por día + alta, edición, cancelación · **no guarda** |
 | `/admin/planes` | Catálogo **desde Supabase** + CRUD · **no guarda** |
-| `/admin/finanzas` | **Desde Supabase**, solo Administración · periodo, utilidad, desgloses, libro unificado, export · alta de gasto **no guarda** |
+| `/admin/finanzas` | **Desde Supabase**, solo Administración · periodo, utilidad, desgloses, libro unificado, export · registrar gasto **guarda** (con comprobante) |
 
 **Lo único que funciona de verdad** sin backend: la exportación a CSV, los
 filtros y búsquedas (en cliente) y el selector de periodo del dashboard.
@@ -1281,9 +1292,9 @@ filtros y búsquedas (en cliente) y el selector de periodo del dashboard.
 - [x] ~~El registro abierto daba rol de Recepción a cualquiera~~ — quitado el
       trigger `al_crear_usuario` (migración `20261001120000`). **Falta aplicarla
       en el remoto** con `npx supabase db push`.
-- [ ] **Casi nada de lo que se escribe se guarda.** El **alta de cliente sí**
-      (oct 2026, server action). CRUD de planes, registro de gasto y la agenda
-      de clases validan y avisan honestamente de que no persisten.
+- [ ] **Casi nada de lo que se escribe se guarda.** El **alta de cliente y el
+      registro de gasto sí** (oct 2026, server actions). CRUD de planes y la
+      agenda de clases validan y avisan honestamente de que no persisten.
 - [ ] **La agenda no tiene reservas todavía.** `Clase.reservas` es un número
       generado, no un `COUNT`: falta la tabla de reservas y la vista de cliente
       que las cree. La agenda ya reserva el sitio para ello (aforo, cupos libres,

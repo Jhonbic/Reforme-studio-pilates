@@ -389,6 +389,9 @@ export type Movimiento =
       importe: number;
       concepto: string;
       categoria: CategoriaGasto;
+      /** Si tiene factura subida. La ruta no viaja al navegador: el enlace se
+       *  firma al pedirlo (`urlComprobante`). */
+      comprobante: boolean;
     };
 
 /** Lo previsto para una categoría en un mes. `mes` es el día 1, ISO corto. */

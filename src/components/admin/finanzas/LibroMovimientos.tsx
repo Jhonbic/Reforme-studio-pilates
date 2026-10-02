@@ -9,6 +9,7 @@ import {
   descargarCsv,
 } from "@/components/admin/usuarios/exportar";
 import { useToast } from "@/context/ToastContext";
+import { urlComprobante } from "@/lib/admin/acciones";
 import { fecha, moneda, numero } from "@/lib/admin/format";
 import type { MetodoPago, Movimiento } from "@/lib/admin/types";
 import { normalizar } from "@/lib/validacion";
@@ -270,6 +271,37 @@ export default function LibroMovimientos({
   );
 }
 
+/**
+ * Abre la factura de un gasto en otra pestaña.
+ *
+ * ⚠️ La pestaña se abre ANTES de pedir el enlace y luego se le da la
+ * dirección. Abrirla después del `await` la bloquearía el navegador: un
+ * `window.open` que no sale directamente de un clic se trata como ventana
+ * emergente. El enlace dura 60 s: el bucket es privado.
+ */
+function VerComprobante({ gastoId }: { gastoId: string }) {
+  const { mostrarAviso } = useToast();
+  async function abrir() {
+    const pestana = window.open("", "_blank");
+    const url = await urlComprobante(gastoId);
+    if (url && pestana) {
+      pestana.location.href = url;
+    } else {
+      pestana?.close();
+      mostrarAviso("No se pudo abrir el comprobante.", "warning");
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={abrir}
+      className="text-dorado-dark underline-offset-2 hover:underline"
+    >
+      Ver comprobante
+    </button>
+  );
+}
+
 function Fila({ m }: { m: Movimiento }) {
   const cobro = m.tipo === "cobro";
   const clase = `grid min-h-[56px] grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-5 py-3 sm:px-6 ${REJILLA}`;
@@ -295,6 +327,12 @@ function Fila({ m }: { m: Movimiento }) {
         </span>
         <span className="block truncate text-xs text-verde-300">
           {cobro ? (m.plan ?? "Sin plan") : m.categoria}
+          {!cobro && m.comprobante && (
+            <>
+              {" · "}
+              <VerComprobante gastoId={m.id} />
+            </>
+          )}
         </span>
       </span>
 

@@ -1,10 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import Modal from "@/components/admin/Modal";
 import CampoSelect from "@/components/admin/campos/CampoSelect";
 import CampoTexto from "@/components/admin/campos/CampoTexto";
 import { useToast } from "@/context/ToastContext";
+import { registrarGasto } from "@/lib/admin/acciones";
+import { MAX_COMPROBANTE, TIPOS_COMPROBANTE } from "@/lib/admin/catalogos";
 import { moneda } from "@/lib/admin/format";
 import type { CategoriaGasto, MetodoPago } from "@/lib/admin/types";
 import { soloDigitos } from "@/lib/validacion";
@@ -75,10 +77,9 @@ function errorDe(campo: keyof Campos, v: Campos, hoy: string): string {
  * rellena mirando el libro que hay detrás. Sacarlo a otra ruta obligaría a
  * perder de vista los movimientos justo cuando se está cuadrando la caja.
  *
- * ⚠️ **NO GUARDA NADA, y se dice sin eufemismos.** No hay base de datos ni
- * mutador: al enviar, el aviso explica que el gasto no se ha registrado. Es la
- * misma decisión que `/admin/usuarios/nuevo` — un formulario que dice «guardado»
- * y no guarda es peor que uno que no existe.
+ * Guarda en Supabase con la server action `registrarGasto` (oct 2026), que
+ * sube además el comprobante al bucket privado `comprobantes`. Al guardar, la
+ * acción revalida Finanzas y el gasto aparece en el libro sin recargar.
  */
 export default function RegistrarGasto({ hoy }: { hoy: string }) {
   const { mostrarAviso } = useToast();
@@ -87,6 +88,12 @@ export default function RegistrarGasto({ hoy }: { hoy: string }) {
   const [errores, setErrores] = useState<Partial<Record<keyof Campos, string>>>(
     {},
   );
+  /** El archivo va aparte de `Campos`: no es texto y no se valida igual. */
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [errorArchivo, setErrorArchivo] = useState("");
+  /** Fallo del servidor (rol, red, base): no es de ningún campo. */
+  const [errorEnvio, setErrorEnvio] = useState("");
+  const [guardando, iniciarGuardado] = useTransition();
   /* ⚠️ Un ref POR CAMPO, no uno solo «al primero que falle». Un callback de
      ref se ejecuta al montar el elemento, no al enviar: si guardara ahí el
      primer error, en el momento del `submit` valdría `null` —los errores
@@ -98,6 +105,21 @@ export default function RegistrarGasto({ hoy }: { hoy: string }) {
     setAbierto(false);
     setV(VACIO);
     setErrores({});
+    setArchivo(null);
+    setErrorArchivo("");
+    setErrorEnvio("");
+  }
+
+  /** Se avisa al ELEGIR el archivo, no al enviar: subir 8 MB para que el
+   *  servidor diga «demasiado grande» es esperar para nada. */
+  function elegirArchivo(f: File | null) {
+    setArchivo(f);
+    if (!f) return setErrorArchivo("");
+    if (!TIPOS_COMPROBANTE.includes(f.type))
+      return setErrorArchivo("Tiene que ser una foto o un PDF.");
+    if (f.size > MAX_COMPROBANTE)
+      return setErrorArchivo("Pesa más de 3,5 MB. Hazle una foto más ligera o comprime el PDF.");
+    setErrorArchivo("");
   }
 
   /** `onChange` solo QUITA errores, nunca los pone: premia pronto, castiga
@@ -133,6 +155,7 @@ export default function RegistrarGasto({ hoy }: { hoy: string }) {
     setErrores(nuevos);
 
     const primero = orden.find((c) => nuevos[c]);
+    if (errorArchivo) return;
     if (primero) {
       /* Con cinco campos el foco va al primero que falla. El resumen de errores
          de `FormularioAlta` existe porque allí son catorce y arreglarlos de uno
@@ -141,11 +164,18 @@ export default function RegistrarGasto({ hoy }: { hoy: string }) {
       return;
     }
 
-    cerrar();
-    mostrarAviso(
-      `El gasto de ${moneda(Number(v.importe))} NO se ha registrado: Finanzas todavía no puede escribir. Llegará con la base de datos.`,
-      "warning",
-    );
+    const datos = new FormData();
+    for (const campo of orden) datos.set(campo, v[campo]);
+    if (archivo) datos.set("comprobante", archivo);
+
+    setErrorEnvio("");
+    iniciarGuardado(async () => {
+      const r = await registrarGasto(datos);
+      if (!r.ok) return setErrorEnvio(r.error);
+      const importe = moneda(Number(v.importe));
+      cerrar();
+      mostrarAviso(`Gasto de ${importe} registrado.`, "success");
+    });
   }
 
   return (
@@ -263,26 +293,37 @@ export default function RegistrarGasto({ hoy }: { hoy: string }) {
 
           <CampoTexto
             nombre="comprobante"
-            etiqueta="Comprobante"
+            etiqueta="Comprobante (opcional)"
             type="file"
             accept="image/*,.pdf"
-            ayuda="Foto o PDF de la factura. Sin base de datos no hay dónde subirlo, así que por ahora no se envía."
+            onChange={(e) => elegirArchivo(e.target.files?.[0] ?? null)}
+            error={errorArchivo}
+            ayuda="Foto o PDF de la factura, hasta 3,5 MB. Solo Administración puede verlo."
             ancho
           />
 
-          <p className="rounded-xl border border-dashed border-dorado/50 bg-dorado/5 px-4 py-3 text-sm text-verde-700">
-            Este formulario <strong>no guarda todavía</strong>: Finanzas se lee,
-            no se escribe. Sirve para acordar qué datos pide un gasto antes de
-            que exista la base de datos.
-          </p>
+          {/* `role="alert"`: es el único mensaje de error del diálogo que no
+              va pegado a un campo. */}
+          {errorEnvio && (
+            <p
+              role="alert"
+              className="rounded-xl border border-[color-mix(in_srgb,var(--color-estado-grave)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-grave)_8%,transparent)] px-4 py-3 text-sm text-[var(--color-estado-grave)]"
+            >
+              {errorEnvio}
+            </p>
+          )}
 
           <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end">
             <button type="button" onClick={cerrar} className={BOTON}>
               <span className="control-sheen" aria-hidden="true" />
               Cancelar
             </button>
-            <button type="submit" className={BOTON_PRIMARIO}>
-              Registrar gasto
+            <button
+              type="submit"
+              disabled={guardando}
+              className={`${BOTON_PRIMARIO} disabled:opacity-60`}
+            >
+              {guardando ? "Guardando…" : "Registrar gasto"}
             </button>
           </div>
         </form>

@@ -64,7 +64,7 @@ export async function getMovimientos(): Promise<Movimiento[]> {
       ),
     supabase
       .from("gastos")
-      .select("id, fecha, metodo, importe, concepto, categoria"),
+      .select("id, fecha, metodo, importe, concepto, categoria, comprobante_path"),
   ]);
   if (pagos.error) throw new Error(`No se pudieron leer los cobros: ${pagos.error.message}`);
   if (gastos.error) throw new Error(`No se pudieron leer los gastos: ${gastos.error.message}`);
@@ -91,6 +91,7 @@ export async function getMovimientos(): Promise<Movimiento[]> {
         importe: g.importe,
         concepto: g.concepto,
         categoria: g.categoria,
+        comprobante: g.comprobante_path !== null,
       }),
     ),
   ];

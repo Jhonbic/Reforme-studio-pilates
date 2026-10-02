@@ -120,3 +120,23 @@ export const HORAS_CLASE: string[] = (() => {
   }
   return horas;
 })();
+
+/**
+ * Comprobante de un gasto: lo que se acepta y hasta cuánto pesa.
+ *
+ * Aquí y no en `acciones.ts` porque lo usan el formulario (para avisar antes
+ * de subir) y la server action (para no fiarse del formulario), y un archivo
+ * `"use server"` solo puede exportar funciones.
+ *
+ * 3,5 MB porque Vercel rechaza peticiones de más de 4,5 MB y el límite de las
+ * server actions está en 4 MB (`next.config.ts`); el resto es margen para
+ * los demás campos del formulario.
+ */
+export const TIPOS_COMPROBANTE = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "application/pdf",
+];
+export const MAX_COMPROBANTE = 3.5 * 1024 * 1024;
