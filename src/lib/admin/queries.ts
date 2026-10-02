@@ -403,6 +403,36 @@ export async function getPlanes(
   }));
 }
 
+/** Un plan que se puede contratar hoy, con lo justo para elegirlo y calcular
+ *  hasta cuándo dura. */
+export type PlanALaVenta = {
+  id: string;
+  nombre: string;
+  precio: number;
+  vigenciaDias: number;
+};
+
+/**
+ * Los planes que se venden, del más barato al más caro: las opciones del
+ * diálogo «Asignar plan». Los retirados (`se_vende = false`) no salen, y la
+ * función de la base tampoco los aceptaría.
+ */
+export async function getPlanesALaVenta(): Promise<PlanALaVenta[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase
+    .from("planes")
+    .select("id, nombre, precio, vigencia_dias")
+    .eq("se_vende", true)
+    .order("precio");
+  if (error) throw new Error(`No se pudieron leer los planes: ${error.message}`);
+  return data.map((p) => ({
+    id: p.id,
+    nombre: p.nombre,
+    precio: p.precio,
+    vigenciaDias: p.vigencia_dias,
+  }));
+}
+
 /**
  * Cuántos clientes hay en cada estado, más el total: los números de las
  * pastillas de filtro de `/admin/usuarios`.

@@ -365,6 +365,14 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: Database["public"]["Enums"]["rol_equipo"];
       };
+      registrar_membresia: {
+        Args: {
+          p_cliente: string;
+          p_metodo: Database["public"]["Enums"]["metodo_pago"];
+          p_plan: string;
+        };
+        Returns: string;
+      };
       tiene_perfil: { Args: Record<PropertyKey, never>; Returns: boolean };
     };
     Enums: {

@@ -782,7 +782,8 @@ Listado de personas del estudio, con su ficha individual
 >   cuando no se guardaba.
 > - ⚠️ **Instructora**: la página le dice que el alta es de recepción ANTES del
 >   formulario, no tras rellenar catorce campos.
-> - Asignar el plan sigue pendiente (va con los cobros).
+> - ✅ **Asignar plan y cobrar** existe desde oct 2026: ver «Asignar plan y
+>   cobrar» más abajo.
 
 Primera pantalla de **captura** de datos del panel. Antes de esto no había ni un
 formulario en `/admin`, ni utilidad de validación, ni componente de campo que
@@ -1199,6 +1200,29 @@ muy gruesa son de un box de crossfit; aquí manda la marca.
     mano: salen de los clientes. Un plan nuevo no aparecía.
 - Verificado contra un cálculo SQL independiente: mismos clientes y mismo
   cobrado por plan, como Administración y como Instructora.
+
+#### Asignar plan y cobrar (ficha del cliente) — oct 2026
+
+Botón **«Asignar plan»** (sin plan) o **«Renovar»** (con plan) en la cabecera
+de la ficha. Solo Administración y Recepción: a la instructora no se le enseña.
+
+- ⚠️ **Una función de base, `registrar_membresia`, en UNA transacción**
+  (migración `20261001150000`): crea la membresía y el pago juntos o ninguno.
+  Con dos `insert` desde la app, un fallo a medias dejaría una membresía sin
+  pagar o un pago sin membresía. `security invoker`: RLS sigue mandando.
+- ⚠️ **Renovar antes de tiempo no pisa los días pagados**: la membresía nueva
+  empieza el día después de que acabe la actual; si ya venció, hoy. El pago
+  es de HOY aunque la membresía empiece después (es cuándo entró el dinero).
+  El precio se copia del plan. Un plan retirado no se vende ni se renueva.
+- El diálogo **anuncia antes de cobrar** empieza / vence / se cobra hoy, con el
+  mismo cálculo que la función (la fuente de verdad es la base).
+- ⚠️ **EXECUTE revocado a `anon` POR NOMBRE**: Supabase lo concede a `anon` y
+  `authenticated` directamente en cada función nueva, así que revocar a
+  PUBLIC no basta. Verificado con `has_function_privilege`.
+- ⚠️ **«Inactiva» se cuenta desde la última asistencia O desde que pagó**
+  (`greatest`, en la misma migración). Sin registro de asistencias, todo
+  cliente nuevo salía «Inactiva» el primer día. Cambió un cliente de ejemplo
+  (pagó después de su última visita): Activa 12 · Inactiva 1.
 
 **⚠️ shadcn/ui se evaluó y se descartó (jul 2026).** Se probó instalar el bloque
 `@efferd/dashboard-3` en la rama `shadcn-dashboard-3`, ya borrada. Qué se aprendió,

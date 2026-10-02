@@ -18,6 +18,7 @@ supabase/
     20261001130000_zona_horaria_bogota.sql         current_date en hora de Bogotá
     20261001140000_estado_sin_plan.sql             Nuevo estado «Sin plan»
     20261001140100_vista_sin_plan.sql              La vista lo usa (security_invoker)
+    20261001150000_registrar_membresia.sql         Membresía + pago atómicos; «Inactiva» desde el pago
   seed.sql                                         20 clientes, determinista
 ```
 
@@ -201,7 +202,10 @@ Falta:
 6. Mutaciones (server actions) para los formularios que hoy no guardan.
    **Hechas**, en `src/lib/admin/acciones.ts`: `crearCliente`,
    `registrarGasto` (con subida del comprobante al bucket `comprobantes`),
-   `guardarPlan`, `cambiarVentaPlan` y `eliminarPlan`.
+   `guardarPlan`, `cambiarVentaPlan`, `eliminarPlan` y `asignarPlan` (que
+   llama a la función `registrar_membresia`).
+   ⚠️ Toda función nueva en `public`: revocar EXECUTE a `public` **y a
+   `anon`** por nombre; Supabase se lo concede a `anon` directamente.
 
 ⚠️ **Las rutas de `/admin` ya no se prerenderizan** (salen `ƒ` en el build):
 leer la sesión usa cookies. `/login` también es dinámica, porque lee

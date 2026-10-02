@@ -379,3 +379,63 @@ export async function eliminarPlan(id: string): Promise<ResultadoPlan> {
   revalidarPlanes();
   return { ok: true };
 }
+
+/* ======================================================================
+   Asignar plan y cobrar
+   ====================================================================== */
+
+export type ResultadoAsignacion =
+  | { ok: true }
+  | { ok: false; error: string };
+
+const UUID_VALIDO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Le asigna un plan a un cliente y registra el cobro: alta de su primer plan
+ * o renovación, es la misma operación.
+ *
+ * Lo hace la función de base `registrar_membresia` (migración
+ * `20261001150000`), en UNA transacción: membresía y pago entran juntos o no
+ * entra ninguno. Allí se decide también la fecha de inicio (renovar antes de
+ * tiempo no pisa los días ya pagados) y se copia el precio.
+ *
+ * Quién: Administración y Recepción (el mostrador). Se comprueba aquí para dar
+ * un mensaje claro, y RLS lo vuelve a impedir dentro de la función.
+ */
+export async function asignarPlan(
+  clienteId: string,
+  planId: string,
+  metodo: string,
+): Promise<ResultadoAsignacion> {
+  const usuario = await getUsuarioActual();
+  if (usuario?.rol !== "Administración" && usuario?.rol !== "Recepción") {
+    return { ok: false, error: "Tu rol no puede registrar cobros." };
+  }
+  if (!UUID_VALIDO.test(clienteId) || !UUID_VALIDO.test(planId)) {
+    return { ok: false, error: "Cliente o plan no válido." };
+  }
+  if (!esMetodo(metodo)) return { ok: false, error: "Método de pago no válido." };
+
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("registrar_membresia", {
+    p_cliente: clienteId,
+    p_plan: planId,
+    p_metodo: metodo,
+  });
+
+  if (error) {
+    // Los `raise exception` de la función ya traen el mensaje para personas
+    // («Ese plan ya no se vende.»); el resto, con su texto técnico.
+    if (error.code === "P0001" || error.code === "P0002") return { ok: false, error: error.message };
+    return { ok: false, error: `No se pudo registrar: ${error.message}` };
+  }
+
+  // Cambian la ficha, el listado (estado y vence), Finanzas (el cobro),
+  // Planes (clientes por plan) y el dashboard.
+  revalidatePath(`/admin/usuarios/${clienteId}`);
+  revalidatePath("/admin/usuarios");
+  revalidatePath("/admin/finanzas");
+  revalidatePath("/admin/planes");
+  revalidatePath("/admin");
+  return { ok: true };
+}

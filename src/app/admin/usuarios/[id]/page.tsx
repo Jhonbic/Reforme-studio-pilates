@@ -3,10 +3,16 @@ import { notFound } from "next/navigation";
 import Card from "@/components/admin/Card";
 import CardHeader from "@/components/admin/CardHeader";
 import AccionesCliente from "@/components/admin/usuarios/AccionesCliente";
+import AsignarPlan from "@/components/admin/usuarios/AsignarPlan";
 import Avatar from "@/components/admin/usuarios/Avatar";
 import EstadoBadge from "@/components/admin/usuarios/EstadoBadge";
 import { documento, fecha, moneda } from "@/lib/admin/format";
-import { getCliente } from "@/lib/admin/queries";
+import { hoyEnBogota } from "@/lib/admin/horario";
+import {
+  getCliente,
+  getPlanesALaVenta,
+  getUsuarioActual,
+} from "@/lib/admin/queries";
 
 /**
  * Ficha de un cliente.
@@ -65,7 +71,15 @@ export default async function FichaClientePage({
   params,
 }: PageProps<"/admin/usuarios/[id]">) {
   const { id } = await params;
-  const cliente = await getCliente(id);
+  const [cliente, usuario] = await Promise.all([
+    getCliente(id),
+    getUsuarioActual(),
+  ]);
+  // Cobrar es del mostrador, igual que en la base (RLS). A una instructora no
+  // se le enseña un botón que acabaría en «no tienes permiso».
+  const puedeCobrar =
+    usuario?.rol === "Administración" || usuario?.rol === "Recepción";
+  const planes = puedeCobrar ? await getPlanesALaVenta() : [];
 
   /* Un id que no existe es un 404 de verdad, no una tarjeta vacía: la ficha de
      alguien que no está no es «sin datos», es otra dirección. */
@@ -91,6 +105,15 @@ export default async function FichaClientePage({
 
           <div className="flex items-center gap-3">
             <EstadoBadge estado={cliente.estado} />
+            {puedeCobrar && (
+              <AsignarPlan
+                clienteId={cliente.id}
+                nombre={cliente.nombre}
+                vencimiento={cliente.vencimiento}
+                planes={planes}
+                hoy={hoyEnBogota()}
+              />
+            )}
             <AccionesCliente cliente={cliente} />
           </div>
         </div>
@@ -164,8 +187,8 @@ export default async function FichaClientePage({
             </Dato>
           </dl>
           <p className="mt-4 text-sm text-verde-300">
-            El historial de clases, los pagos y las notas de la ficha llegarán
-            con la base de datos.
+            El historial de clases, los pagos y las notas de la ficha todavía
+            no se muestran aquí. Los cobros se ven en Finanzas.
           </p>
         </Card>
       </div>
