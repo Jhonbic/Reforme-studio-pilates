@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { iniciales } from "@/lib/admin/format";
 import { cerrarSesion } from "@/lib/auth/acciones";
+import CambiarContrasena from "./CambiarContrasena";
 import type { UsuarioActual } from "@/lib/admin/types";
 
 const FILA =
@@ -28,6 +29,7 @@ const FILA =
  */
 export default function MenuCuenta({ usuario }: { usuario: UsuarioActual }) {
   const [abierto, setAbierto] = useState(false);
+  const [cambiando, setCambiando] = useState(false);
   const caja = useRef<HTMLDivElement>(null);
   const botonRef = useRef<HTMLButtonElement>(null);
 
@@ -129,6 +131,20 @@ export default function MenuCuenta({ usuario }: { usuario: UsuarioActual }) {
             {/* Un `<form>` y no un enlace: cerrar sesión cambia estado en el
                 servidor, y un GET a `/logout` lo dispararía cualquier
                 precarga de enlaces o una imagen incrustada en otra web. */}
+            {/* Sobre todo para cambiar la contraseña temporal que entrega
+                Administración al dar acceso. */}
+            <button
+              type="button"
+              role="menuitem"
+              className={`${FILA} w-full text-left`}
+              onClick={() => {
+                setAbierto(false);
+                setCambiando(true);
+              }}
+            >
+              <span aria-hidden="true">✎</span>
+              Cambiar contraseña
+            </button>
             <form action={cerrarSesion}>
               <button
                 type="submit"
@@ -142,6 +158,7 @@ export default function MenuCuenta({ usuario }: { usuario: UsuarioActual }) {
           </div>
         </div>
       )}
+      <CambiarContrasena abierto={cambiando} onCerrar={() => setCambiando(false)} />
     </div>
   );
 }

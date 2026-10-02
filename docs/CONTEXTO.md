@@ -1201,6 +1201,46 @@ muy gruesa son de un box de crossfit; aquí manda la marca.
 - Verificado contra un cálculo SQL independiente: mismos clientes y mismo
   cobrado por plan, como Administración y como Instructora.
 
+#### Equipo y acceso al panel (`/admin/usuarios`, pestaña Equipo) — oct 2026
+
+La pestaña Equipo lee la tabla `equipo` (antes, `mock.ts`). Administración
+añade personas y les da o quita acceso al panel desde su fila; el resto del
+equipo la ve en solo lectura y sin saber quién tiene acceso.
+
+- ⚠️ **Dos tablas, ahora unidas** (migración `20261001160000`): `equipo`
+  (quién trabaja) y `perfiles` (quién entra). `equipo.cuenta_id` apunta a la
+  cuenta; **tener acceso = esa cuenta tiene fila en `perfiles`**. Quitar el
+  acceso borra el perfil y CONSERVA la cuenta: devolverlo no crea otra ni
+  cambia la contraseña. Las cuentas que ya tenían acceso sin estar en el
+  equipo (la del dueño) se añadieron al equipo, y la semilla lo repite al
+  final porque su `truncate` las borraría.
+- ⚠️ **«Dar acceso» crea la cuenta con una contraseña temporal** que se enseña
+  UNA vez (12 caracteres sin 0/O/1/l/I, con `crypto`). No hay invitación por
+  correo: el SMTP gratuito de Supabase solo llega a los miembros del proyecto
+  de Supabase. El diálogo no se cierra solo hasta pulsar «Hecho», y no se
+  puede cerrar mientras la acción está en vuelo.
+- ⚠️ **Necesita `SUPABASE_SERVICE_ROLE_KEY`** (solo servidor). La lee
+  `lib/supabase/admin.ts`, que lleva `import "server-only"`: si un componente
+  de cliente lo importara, la compilación falla. Verificado que la clave no
+  aparece en `.next/static`. Sin la variable, «Dar acceso» lo dice en vez de
+  romperse; todo lo demás va con la sesión y RLS.
+- **El rol vive en dos sitios** (`equipo.rol` y `perfiles.rol`) y se cambia
+  con la función `cambiar_rol_equipo`, en una transacción.
+- ⚠️ **Nadie puede dejarse fuera a sí mismo**: sobre la propia fila no se
+  ofrecen rol ni acceso («Eres tú»), y el servidor lo vuelve a impedir. Y el
+  estudio **nunca se queda sin Administración**: lo comprueban la acción y la
+  función de base.
+- **«Cambiar contraseña»** en el menú de cuenta: pide la actual (una sesión
+  olvidada en el ordenador de recepción no basta para cambiarla) y la nueva
+  dos veces.
+- Probado de punta a punta: alta → acceso → entra con la temporal → la cambia
+  (la vieja deja de valer) → se le quita el acceso (queda fuera en el
+  siguiente clic) → se le devuelve (misma contraseña) → cambio de rol (las
+  dos tablas iguales).
+- ⚠️ La **agenda de clases sigue con el equipo de ejemplo** de `mock.ts`
+  (`getInstructoras`): sus clases apuntan a esos ids. Pasa a la tabla con la
+  agenda (paso 9).
+
 #### Asignar plan y cobrar (ficha del cliente) — oct 2026
 
 Botón **«Asignar plan»** (sin plan) o **«Renovar»** (con plan) en la cabecera

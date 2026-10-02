@@ -12,8 +12,10 @@ import type {
   BorradorPlan,
   CategoriaGasto,
   MetodoPago,
+  RolEquipo,
   TipoIdentificacion,
 } from "./types";
+import { crearClienteAdmin } from "@/lib/supabase/admin";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { MAYORIA_DE_EDAD, edad, esCorreo, esMovilCO } from "@/lib/validacion";
 
@@ -437,5 +439,268 @@ export async function asignarPlan(
   revalidatePath("/admin/finanzas");
   revalidatePath("/admin/planes");
   revalidatePath("/admin");
+  return { ok: true };
+}
+
+/* ======================================================================
+   Equipo y acceso al panel
+   ====================================================================== */
+
+const ROLES: RolEquipo[] = ["Administración", "Recepción", "Instructora"];
+const esRol = (v: string): v is RolEquipo => (ROLES as string[]).includes(v);
+
+export type ResultadoEquipo =
+  | { ok: true; contrasena?: string; aviso?: string }
+  | { ok: false; error: string; campo?: "correo" };
+
+/**
+ * Contraseña temporal de 12 caracteres, sin los que se confunden al dictarla
+ * o copiarla a mano (0/O, 1/l/I). Con `crypto`, no `Math.random`: es una
+ * credencial.
+ */
+function contrasenaTemporal(): string {
+  const letras = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const azar = new Uint32Array(12);
+  crypto.getRandomValues(azar);
+  return Array.from(azar, (n) => letras[n % letras.length]).join("");
+}
+
+/** La sesión de Administración, o un error para devolver tal cual. */
+async function adminActual(): Promise<{ id: string } | { error: string }> {
+  const usuario = await getUsuarioActual();
+  if (usuario?.rol !== "Administración") {
+    return { error: "Solo Administración puede gestionar el equipo." };
+  }
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.auth.getUser();
+  return data.user ? { id: data.user.id } : { error: "Tu sesión caducó. Vuelve a entrar." };
+}
+
+/** Da de alta a una persona en el equipo, SIN acceso: eso es otro paso. */
+export async function crearMiembro(datos: {
+  nombre: string;
+  correo: string;
+  telefono: string;
+  rol: string;
+}): Promise<ResultadoEquipo> {
+  const yo = await adminActual();
+  if ("error" in yo) return { ok: false, error: yo.error };
+
+  const nombre = datos.nombre.trim();
+  const correo = datos.correo.trim().toLowerCase();
+  if (nombre.length < 3) return { ok: false, error: "Falta el nombre." };
+  if (!esCorreo(correo)) return { ok: false, campo: "correo", error: "Correo no válido." };
+  if (datos.telefono && !esMovilCO(datos.telefono)) return { ok: false, error: "Teléfono no válido." };
+  if (!esRol(datos.rol)) return { ok: false, error: "Rol no válido." };
+
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("equipo").insert({
+    nombre,
+    correo,
+    telefono: datos.telefono || null,
+    rol: datos.rol,
+  });
+  if (error) {
+    if (error.code === "23505") return { ok: false, campo: "correo", error: "Ya hay alguien del equipo con ese correo." };
+    return { ok: false, error: `No se pudo guardar: ${error.message}` };
+  }
+  revalidatePath("/admin/usuarios");
+  return { ok: true };
+}
+
+/**
+ * Le da acceso al panel a alguien del equipo.
+ *
+ * - Si nunca tuvo cuenta: se le crea con una **contraseña temporal**, que se
+ *   devuelve UNA vez para que Administración se la entregue en mano. No hay
+ *   invitación por correo: el correo gratuito de Supabase solo llega a los
+ *   miembros del proyecto de Supabase, no al personal del estudio.
+ * - Si ya tuvo cuenta y se le quitó el acceso: se le devuelve el perfil, con
+ *   la misma contraseña de antes.
+ * - Si su correo ya tenía cuenta por otro camino: se enlaza a esa cuenta.
+ *
+ * Crear la cuenta exige la clave `service_role` (`crearClienteAdmin`); el
+ * perfil y el enlace van con la sesión de Administración y RLS por delante.
+ * Si algo falla después de crear la cuenta, la cuenta se borra: una cuenta
+ * sin perfil no sirve y quedaría huérfana.
+ */
+export async function darAcceso(equipoId: string): Promise<ResultadoEquipo> {
+  const yo = await adminActual();
+  if ("error" in yo) return { ok: false, error: yo.error };
+
+  const supabase = await crearClienteServidor();
+  const { data: m } = await supabase
+    .from("equipo")
+    .select("id, nombre, correo, rol, cuenta_id, activo")
+    .eq("id", equipoId)
+    .maybeSingle();
+  if (!m) return { ok: false, error: "Esa persona no está en el equipo." };
+  if (!m.activo) return { ok: false, error: "Está marcada como inactiva: actívala antes de darle acceso." };
+
+  // Ya tuvo cuenta: devolverle el perfil basta.
+  if (m.cuenta_id) {
+    const { error } = await supabase
+      .from("perfiles")
+      .upsert({ id: m.cuenta_id, nombre: m.nombre, rol: m.rol });
+    if (error) return { ok: false, error: `No se pudo dar acceso: ${error.message}` };
+    revalidatePath("/admin/usuarios");
+    return { ok: true, aviso: "Ya tenía cuenta: entra con la contraseña de antes." };
+  }
+
+  const admin = crearClienteAdmin();
+  if (!admin) {
+    return {
+      ok: false,
+      error: "Falta configurar SUPABASE_SERVICE_ROLE_KEY en el servidor: sin ella no se pueden crear cuentas.",
+    };
+  }
+
+  const contrasena = contrasenaTemporal();
+  const creada = await admin.auth.admin.createUser({
+    email: m.correo,
+    password: contrasena,
+    email_confirm: true,
+    user_metadata: { nombre: m.nombre },
+  });
+
+  let cuentaId = creada.data.user?.id;
+  let reutilizada = false;
+  if (creada.error) {
+    // El correo ya tenía cuenta (p. ej. se registró como cliente). Se busca
+    // y se enlaza: es la misma persona, y su contraseña la conoce ella.
+    if (creada.error.code !== "email_exists") {
+      return { ok: false, error: `No se pudo crear la cuenta: ${creada.error.message}` };
+    }
+    for (let pagina = 1; pagina <= 20 && !cuentaId; pagina++) {
+      const { data } = await admin.auth.admin.listUsers({ page: pagina, perPage: 200 });
+      cuentaId = data?.users.find((u) => u.email?.toLowerCase() === m.correo.toLowerCase())?.id;
+      if (!data || data.users.length < 200) break;
+    }
+    if (!cuentaId) return { ok: false, error: "Ese correo ya tiene cuenta, pero no se encontró." };
+    reutilizada = true;
+  }
+  const id = cuentaId as string;
+
+  const perfil = await supabase.from("perfiles").insert({ id, nombre: m.nombre, rol: m.rol });
+  const enlace = perfil.error
+    ? null
+    : await supabase.from("equipo").update({ cuenta_id: id }).eq("id", m.id);
+
+  if (perfil.error || enlace?.error) {
+    if (!reutilizada) await admin.auth.admin.deleteUser(id);
+    else await supabase.from("perfiles").delete().eq("id", id);
+    return { ok: false, error: `No se pudo dar acceso: ${(perfil.error ?? enlace?.error)?.message}` };
+  }
+
+  revalidatePath("/admin/usuarios");
+  return reutilizada
+    ? { ok: true, aviso: "Ese correo ya tenía cuenta: entra con su contraseña de siempre." }
+    : { ok: true, contrasena };
+}
+
+/**
+ * Le quita el acceso al panel: borra su perfil. La cuenta se conserva, para
+ * poder devolvérselo sin crear otra.
+ *
+ * ⚠️ Nadie se quita el acceso a sí mismo (desde el panel no se podría
+ * deshacer), y el estudio no se queda sin Administración.
+ */
+export async function quitarAcceso(equipoId: string): Promise<ResultadoEquipo> {
+  const yo = await adminActual();
+  if ("error" in yo) return { ok: false, error: yo.error };
+
+  const supabase = await crearClienteServidor();
+  const { data: m } = await supabase
+    .from("equipo")
+    .select("cuenta_id, rol")
+    .eq("id", equipoId)
+    .maybeSingle();
+  if (!m?.cuenta_id) return { ok: false, error: "Esa persona no tiene acceso." };
+  if (m.cuenta_id === yo.id) return { ok: false, error: "No puedes quitarte el acceso a ti misma." };
+
+  if (m.rol === "Administración") {
+    const { count } = await supabase
+      .from("perfiles")
+      .select("id", { count: "exact", head: true })
+      .eq("rol", "Administración")
+      .neq("id", m.cuenta_id);
+    if (!count) {
+      return {
+        ok: false,
+        error: "Es la única cuenta de Administración: el estudio se quedaría sin nadie que gestione el panel.",
+      };
+    }
+  }
+
+  const { error } = await supabase.from("perfiles").delete().eq("id", m.cuenta_id);
+  if (error) return { ok: false, error: `No se pudo quitar el acceso: ${error.message}` };
+  revalidatePath("/admin/usuarios");
+  return { ok: true };
+}
+
+/** Cambia la contraseña de alguien del equipo por una temporal nueva (la
+ *  olvidó, o se teme que otra persona la conozca). Se devuelve UNA vez. */
+export async function nuevaContrasenaTemporal(equipoId: string): Promise<ResultadoEquipo> {
+  const yo = await adminActual();
+  if ("error" in yo) return { ok: false, error: yo.error };
+
+  const supabase = await crearClienteServidor();
+  const { data: m } = await supabase.from("equipo").select("cuenta_id").eq("id", equipoId).maybeSingle();
+  if (!m?.cuenta_id) return { ok: false, error: "Esa persona no tiene cuenta." };
+  if (m.cuenta_id === yo.id) return { ok: false, error: "Tu contraseña se cambia desde tu menú de cuenta." };
+
+  const admin = crearClienteAdmin();
+  if (!admin) return { ok: false, error: "Falta configurar SUPABASE_SERVICE_ROLE_KEY en el servidor." };
+
+  const contrasena = contrasenaTemporal();
+  const { error } = await admin.auth.admin.updateUserById(m.cuenta_id, { password: contrasena });
+  if (error) return { ok: false, error: `No se pudo cambiar la contraseña: ${error.message}` };
+  return { ok: true, contrasena };
+}
+
+/** Cambia el rol de alguien (puesto y permisos a la vez, función
+ *  `cambiar_rol_equipo`). Nadie se cambia el suyo: se podría quitar a sí
+ *  mismo el rol que le deja deshacerlo. */
+export async function cambiarRol(equipoId: string, rol: string): Promise<ResultadoEquipo> {
+  const yo = await adminActual();
+  if ("error" in yo) return { ok: false, error: yo.error };
+  if (!esRol(rol)) return { ok: false, error: "Rol no válido." };
+
+  const supabase = await crearClienteServidor();
+  const { data: m } = await supabase.from("equipo").select("cuenta_id").eq("id", equipoId).maybeSingle();
+  if (m?.cuenta_id === yo.id) return { ok: false, error: "No puedes cambiarte el rol a ti misma." };
+
+  const { error } = await supabase.rpc("cambiar_rol_equipo", { p_equipo: equipoId, p_rol: rol });
+  if (error) {
+    if (error.code === "P0001" || error.code === "P0002") return { ok: false, error: error.message };
+    return { ok: false, error: `No se pudo cambiar el rol: ${error.message}` };
+  }
+  revalidatePath("/admin/usuarios");
+  return { ok: true };
+}
+
+/**
+ * Cambia la contraseña de quien tiene la sesión abierta.
+ *
+ * ⚠️ Pide la ACTUAL y la comprueba antes de cambiarla: con una sesión olvidada
+ * abierta en el ordenador de recepción, cualquiera podría cambiarla y dejar
+ * fuera a su dueña.
+ */
+export async function cambiarMiContrasena(actual: string, nueva: string): Promise<ResultadoEquipo> {
+  if (nueva.length < 8) return { ok: false, error: "La contraseña nueva necesita al menos 8 caracteres." };
+  if (nueva === actual) return { ok: false, error: "La contraseña nueva es igual a la actual." };
+
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user?.email) return { ok: false, error: "Tu sesión caducó. Vuelve a entrar." };
+
+  const comprobacion = await supabase.auth.signInWithPassword({
+    email: data.user.email,
+    password: actual,
+  });
+  if (comprobacion.error) return { ok: false, error: "La contraseña actual no es correcta." };
+
+  const { error } = await supabase.auth.updateUser({ password: nueva });
+  if (error) return { ok: false, error: `No se pudo cambiar: ${error.message}` };
   return { ok: true };
 }

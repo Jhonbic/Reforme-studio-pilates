@@ -175,8 +175,38 @@ export async function getClientes(): Promise<Cliente[]> {
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
-export function getEquipo(): MiembroEquipo[] {
-  return [...EQUIPO].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+/**
+ * El equipo del estudio (tabla `equipo`), con si cada persona puede entrar al
+ * panel, ordenado alfabéticamente.
+ *
+ * Tener acceso = su cuenta (`cuenta_id`) tiene fila en `perfiles`. Solo
+ * Administración ve los perfiles ajenos (RLS), así que para los demás roles
+ * `acceso` va `null`: «no lo sé», no «no tiene».
+ */
+export async function getEquipo(esAdmin: boolean): Promise<MiembroEquipo[]> {
+  const supabase = await crearClienteServidor();
+  const [equipo, perfiles] = await Promise.all([
+    supabase.from("equipo").select("*"),
+    esAdmin ? supabase.from("perfiles").select("id") : Promise.resolve(null),
+  ]);
+  if (equipo.error) throw new Error(`No se pudo leer el equipo: ${equipo.error.message}`);
+  if (perfiles?.error) throw new Error(`No se pudieron leer los accesos: ${perfiles.error.message}`);
+
+  const conPerfil = new Set((perfiles?.data ?? []).map((p) => p.id));
+  return equipo.data
+    .map((m) => ({
+      id: m.id,
+      nombre: m.nombre,
+      correo: m.correo,
+      // En la base va en crudo; el formato es cosa de la pantalla.
+      telefono: m.telefono ? telefonoCO(m.telefono) : "",
+      rol: m.rol,
+      clasesSemana: m.clases_semana,
+      activo: m.activo,
+      alta: m.alta,
+      acceso: esAdmin ? m.cuenta_id !== null && conPerfil.has(m.cuenta_id) : null,
+    }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
 /**
@@ -188,7 +218,11 @@ export function getEquipo(): MiembroEquipo[] {
  * desaparece del desplegable del formulario.
  */
 export function getInstructoras(): MiembroEquipo[] {
-  return getEquipo().filter((m) => m.rol === "Instructora" && m.activo);
+  // ⚠️ Sigue en `mock.ts` a propósito: las clases de ejemplo apuntan a los ids
+  // del equipo de EJEMPLO. Pasará a la tabla `equipo` con la agenda (paso 9).
+  return EQUIPO.filter((m) => m.rol === "Instructora" && m.activo).sort((a, b) =>
+    a.nombre.localeCompare(b.nombre, "es"),
+  );
 }
 
 /**

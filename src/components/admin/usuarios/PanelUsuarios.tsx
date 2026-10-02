@@ -14,6 +14,8 @@ import MenuExportar from "./MenuExportar";
 import { csvClientes, csvEquipo, descargarCsv } from "./exportar";
 import FilaCliente from "./FilaCliente";
 import FilaMiembro from "./FilaMiembro";
+import GestionMiembro from "./GestionMiembro";
+import NuevoMiembro from "./NuevoMiembro";
 import Paginacion from "./Paginacion";
 import type { Cliente, MiembroEquipo } from "@/lib/admin/types";
 import { normalizar, soloDigitos } from "@/lib/validacion";
@@ -41,6 +43,10 @@ type Props = {
   clientes: Cliente[];
   equipo: MiembroEquipo[];
   conteos: Record<FiltroEstado, number>;
+  /** Solo Administración gestiona el equipo y ve quién tiene acceso. */
+  esAdmin: boolean;
+  /** Para no ofrecerle a nadie las acciones que le dejarían fuera a sí mismo. */
+  correoActual: string;
 };
 
 /**
@@ -56,7 +62,17 @@ type Props = {
  * se puede compartir por enlace; cuando haya backend y paginación de servidor,
  * ese es el momento de subirlos a la URL.
  */
-export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
+export default function PanelUsuarios({
+  clientes,
+  equipo,
+  conteos,
+  esAdmin,
+  correoActual,
+}: Props) {
+  /** El miembro cuyo diálogo de gestión está abierto. Se guarda el ID y no el
+   *  objeto: tras una acción la lista se revalida, y así el diálogo lee la
+   *  versión nueva en vez de la foto de cuando se abrió. */
+  const [gestionando, setGestionando] = useState<string | null>(null);
   const [pestana, setPestana] = useState<Pestana>("clientes");
   const [busqueda, setBusqueda] = useState("");
   const [estado, setEstado] = useState<FiltroEstado>("Todas");
@@ -272,21 +288,27 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
               Nuevo cliente
             </Link>
           ) : (
-            <button
-              type="button"
-              aria-disabled="true"
-              onClick={() =>
-                mostrarAviso(
-                  "El alta de equipo todavía no existe: llega con la gestión de accesos.",
-                  "info",
-                )
-              }
-              className={BOTON_CABECERA}
-            >
-              <span className="control-sheen control-sheen--lento" aria-hidden="true" />
-              <span aria-hidden="true">+</span>
-              Nuevo miembro
-            </button>
+            esAdmin ? (
+              <NuevoMiembro className={BOTON_CABECERA} />
+            ) : (
+              /* `aria-disabled` y no `disabled`: así recibe foco y quien lo
+                 pulsa lee el porqué. */
+              <button
+                type="button"
+                aria-disabled="true"
+                onClick={() =>
+                  mostrarAviso(
+                    "Solo Administración puede añadir personas al equipo.",
+                    "info",
+                  )
+                }
+                className={BOTON_CABECERA}
+              >
+                <span className="control-sheen control-sheen--lento" aria-hidden="true" />
+                <span aria-hidden="true">+</span>
+                Nuevo miembro
+              </button>
+            )
           )}
         </div>
       </div>
@@ -342,7 +364,10 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
                     .slice(inicio, inicio + POR_PAGINA)
                     .map((m) => (
                       <li key={m.id}>
-                        <FilaMiembro miembro={m} />
+                        <FilaMiembro
+                          miembro={m}
+                          onAbrir={esAdmin ? () => setGestionando(m.id) : undefined}
+                        />
                       </li>
                     ))}
             </ul>
@@ -360,6 +385,12 @@ export default function PanelUsuarios({ clientes, equipo, conteos }: Props) {
         )}
       </Card>
       </div>
+
+      <GestionMiembro
+        miembro={equipo.find((m) => m.id === gestionando) ?? null}
+        correoActual={correoActual}
+        onCerrar={() => setGestionando(null)}
+      />
     </div>
   );
 }

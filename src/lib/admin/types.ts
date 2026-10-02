@@ -212,6 +212,13 @@ export type MiembroEquipo = {
   clasesSemana: number;
   activo: boolean;
   alta: string;
+  /**
+   * ¿Puede entrar al panel? `null` cuando quien mira no lo puede saber: RLS
+   * solo le enseña los perfiles ajenos a Administración, y a los demás les
+   * diría «sin acceso» de todo el mundo. Los miembros de ejemplo de la agenda
+   * (`mock.ts`) no lo traen.
+   */
+  acceso?: boolean | null;
 };
 
 /** Un mes cerrado de la contabilidad. `mes` es la etiqueta corta ("Ene"). */

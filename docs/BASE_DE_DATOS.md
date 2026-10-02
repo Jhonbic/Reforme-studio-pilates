@@ -19,6 +19,7 @@ supabase/
     20261001140000_estado_sin_plan.sql             Nuevo estado «Sin plan»
     20261001140100_vista_sin_plan.sql              La vista lo usa (security_invoker)
     20261001150000_registrar_membresia.sql         Membresía + pago atómicos; «Inactiva» desde el pago
+    20261001160000_equipo_y_cuentas.sql            equipo.cuenta_id + cambiar_rol_equipo
   seed.sql                                         20 clientes, determinista
 ```
 
@@ -82,6 +83,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<clave anónima>
 
 ⚠️ **La clave `service_role` no se pone aquí ni en ningún `NEXT_PUBLIC_`.** Esa
 clave se salta RLS entera; si acaba en el navegador, la base queda abierta.
+
+### Acceso del equipo
+
+Desde oct 2026 el acceso se da **desde el panel** (Usuarios → Equipo → la
+persona → «Dar acceso al panel»), no con SQL. Requiere la variable
+`SUPABASE_SERVICE_ROLE_KEY` en el servidor (Vercel → Settings → Environment
+Variables; el valor está en Supabase → Project Settings → API → `service_role`).
+**Nunca** con prefijo `NEXT_PUBLIC_`.
 
 ### El primer usuario
 

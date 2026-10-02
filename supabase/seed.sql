@@ -217,3 +217,22 @@ join (
   select id, (row_number() over (order by inicio, id) - 1)::int as fila
   from membresias
 ) n on n.id = m.id;
+
+
+-- Equipo ↔ cuentas -----------------------------------------------------------
+-- ⚠️ El `truncate` del principio vacía `equipo`, incluidas las filas de las
+-- cuentas reales con acceso (la del dueño). Esto las vuelve a enlazar y a
+-- crear, igual que la migración `20261001160000`. Sin ello, recargar la
+-- semilla sacaría al dueño de la lista de «quién tiene acceso» del panel
+-- (seguiría entrando, pero nadie podría gestionarlo desde ahí).
+update equipo e
+set cuenta_id = u.id
+from auth.users u
+where lower(u.email) = lower(e.correo);
+
+insert into equipo (nombre, correo, rol, cuenta_id)
+select p.nombre, u.email, p.rol, p.id
+from perfiles p
+join auth.users u on u.id = p.id
+where not exists (select 1 from equipo e where e.cuenta_id = p.id)
+on conflict (correo) do nothing;

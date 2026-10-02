@@ -89,6 +89,7 @@ export type Database = {
           alta: string;
           clases_semana: number;
           correo: string;
+          cuenta_id: string | null;
           id: string;
           nombre: string;
           rol: Database["public"]["Enums"]["rol_equipo"];
@@ -99,6 +100,7 @@ export type Database = {
           alta?: string;
           clases_semana?: number;
           correo: string;
+          cuenta_id?: string | null;
           id?: string;
           nombre: string;
           rol: Database["public"]["Enums"]["rol_equipo"];
@@ -109,6 +111,7 @@ export type Database = {
           alta?: string;
           clases_semana?: number;
           correo?: string;
+          cuenta_id?: string | null;
           id?: string;
           nombre?: string;
           rol?: Database["public"]["Enums"]["rol_equipo"];
@@ -355,6 +358,10 @@ export type Database = {
       };
     };
     Functions: {
+      cambiar_rol_equipo: {
+        Args: { p_equipo: string; p_rol: Database["public"]["Enums"]["rol_equipo"] };
+        Returns: undefined;
+      };
       es_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       es_mostrador: { Args: Record<PropertyKey, never>; Returns: boolean };
       estado_de_membresia: {

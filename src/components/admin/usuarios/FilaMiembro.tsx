@@ -5,15 +5,25 @@ import { REJILLA_EQUIPO } from "./rejilla";
 import type { MiembroEquipo } from "@/lib/admin/types";
 
 /**
- * Fila del equipo del estudio. Misma anatomía que `FilaCliente`, pero **no es
- * un enlace**: no hay ficha de miembro todavía y un enlace a ninguna parte es
- * peor que ningún enlace. Cuando exista, se convierte en `<Link>` igual que la
- * de clientes.
+ * Fila del equipo del estudio. Misma anatomía que `FilaCliente`.
+ *
+ * Para Administración es un **botón** que abre la gestión de esa persona (rol
+ * y acceso al panel); para el resto, una fila de solo lectura. Botón y no
+ * enlace: no lleva a otra página, abre un diálogo.
  */
-export default function FilaMiembro({ miembro }: { miembro: MiembroEquipo }) {
+export default function FilaMiembro({
+  miembro,
+  onAbrir,
+}: {
+  miembro: MiembroEquipo;
+  /** Sin él, la fila no se puede pulsar (quien mira no es Administración). */
+  onAbrir?: () => void;
+}) {
+  const Contenedor = onAbrir ? "button" : "div";
   return (
-    <div
-      className={`${REJILLA_EQUIPO} min-h-[76px] gap-y-1 py-3 transition-colors duration-200 hover:bg-arena/70`}
+    <Contenedor
+      {...(onAbrir ? { type: "button" as const, onClick: onAbrir } : {})}
+      className={`${REJILLA_EQUIPO} min-h-[76px] w-full gap-y-1 py-3 text-left transition-colors duration-200 hover:bg-arena/70`}
     >
       <Avatar nombre={miembro.nombre} />
 
@@ -30,9 +40,15 @@ export default function FilaMiembro({ miembro }: { miembro: MiembroEquipo }) {
         <span className="min-w-0 text-sm text-verde-700">
           <span className="block truncate">{miembro.rol}</span>
           <span className="block text-xs tabular-nums text-verde-300">
-            {miembro.clasesSemana > 0
-              ? `${miembro.clasesSemana} clases/semana`
-              : "Sin clases asignadas"}
+            {/* El acceso solo lo sabe Administración (`null` para el resto):
+                sin dato no se afirma nada. */}
+            {miembro.acceso === true
+              ? "Entra al panel"
+              : miembro.acceso === false
+                ? "Sin acceso al panel"
+                : miembro.clasesSemana > 0
+                  ? `${miembro.clasesSemana} clases/semana`
+                  : "Sin clases asignadas"}
           </span>
         </span>
 
@@ -62,6 +78,6 @@ export default function FilaMiembro({ miembro }: { miembro: MiembroEquipo }) {
           {fechaCompacta(miembro.alta)}
         </span>
       </span>
-    </div>
+    </Contenedor>
   );
 }
