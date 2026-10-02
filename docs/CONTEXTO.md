@@ -1,6 +1,7 @@
 # Reforme Studio Pilates — Contexto del proyecto
 
-> Documento de contexto versionado. Objetivo: que cualquier persona (o agente) que
+> Documento de contexto versionado. **Estado actual y pendientes: §7 y §8.**
+> Objetivo: que cualquier persona (o agente) que
 > abra el repo entienda qué es el proyecto, la marca y en qué estado está,
 > **sin depender de memoria externa**.
 
@@ -73,8 +74,8 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 - La web pública es estática (`○ Static`). **`/admin` y `/login` son dinámicas**
   desde que hay auth (oct 2026): leen la sesión en cookies. Vercel lo sirve igual,
   no hace falta un contenedor tipo Railway.
-- ⚠️ **Vercel necesita `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`**
-  (ver `.env.example`). Sin ellas `/admin` da 500.
+- ⚠️ **Variables de entorno**: ver la tabla de §7. Sin las dos `NEXT_PUBLIC_…`
+  `/admin` da 500; sin `SUPABASE_SERVICE_ROLE_KEY` solo falla «Dar acceso».
 - Para ver en el móvil sin desplegar: `npx next dev -H 0.0.0.0` y abrir
   `http://<IP-del-PC>:3000`.
 - **Supabase local con Docker** (WSL2 + Docker Desktop, instalados oct 2026):
@@ -214,7 +215,7 @@ En `src/components/`:
     con el logo real en primer plano sobraban.
   - **3 pilares:** icono en círculo dorado (ver `icons/PilarIcons.tsx`), sin
     numeración.
-- `/login` y `/registro`: **solo UI**, sin backend (muestran confirmación
+- `/login` (**real**, Supabase Auth) y `/registro` (**solo UI**, confirmación
   simulada). Comparten [`auth/AuthShell.tsx`](../src/components/auth/AuthShell.tsx).
   - **`/registro` valida en cliente** (nombre, email, contraseña ≥8, confirmación,
     términos). **`/login` es real desde oct 2026**: server action con Supabase Auth
@@ -226,10 +227,14 @@ En `src/components/`:
 
 ### Panel administrativo (`/admin`)
 
-Fase 3 arrancada. **Solo UI con datos de ejemplo**, sin backend.
+> ⚠️ **Desde oct 2026 el panel lee y guarda en Supabase**, salvo la agenda de
+> Clases. Muchas notas de esta sección son de julio, cuando todo salía de
+> `mock.ts`: se conservan como historia de cada decisión, y cada pantalla
+> lleva al principio un recuadro ✅ con lo que cambió. **La foto actual está
+> en §7.**
 
-- Secciones: **Dashboard**, **Usuarios**, **Planes** y **Finanzas**, las cuatro
-  construidas. Lo que falta en ellas no es pantalla, es persistencia.
+- Secciones: **Dashboard**, **Usuarios**, **Clases**, **Planes** y
+  **Finanzas**. Todas leen de la base menos Clases.
 - `app/admin/layout.tsx` — armazón propio: barra lateral verde en escritorio,
   cabecera fija + pastillas con scroll horizontal en móvil. **No usa el Navbar ni
   el Footer públicos**: son dos productos distintos, y aquí los efectos
@@ -1319,119 +1324,169 @@ Excepción deliberada: las **etiquetas y campos de formulario siguen alineados a
 izquierda** (legibilidad); solo se centra su encabezado.
 
 
-## 7. Fases del proyecto
+## 7. Estado del proyecto (actualizado 2 oct 2026)
 
-> Antes había **dos** secciones de fases, contradictorias entre sí, y ambas
-> afirmaban que la ficha `[id]`, Planes y Finanzas estaban sin construir. Se
-> fusionaron en esta al hacer limpieza (jul 2026).
+> Esta sección sustituye a las antiguas «Fases» y «Qué está construido» de jul
+> 2026, que daban el panel por «solo UI con datos de ejemplo». Desde oct 2026
+> el panel trabaja contra **Supabase** de verdad. El detalle de cada pantalla
+> está en §6; aquí va la foto de conjunto.
 
-- **Fase 1 — landing (hecha).** Landing + UI de `/login` y `/registro`. Sin backend.
-- **Fase 1.5 — panel, solo lectura (hecha).** Dashboard, Usuarios (listado, alta,
-  ficha), Clases, Planes y Finanzas. Todo con `mock.ts`.
-- **Fase 2 — datos reales (siguiente).** Autenticación y base de datos. Es lo que
-  desbloquea los formularios, que hoy validan pero no guardan.
-- **Fase 3 — más módulos.** Reservas (la vista de cliente sobre la agenda que ya
-  existe) e informes.
+### Dónde vive cada cosa
 
-> ⚠️ **La agenda de clases se adelantó a la fase 3** (jul 2026), igual que la
-> 1.5 se adelantó a la 2: el horario es lo que hay que tener para que la vista
-> de cliente tenga algo que reservar. Lo que falta ahí no es pantalla, es la
-> tabla de reservas.
-
-> Ojo al orden: **la 1.5 se adelantó a la 2 a propósito**, para decidir el diseño
-> con algo delante. La consecuencia es que `/admin` está abierto y todos sus
-> datos son inventados.
-
-### Qué está construido (jul 2026)
-
-Nueve rutas, todas `○ Static` o `● SSG`:
-
-| Ruta | Estado |
+| Pieza | Dónde |
 |---|---|
-| `/` | Landing completa |
-| `/login` | Auth real con Supabase (solo equipo; clientes aún sin área) |
-| `/registro` | Solo UI, no envía a ningún sitio |
-| `/admin` | Dashboard bento **desde Supabase** (reservas aún de ejemplo) · dinero solo para Administración |
-| `/admin/usuarios` | Clientes **desde Supabase** · filtros, paginación, export CSV real · equipo aún de `mock.ts` |
-| `/admin/usuarios/nuevo` | Formulario validado · **guarda en Supabase** (sin plan) |
-| `/admin/usuarios/[id]` | Ficha de solo lectura, **desde Supabase** |
-| `/admin/clases` | Agenda por día + alta, edición, cancelación · **no guarda** |
-| `/admin/planes` | Catálogo **desde Supabase** + CRUD que **guarda** |
-| `/admin/finanzas` | **Desde Supabase**, solo Administración · periodo, utilidad, desgloses, libro unificado, export · registrar gasto **guarda** (con comprobante) |
+| Código | `github.com/Jhonbic/Reforme-studio-pilates`, rama `main` |
+| Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
+| Base de datos y cuentas | Supabase, proyecto `gdmxiqvmtegusevkqtgt` |
+| Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
+| Esquema | `supabase/migrations/` — **10 migraciones, todas aplicadas en local y en remoto** |
 
-**Lo único que funciona de verdad** sin backend: la exportación a CSV, los
-filtros y búsquedas (en cliente) y el selector de periodo del dashboard.
+### Variables de entorno
+
+| Variable | Para qué | Dónde |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto | `.env.local` y Vercel ✅ |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave pública (RLS manda) | `.env.local` y Vercel ✅ |
+| `SUPABASE_SERVICE_ROLE_KEY` | Solo «Dar acceso» y contraseñas temporales | `.env.local` ✅ · **Vercel: pendiente** |
+
+⚠️ `SUPABASE_SERVICE_ROLE_KEY` se salta toda la seguridad de la base: nunca con
+prefijo `NEXT_PUBLIC_`. Solo la lee `src/lib/supabase/admin.ts` (`server-only`).
+
+### Qué está construido
+
+| Ruta | Lee de | Guarda | Quién |
+|---|---|---|---|
+| `/` | — | — | Público. Landing completa |
+| `/login` | Supabase Auth | Sesión | Público. Solo entra quien tiene perfil |
+| `/registro` | — | **No** (solo UI) | Público |
+| `/admin` | Supabase | — | Equipo. Dinero solo Administración. «Reservas por día» aún de ejemplo |
+| `/admin/usuarios` (Clientes) | Supabase | — | Equipo. Filtros, paginación, CSV |
+| `/admin/usuarios` (Equipo) | Supabase | ✅ alta de miembro, dar/quitar acceso, rol, contraseña temporal | Gestión: solo Administración |
+| `/admin/usuarios/nuevo` | Supabase | ✅ alta de cliente (sin plan) | Administración y Recepción |
+| `/admin/usuarios/[id]` | Supabase | ✅ asignar plan y cobrar / renovar | Cobrar: Administración y Recepción |
+| `/admin/clases` | **`mock.ts`** | **No** | Equipo. Única pantalla sin base de datos |
+| `/admin/planes` | Supabase | ✅ crear, editar, retirar, borrar | Cambios: solo Administración |
+| `/admin/finanzas` | Supabase | ✅ registrar gasto con comprobante | Solo Administración |
+| Menú de cuenta | Sesión | ✅ cambiar contraseña, cerrar sesión | Todo el equipo |
+
+Todas las escrituras son **server actions** en `src/lib/admin/acciones.ts` (y
+`src/lib/auth/acciones.ts` para entrar y salir). Cada una vuelve a validar los
+datos y el rol en el servidor, y RLS lo vuelve a impedir en la base.
+
+### El plan por pasos (oct 2026)
+
+**Fase A — Autenticación** ✅
+1. ✅ Login real, `proxy.ts` protege `/admin`, perfil obligatorio. Registrarse
+   ya no da acceso (antes daba rol de Recepción a cualquiera).
+2. ✅ Publicado: variables en Vercel, cuenta de administración en el remoto.
+
+**Fase B — El panel lee datos reales** ✅
+3. ✅ Usuarios (clientes y ficha). Semilla reducida a 20 clientes.
+4. ✅ Finanzas (rediseño con la estructura de JainSportBox) y Planes.
+5. ✅ Dashboard. Se borró de `mock.ts` todo lo que ya no se leía.
+
+**Fase C — El panel guarda** ✅
+6. ✅ Alta de cliente. Nuevo estado «Sin plan».
+7. ✅ Gastos con comprobante · CRUD de planes · asignar plan y cobrar.
+8. ✅ Equipo: dar y quitar acceso, roles, contraseñas.
+
+**Fase D — Clases y clientes** ⏳
+9. ⏳ **Siguiente:** tablas de clases y reservas; la agenda guarda y usa el
+   equipo real.
+10. ⏳ `/registro` real, área de cliente y reservar clase.
+11. ⏳ Calidad: tests, CI, `robots`, `sitemap`, imagen para compartir.
+
+### Arreglos que salieron por el camino
+
+Problemas encontrados al conectar cada pantalla; quedan aquí porque son fáciles
+de repetir:
+
+- **Registro abierto** → cualquiera con la clave pública se creaba una cuenta
+  con rol de Recepción y leía los clientes. Cerrado (`20261001120000`).
+- **Base de datos en UTC** → desde las 19:00 de Colombia `current_date` daba
+  mañana (altas, vencimientos, «pago no futuro»). Pasada a `America/Bogota`
+  (`20261001130000`). En la app, «hoy» es `hoyEnBogota()`.
+- **Teléfonos** → el alta los mandaba formateados («+57 …») y la base solo
+  acepta 10 dígitos: ningún alta habría entrado.
+- **Cliente sin plan salía «Activa»** → nuevo estado «Sin plan».
+- **Todo cliente nuevo salía «Inactiva»** (no hay registro de asistencias) →
+  los 30 días cuentan desde la última visita o desde el pago.
+- **Funciones nuevas ejecutables por la clave pública** → Supabase concede
+  EXECUTE a `anon` por nombre; hay que revocárselo a `public` **y** a `anon`.
+- **Borrar un plan** → la base no deja borrar uno que alguien contrató; el
+  diálogo ofrece «Marcar como no se vende».
+- **Server actions cortan en 1 MB** → `bodySizeLimit: "4mb"` para los
+  comprobantes (Vercel corta en 4,5 MB).
 
 ## 8. Pendientes
 
-### Bloqueante
+### Lo que tiene que hacer alguien (no es código)
 
-- [x] ~~`/admin` sin protección~~ — resuelto en oct 2026 con `proxy.ts` + perfil
-      en el layout. **Falta configurar las variables en Vercel** antes de desplegar.
-- [x] ~~El registro abierto daba rol de Recepción a cualquiera~~ — quitado el
-      trigger `al_crear_usuario` (migración `20261001120000`). **Falta aplicarla
-      en el remoto** con `npx supabase db push`.
-- [ ] **La agenda de clases todavía no guarda** (no hay tabla de clases).
-      Alta de cliente, registro de gasto y CRUD de planes sí guardan (oct
-      2026, server actions en `lib/admin/acciones.ts`).
-- [ ] **La agenda no tiene reservas todavía.** `Clase.reservas` es un número
-      generado, no un `COUNT`: falta la tabla de reservas y la vista de cliente
-      que las cree. La agenda ya reserva el sitio para ello (aforo, cupos libres,
-      estado «Llena»).
-- [ ] **No hay registro de asistencias.** Se sabe quién apartó cupo, no quién
-      apareció: son dos hechos distintos y hoy solo existe el primero. Hace
-      falta marcar la asistencia clase por clase (una fila por persona y clase,
-      con `asistio`). En cuanto exista, «Reservas por día de la semana» del
-      dashboard pasa a **dos series** —reservado / asistió— y el hueco entre
-      ambas es la tasa de ausencias, que hoy no se puede ni estimar.
-- [ ] **Confirmar con el estudio las modalidades de clase.** `TipoClase`
-      (Reformer · Mat · Privada) y los cupos sugeridos de `catalogos.ts` son una
-      suposición razonable, no un dato del estudio.
-- [ ] **Falta `public/terminos-y-condiciones.pdf`.** El alta enlaza ahí
-      (`URL_TERMINOS` en `lib/admin/catalogos.ts`) → 404 en un documento legal.
-      No se redacta desde la web: lo aporta el estudio.
+- [ ] **Añadir `SUPABASE_SERVICE_ROLE_KEY` en Vercel** (Production y Preview) y
+      volver a desplegar. Sin ella, «Dar acceso» en producción solo avisa de
+      que falta. Valor: Supabase → Project Settings → API → `service_role`.
+- [ ] **Cambiar la contraseña de la cuenta de administración** del remoto: la
+      temporal se compartió por chat. Menú de cuenta → «Cambiar contraseña».
+- [ ] **Quitar el equipo de ejemplo del remoto** (Juliana Cardona, Daniela
+      Ospina, Mariana Restrepo, Carolina Muñoz, Alejandra Torres) y añadir al
+      equipo real. Si se les da acceso, se crean cuentas con correos falsos.
+- [ ] **Cuando el estudio tenga datos reales**, decidir qué hacer con los 20
+      clientes de ejemplo (`supabase/seed.sql`). La semilla **no** se debe volver
+      a lanzar contra el remoto con datos reales: empieza con un `truncate`.
+- [ ] **Confirmar con el estudio las modalidades de clase** (`TipoClase`:
+      Reformer · Mat · Privada) y los cupos de `catalogos.ts`. Son una
+      suposición.
+- [ ] **`public/terminos-y-condiciones.pdf`** no existe: el alta de cliente
+      enlaza ahí → 404 en un documento legal. Lo aporta el estudio.
 
 ### Contenido que falta aportar
 
-- [ ] Fotos reales del estudio. Hoy la única imagen del sitio es el logo; donde
-      iría la foto hay una tarjeta de degradado.
-- [ ] **Favicon real**: el actual es el de `create-next-app`, sin tocar desde el
-      commit inicial.
-- [ ] SVG oficial del logo. El que hay es PNG y solo está en el hero; Navbar,
-      Footer y AuthShell siguen con el isotipo recreado a mano (`Logo.tsx`).
-- [ ] Destino para los tres `href="#"`: recuperar contraseña en `/login`, y
-      términos y política de privacidad en `/registro`.
+- [ ] Fotos reales del estudio (hoy solo hay logo y degradados).
+- [ ] **Favicon real** (es el de `create-next-app`).
+- [ ] SVG oficial del logo. El PNG solo está en el hero; Navbar, Footer y
+      AuthShell usan el isotipo recreado a mano (`Logo.tsx`).
+- [ ] Destino para los `href="#"`: «¿Olvidaste tu contraseña?» en `/login`, y
+      términos y privacidad en `/registro`.
+
+### Funcionalidad pendiente (pasos 9–11 y más)
+
+- [ ] **Agenda de clases en la base** (paso 9): tablas `clases` y `reservas`.
+      Al escribirlas:
+      - `getClases()` recibirá un **rango de fechas** (hoy viajan las 203 clases
+        de ejemplo al navegador);
+      - el **solapamiento de instructora** tiene que ser además una restricción
+        de la base, no solo del formulario;
+      - `Clase.reservas` pasa de número inventado a un `COUNT`;
+      - las instructoras pasan a salir de la tabla `equipo` (hoy la agenda usa
+        el equipo de ejemplo de `mock.ts`, con nombres distintos);
+      - la tarjeta «Reservas por día de la semana» del dashboard deja de ser de
+        ejemplo y pierde la pastilla «▲ Datos de ejemplo».
+- [ ] **Registro de asistencias**: hoy se sabe quién reserva, no quién viene.
+      Con él, «Reservas por día» pasa a dos series (reservó / asistió) y
+      `clientes.ultima_asistencia` se actualiza sola.
+- [ ] **`/registro` real y área de cliente** (paso 10): cuenta de cliente
+      (sin perfil del equipo: RLS no le da nada del panel), ver sus clases y
+      reservar. Las políticas RLS para clientes están por escribir.
+- [ ] **Recuperar contraseña** desde `/login`. Necesita SMTP propio en Supabase
+      (el gratuito solo envía a los miembros del proyecto de Supabase).
+- [ ] **Ficha del cliente**: editar datos, dar de baja, e historial de pagos y
+      membresías (hoy los cobros solo se ven en Finanzas).
+- [ ] **Borrar un gasto** (la base lo permite a Administración; no hay botón) y
+      **devoluciones** (los pagos no se editan ni se borran, por diseño).
+- [ ] **Presupuestos**: se leen en Finanzas pero no hay pantalla para
+      editarlos; hoy solo los mete la semilla.
+- [ ] **Notificaciones de la campana**: el primer aviso es real (membresías por
+      vencer); los otros dos son de ejemplo (`mock.ts`).
 
 ### Calidad
 
-- [ ] **Cero tests y cero CI.** No hay `.github/`, ni Vitest/Playwright, ni script
-      de `typecheck`. Todo el CI es el auto-deploy de Vercel al hacer push.
-- [ ] **La rejilla bento sigue sin validarse a ojo** a 375 / 768 / 1280 / 1920.
-      Qué mirar: que no haya scroll horizontal a 1920 (prueba del `min-w-0`), que
-      los gráficos no se estiren al redimensionar, y que a 375px la columna única
-      cuente la historia en orden.
-- [ ] Sin `robots.ts`, `sitemap.ts` ni imagen Open Graph: al compartir el enlace
-      por WhatsApp sale sin miniatura.
-
-### Al conectar la base de datos
-
-- `mock.ts` es **el único archivo a sustituir**. Toda la UI pasa por
-  `queries.ts`, así que el cambio es volver esas funciones `async`.
-- ⚠️ `HOY = "2026-07-25"` está **congelado** para que el prerenderizado sea
-  reproducible. Se lee con `getHoy()`; ese es el único sitio a tocar.
-- ⚠️ `PAGOS` se **deriva** de `CLIENTES`. Con base de datos la relación se
-  invierte: el pago pasa a ser el hecho registrado y el vencimiento se calcula a
-  partir de él.
-- ⚠️ `crearCliente(ficha)` mapeará `FichaAlta` → `Cliente`, y es ahí donde se
-  asigna el plan (el alta no lo pregunta).
-- ⚠️ **El esquema de Supabase todavía NO tiene clases ni reservas** (ver
-  `docs/BASE_DE_DATOS.md`): hoy cubre clientes, membresías, pagos, planes y
-  gastos. La agenda necesita dos tablas más, y `reservas` es la que convierte
-  `Clase.reservas` de número inventado en un `COUNT`. Al escribirlas:
-  - `getClases()` recibirá un **rango de fechas** en vez de devolver la agenda
-    entera (hoy son 203 clases y viajan todas al navegador a propósito);
-  - `CLASES` se genera de una plantilla semanal — esa plantilla es una tabla más
-    el día que el horario se repita solo, y las clases pasan a ser su proyección;
-  - el solapamiento de instructora, que hoy valida el formulario en el
-    navegador, tiene que ser además una **restricción en la base**: un
-    formulario evita el error de quien lo usa, no el de quien llama a la API.
+- [ ] **Cero tests y cero CI.** Todo lo de oct 2026 se probó a mano con
+      Playwright (Edge instalado en Windows, `playwright-core` en una carpeta
+      temporal) y contra cálculos SQL independientes, pero no queda nada
+      automatizado en el repo.
+- [ ] La rejilla bento sin validar a 768 y 1920 (sí a 375/390 y 1280/1440).
+- [ ] Sin `robots.ts`, `sitemap.ts` ni imagen Open Graph.
+- [ ] Hay tres «hoy» distintos: `hoyEnBogota()` (pantallas con base de datos),
+      `getHoy()` congelado en `2026-07-25` (solo la agenda de ejemplo) y
+      `hoyLocalIso()` (formularios en el navegador). `getHoy()` desaparece con
+      el paso 9.

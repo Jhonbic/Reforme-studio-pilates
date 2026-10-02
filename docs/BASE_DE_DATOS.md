@@ -171,10 +171,11 @@ Sin fila en `perfiles`, una cuenta autenticada **no ve nada**. Estar en
 
 Una instructora no ve gastos a propósito: no tiene por qué conocer la nómina.
 
-## Lo que falta para que la app lo use
+## Cómo la usa la app
 
-**La autenticación ya está conectada (oct 2026). Los datos del panel siguen
-saliendo de `mock.ts`.**
+**Estado (2 oct 2026): la app lee y escribe en Supabase en todas las pantallas
+del panel, menos la agenda de Clases**, que no tiene tablas todavía. La foto
+de conjunto y los pendientes están en `docs/CONTEXTO.md` §7 y §8.
 
 Hecho:
 
@@ -198,21 +199,21 @@ Hecho:
    `/login`. La cabecera enseña la cuenta real, y «Cerrar sesión» es un
    `<form>` con server action, no un enlace.
 
-Falta:
-
-5. Reescribir las ~17 funciones de datos de `queries.ts` para que sean `async`
-   y consulten. **Hechas: `getClientes`, `getCliente`, `getMovimientos`
-   (pagos + gastos), `getPresupuestos`, `getPlanes`, `getDatosDashboard`,
-   `getNotificaciones`**. Sigue en `mock.ts`: equipo, clases y los avisos de
-   ejemplo de la campana. (y `getConteoEstados`,
-   que ahora cuenta sobre la lista recibida). Tipos generados en
-   `src/lib/supabase/tipos.ts`. **Las pantallas apenas se tocan**: toda la UI pasa por ahí, y
-   esa disciplina se mantuvo justo para este día.
-6. Mutaciones (server actions) para los formularios que hoy no guardan.
-   **Hechas**, en `src/lib/admin/acciones.ts`: `crearCliente`,
+5. ✅ **Lecturas** en `src/lib/admin/queries.ts`: `getClientes`,
+   `getCliente`, `getEquipo`, `getMovimientos` (pagos + gastos),
+   `getPresupuestos`, `getPlanes`, `getPlanesALaVenta`, `getDatosDashboard`
+   (el cálculo, en `lib/admin/dashboard.ts`) y `getNotificaciones`. Tipos
+   generados en `src/lib/supabase/tipos.ts`.
+   **Sigue en `mock.ts`**: la agenda de clases, el equipo de ejemplo que esa
+   agenda usa (`getInstructoras`) y dos avisos de ejemplo de la campana.
+6. ✅ **Escrituras** (server actions) en `src/lib/admin/acciones.ts`:
+   `crearCliente`,
    `registrarGasto` (con subida del comprobante al bucket `comprobantes`),
-   `guardarPlan`, `cambiarVentaPlan`, `eliminarPlan` y `asignarPlan` (que
-   llama a la función `registrar_membresia`).
+   `guardarPlan`, `cambiarVentaPlan`, `eliminarPlan`, `asignarPlan` (función
+   `registrar_membresia`), `crearMiembro`, `darAcceso`, `quitarAcceso`,
+   `nuevaContrasenaTemporal`, `cambiarRol` (función `cambiar_rol_equipo`) y
+   `cambiarMiContrasena`.
+   **Falta**: la agenda (tablas `clases` y `reservas`, paso 9).
    ⚠️ Toda función nueva en `public`: revocar EXECUTE a `public` **y a
    `anon`** por nombre; Supabase se lo concede a `anon` directamente.
 
