@@ -1,4 +1,10 @@
-import type { EstadoMembresia, TipoClase, TipoIdentificacion } from "./types";
+import type {
+  CategoriaGasto,
+  EstadoMembresia,
+  MetodoPago,
+  TipoClase,
+  TipoIdentificacion,
+} from "./types";
 
 /**
  * Listas cerradas del dominio.
@@ -6,6 +12,20 @@ import type { EstadoMembresia, TipoClase, TipoIdentificacion } from "./types";
  * ⚠️ **No van en `mock.ts`.** `mock.ts` son datos de ejemplo que se tiran el día
  * que haya base de datos; estas listas son dominio y sobreviven a ese cambio.
  */
+
+/** Las categorías de gasto (enum `categoria_gasto` de la base). Las usan el
+ *  alta de gasto, su server action y el filtro del libro de Finanzas: estaban
+ *  escritas a mano en los tres sitios. */
+export const CATEGORIAS_GASTO: CategoriaGasto[] = [
+  "Arriendo",
+  "Nómina",
+  "Servicios",
+  "Mantenimiento",
+  "Marketing",
+];
+
+/** Los métodos de pago (enum `metodo_pago`). */
+export const METODOS_PAGO: MetodoPago[] = ["Efectivo", "Nequi", "Transferencia", "Tarjeta"];
 
 /**
  * Los estados de membresía, en el orden de las pastillas de filtro de

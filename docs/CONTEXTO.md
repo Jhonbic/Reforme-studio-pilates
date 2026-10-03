@@ -1240,16 +1240,29 @@ muy gruesa son de un box de crossfit; aquí manda la marca.
   1 sep 2026», no «septiembre».
 - **Utilidad es la cifra principal** (tarjeta verde con motas); Ingresos y
   Gastos al lado. El margen se compara en **puntos**, no en % relativo.
-- **«De dónde entra»**: cobros por plan con barra de %. **«A dónde se va»**:
-  gastos por categoría **frente a `presupuestos`**, tabla que existía y ninguna
-  pantalla leía; pasarse sale con `▲ +5 %` (símbolo + texto), no solo en rojo.
-  El presupuesto que se compara es la suma de los meses que toca el periodo.
-- ⚠️ **El libro junta cobros y gastos** (`LibroMovimientos`). Antes solo
-  enseñaba cobros y un gasto registrado no aparecía en ninguna parte. Filtros:
-  búsqueda, tipo (Todos/Cobros/Gastos) y método. La línea de totales dice
-  «Entra» y «Sale» por separado y se recalcula con los filtros. Dos vacíos
-  distintos: «no hubo movimientos» y «tu filtro no deja ver ninguno».
-- Los **cobros enlazan a la ficha** del cliente; los gastos no (no tienen).
+- **«De dónde entra»**: cobros por plan con barra de %, a ancho completo.
+- ⚠️ **«A dónde se va» (gastos frente a presupuesto) se QUITÓ** en oct 2026
+  por decisión del usuario, junto con `DesgloseGastos`, `getPresupuestos()` y
+  el tipo `Presupuesto`. La tabla `presupuestos` sigue en la base, sin
+  pantalla que la lea. No volver a ponerlo.
+- ⚠️ **«Historial de movimientos» es COPIA del de JainSportBox** (oct 2026,
+  decisión del usuario; `LibroMovimientos`): tabla de verdad con Fecha · Tipo
+  (Ingreso/Egreso) · Concepto (con el cliente debajo, que enlaza a su ficha) ·
+  Categoría · Método · Monto, y paginación numerada de 15 en 15. Los mismos
+  filtros que Jain: buscador, **tipo** (Todos/Ingresos/Egresos),
+  **categoría** (Membresía + las de gasto), **plan** (solo cuando puede haber
+  cobros: en Egresos desaparece y se ignora) y **método** (los cuatro de
+  Reforme), más «Limpiar». Con filtros, la línea «N movimientos coinciden ·
+  suman $X» da el NETO de lo filtrado. Dos vacíos distintos: «sin
+  movimientos en este período» y «ningún movimiento coincide con el filtro».
+  - Lo que no copia por datos: Reforme no tiene ventas de tienda ni botón de
+    borrar (los cobros no se borran por diseño). «Comprobante» abre la
+    factura de los gastos que la tienen.
+  - ⚠️ El contenedor lleva `min-w-0`: sin él, la tabla ensanchaba la rejilla
+    hasta 800px en móvil. En móvil la tabla se desplaza dentro de su caja,
+    como en Jain; la página no.
+  - Categorías y métodos salen de `catalogos.ts` (`CATEGORIAS_GASTO`,
+    `METODOS_PAGO`), que antes estaban escritos a mano en tres sitios.
 - **Exportar** baja lo que el libro tiene filtrado, con el importe **con
   signo** (gastos en negativo) para que `=SUMA()` dé el neto.
 - ⚠️ **Todo se calcula en el cliente** sobre los movimientos ya cargados:

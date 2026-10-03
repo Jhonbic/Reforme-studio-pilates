@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  CATEGORIAS_GASTO,
   MAX_COMPROBANTE,
+  METODOS_PAGO,
   TIPOS_COMPROBANTE,
   TIPOS_IDENTIFICACION,
 } from "./catalogos";
@@ -148,14 +150,6 @@ export async function crearCliente(a: AltaCliente): Promise<ResultadoAlta> {
    Gastos
    ====================================================================== */
 
-const CATEGORIAS_GASTO: CategoriaGasto[] = [
-  "Arriendo",
-  "Nómina",
-  "Servicios",
-  "Mantenimiento",
-  "Marketing",
-];
-const METODOS_PAGO: MetodoPago[] = ["Efectivo", "Nequi", "Transferencia", "Tarjeta"];
 
 /* Guardas de tipo: lo que llega en un `FormData` es texto cualquiera, y así
    el `insert` recibe el tipo del enum sin forzarlo con `as`. */

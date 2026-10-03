@@ -6,20 +6,17 @@ import CampoSelect from "@/components/admin/campos/CampoSelect";
 import CampoTexto from "@/components/admin/campos/CampoTexto";
 import { useToast } from "@/context/ToastContext";
 import { registrarGasto } from "@/lib/admin/acciones";
-import { MAX_COMPROBANTE, TIPOS_COMPROBANTE } from "@/lib/admin/catalogos";
+import {
+  CATEGORIAS_GASTO,
+  MAX_COMPROBANTE,
+  METODOS_PAGO,
+  TIPOS_COMPROBANTE,
+} from "@/lib/admin/catalogos";
 import { moneda } from "@/lib/admin/format";
-import type { CategoriaGasto, MetodoPago } from "@/lib/admin/types";
 import { soloDigitos } from "@/lib/validacion";
 
-const CATEGORIAS: CategoriaGasto[] = [
-  "Arriendo",
-  "Nómina",
-  "Servicios",
-  "Mantenimiento",
-  "Marketing",
-];
-
-const METODOS: MetodoPago[] = ["Efectivo", "Nequi", "Transferencia", "Tarjeta"];
+const CATEGORIAS = CATEGORIAS_GASTO;
+const METODOS = METODOS_PAGO;
 
 const BOTON_PRIMARIO =
   "inline-flex min-h-[44px] items-center justify-center rounded-full bg-dorado px-5 text-sm font-medium text-verde-900 transition-colors duration-300 hover:bg-dorado-dark";

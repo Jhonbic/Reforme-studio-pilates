@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Card from "@/components/admin/Card";
-import CardHeader from "@/components/admin/CardHeader";
 import StatTile from "@/components/admin/StatTile";
 import Variacion from "@/components/admin/Variacion";
 import { calcularVariacion, moneda, porcentaje } from "@/lib/admin/format";
@@ -10,16 +9,10 @@ import {
   enPeriodo,
   esteMes,
   etiquetaPeriodo,
-  mesesDe,
   periodoAnterior,
   type Periodo,
 } from "@/lib/admin/periodo";
-import type {
-  CategoriaGasto,
-  Movimiento,
-  Presupuesto,
-} from "@/lib/admin/types";
-import DesgloseGastos from "./DesgloseGastos";
+import type { Movimiento } from "@/lib/admin/types";
 import DesgloseIngresos from "./DesgloseIngresos";
 import LibroMovimientos from "./LibroMovimientos";
 import RegistrarGasto from "./RegistrarGasto";
@@ -27,7 +20,6 @@ import SelectorPeriodo from "./SelectorPeriodo";
 
 type Props = {
   movimientos: Movimiento[];
-  presupuestos: Presupuesto[];
   /** Hoy en Bogotá, calculado en el servidor. */
   hoy: string;
 };
@@ -50,14 +42,17 @@ function cuentas(movs: Movimiento[]) {
  * Finanzas: un periodo, y todo lo de la pantalla le obedece.
  *
  * Estructura tomada de JainSportBox (decisión del usuario): selector de
- * periodo arriba → cifras → de dónde entra y a dónde se va → libro. Lo que NO
- * se tomó es su aspecto (rojo, gris, letra muy gruesa): aquí manda la marca.
+ * periodo arriba → cifras → de dónde entra → historial de movimientos, este
+ * último copiado tal cual de Jain con los colores de Reforme.
+ *
+ * ⚠️ «A dónde se va» (gastos por categoría frente al presupuesto) se QUITÓ
+ * en oct 2026 por decisión del usuario. No volver a ponerlo.
  *
  * ⚠️ **Todo se calcula en el cliente** sobre los movimientos que ya llegaron:
  * cambiar de periodo es instantáneo y no pide nada al servidor. Ver
  * `getMovimientos()` para cuándo deja de tener sentido.
  */
-export default function PanelFinanzas({ movimientos, presupuestos, hoy }: Props) {
+export default function PanelFinanzas({ movimientos, hoy }: Props) {
   const [periodo, setPeriodo] = useState<Periodo>(() => esteMes(hoy));
 
   const anterior = periodoAnterior(periodo);
@@ -68,18 +63,8 @@ export default function PanelFinanzas({ movimientos, presupuestos, hoy }: Props)
   const actual = cuentas(delPeriodo);
   const previo = cuentas(movimientos.filter((m) => enPeriodo(m.fecha, anterior)));
 
-  const meses = new Set(mesesDe(periodo));
-  const presupuesto = new Map<CategoriaGasto, number>();
-  for (const p of presupuestos) {
-    if (!meses.has(p.mes)) continue;
-    presupuesto.set(p.categoria, (presupuesto.get(p.categoria) ?? 0) + p.importe);
-  }
-
   const cobros = delPeriodo.filter(
     (m): m is Extract<Movimiento, { tipo: "cobro" }> => m.tipo === "cobro",
-  );
-  const gastos = delPeriodo.filter(
-    (m): m is Extract<Movimiento, { tipo: "gasto" }> => m.tipo === "gasto",
   );
 
   return (
@@ -162,28 +147,15 @@ export default function PanelFinanzas({ movimientos, presupuestos, hoy }: Props)
         <DesgloseIngresos
           cobros={cobros}
           etiqueta={etiqueta}
-          className="md:col-span-6 xl:col-span-6"
-        />
-        <DesgloseGastos
-          gastos={gastos}
-          presupuesto={presupuesto}
-          etiqueta={etiqueta}
-          className="md:col-span-6 xl:col-span-6"
+          className="md:col-span-6 xl:col-span-12"
         />
 
-        <Card densidad="plana" className="md:col-span-6 xl:col-span-12">
-          <div className="p-5 sm:p-6">
-            <CardHeader
-              titulo="Libro de movimientos"
-              descripcion={`Cobros y gastos de ${etiqueta}. Cada cobro lleva a la ficha del cliente.`}
-            />
-          </div>
-          <LibroMovimientos
-            movimientos={delPeriodo}
-            etiqueta={etiqueta}
-            hoy={hoy}
-          />
-        </Card>
+        {/* ⚠️ `min-w-0`: un hijo de rejilla no se encoge por debajo de su
+            contenido, y la tabla del historial lo ensanchaba hasta 800px en
+            móvil. Con él, el scroll horizontal se queda dentro de la tabla. */}
+        <div className="min-w-0 md:col-span-6 xl:col-span-12">
+          <LibroMovimientos movimientos={delPeriodo} etiqueta={etiqueta} hoy={hoy} />
+        </div>
       </div>
     </div>
   );

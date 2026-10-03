@@ -22,7 +22,6 @@ import type {
   Notificacion,
   Movimiento,
   PlanConMetricas,
-  Presupuesto,
   TipoPlan,
   UsuarioActual,
 } from "./types";
@@ -93,16 +92,6 @@ export async function getMovimientos(): Promise<Movimiento[]> {
 
   // Comparar cadenas ISO basta: se ordenan igual que cronológicamente.
   return movimientos.sort((a, b) => b.fecha.localeCompare(a.fecha));
-}
-
-/** Presupuestos por categoría y mes. Solo Administración (RLS). */
-export async function getPresupuestos(): Promise<Presupuesto[]> {
-  const supabase = await crearClienteServidor();
-  const { data, error } = await supabase
-    .from("presupuestos")
-    .select("categoria, mes, importe");
-  if (error) throw new Error(`No se pudieron leer los presupuestos: ${error.message}`);
-  return data;
 }
 
 /**

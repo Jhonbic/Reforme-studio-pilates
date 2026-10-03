@@ -364,13 +364,6 @@ export type Movimiento =
       comprobante: boolean;
     };
 
-/** Lo previsto para una categoría en un mes. `mes` es el día 1, ISO corto. */
-export type Presupuesto = {
-  categoria: CategoriaGasto;
-  mes: string;
-  importe: number;
-};
-
 /** Tramos de antigüedad de cartera, el estándar contable. */
 export type TramoCartera = "1-30 días" | "31-60 días" | "Más de 60 días";
 
