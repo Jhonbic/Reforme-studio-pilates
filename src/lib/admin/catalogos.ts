@@ -1,4 +1,4 @@
-import type { TipoClase, TipoIdentificacion } from "./types";
+import type { EstadoMembresia, TipoClase, TipoIdentificacion } from "./types";
 
 /**
  * Listas cerradas del dominio.
@@ -6,6 +6,20 @@ import type { TipoClase, TipoIdentificacion } from "./types";
  * ⚠️ **No van en `mock.ts`.** `mock.ts` son datos de ejemplo que se tiran el día
  * que haya base de datos; estas listas son dominio y sobreviven a ese cambio.
  */
+
+/**
+ * Los estados de membresía, en el orden de las pastillas de filtro de
+ * Usuarios. Vive aquí y no en `BarraFiltros` porque la página (servidor) lo
+ * necesita para validar `?estado=`, y una constante exportada desde un módulo
+ * `"use client"` llega al servidor como referencia, no como array.
+ */
+export const ESTADOS_MEMBRESIA: EstadoMembresia[] = [
+  "Activa",
+  "Por vencer",
+  "Vencida",
+  "Inactiva",
+  "Sin plan",
+];
 
 export const TIPOS_IDENTIFICACION: TipoIdentificacion[] = [
   "C.C.",

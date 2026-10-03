@@ -240,14 +240,6 @@ export type MesFinanciero = {
   gastos: number;
 };
 
-export type RepartoPlan = {
-  /** Texto libre: los planes son una tabla, no un enum. Puede ser «Otros». */
-  plan: string;
-  importe: number;
-  /** Nº de clientes en esa modalidad */
-  clientes: number;
-};
-
 /**
  * Una modalidad del catálogo, con sus condiciones de venta.
  *
@@ -324,36 +316,6 @@ export type PlanConMetricas = Omit<CondicionesPlan, "plan"> & {
    * que el plan no vende.
    */
   cobrado30d: number | null;
-};
-
-export type RepartoMetodoPago = {
-  metodo: MetodoPago;
-  importe: number;
-};
-
-export type GastoCategoria = {
-  categoria: CategoriaGasto;
-  importe: number;
-  /** Presupuesto asignado al mes, para ver desviación */
-  presupuesto: number;
-};
-
-export type MovimientoClientes = {
-  mes: string;
-  altas: number;
-  bajas: number;
-};
-
-/** Membresía que caduca pronto: ingreso en riesgo + lista accionable para
- *  llamar antes de que se enfríe el cliente. */
-export type MembresiaPorVencer = {
-  id: string;
-  cliente: string;
-  plan: TipoPlan;
-  /** Días que faltan para el vencimiento (0 = vence hoy) */
-  diasRestantes: number;
-  /** Lo que se deja de ingresar si no renueva */
-  importeRenovacion: number;
 };
 
 /**

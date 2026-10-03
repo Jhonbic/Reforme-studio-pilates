@@ -195,8 +195,13 @@ En `src/components/`:
   `SelectorDia` (tira de la semana), `FilaClase`, `FormularioClase` y
   `EstadoClaseBadge`. Ver §6.
 - `AdminNav.tsx` (cliente, estado activo por `usePathname`), `AdminTopbar.tsx`
-  (cliente, titula la página desde la ruta), `StatTile.tsx`,
-  `TarjetaIngresos.tsx` (la tarjeta héroe), `SeccionPendiente.tsx`.
+  (cliente, titula la página desde la ruta), `StatTile.tsx` (solo Finanzas),
+  `SeccionPendiente.tsx`.
+- `admin/inicio/` — **el dashboard desde oct 2026**: `PanelDashboard` (las
+  dos pestañas), `Cifra` (cifra de cabecera, enlace opcional) y
+  `ListaTrabajo` (+ `FilaTrabajo`, `BotonWhatsApp`, `BotonFicha`). Se
+  borraron `TarjetaIngresos`, `GraficaIngresos`, `GraficaContable`, `Donut`
+  y `HBars`: solo los usaba la rejilla bento.
 - `admin/charts/`: `LineChart.tsx`, `GroupedBars.tsx`, `Donut.tsx` (clientes) y
   `HBars.tsx` (servidor: sin interacción, los valores ya van escritos).
   ⚠️ **Gotcha resuelto:** `LineChart` y `GroupedBars` dibujan en **píxeles
@@ -346,6 +351,57 @@ Y fuera de `admin/`, porque no es solo del panel:
   externa (mutar durante el render lo marca el lint de React).
 - Cada gráfico va dentro de `ChartCard`, que incluye **tabla de datos** en un
   `<details>`. No es opcional: ver la nota de contraste abajo.
+
+> ✅ **Rediseñado en oct 2026 con la ORGANIZACIÓN de JainSportBox**
+> (`../JainSportBox/frontend/src/views/DashboardView.vue`, decisión del
+> usuario: «no me gusta la organización»). Solo la organización; el aspecto
+> sigue siendo el de la marca, como en Finanzas. **Todo lo que se cuenta
+> abajo sobre la rejilla bento, las tarjetas oscuras, «Ingresos por mes»,
+> donut y vista contable es historia.** Ahora:
+>
+> - **Fecha → dos pestañas (Clientes · Clases) → 4 cifras iguales → 2 listas
+>   de trabajo → 1 gráfica.** Las cuatro cifras miden lo mismo (2 por fila en
+>   móvil, 4 en escritorio): con tamaños distintos el ojo salta a la grande,
+>   que era lo que hacía sentir desordenado el bento.
+> - ⚠️ **Sin dinero.** Lo financiero vive entero en Finanzas (con su selector
+>   de periodo); la tendencia de 12 meses de ingresos y gastos se mudó al final
+>   de Finanzas. Efecto buscado: **el dashboard es igual para los tres roles**,
+>   ya no hay tarjetas que esconder a quien RLS no le da los pagos, y no pide
+>   pagos ni gastos a la base.
+> - **Clientes**: Activos (vigentes; frente a hace 30 días en NÚMERO de
+>   clientes, no en %: con veinte clientes «+5 %» es una persona) · Sin plan
+>   (el «pendiente de activar» de Jain) · Recuperables (vencieron hace < 30
+>   días) · Renovación. Listas: **Por vencer · 7 días** con «Recordar» y
+>   **Cumpleaños de hoy** con «Felicitar». Gráfica: clientes activos por mes.
+> - **Clases**: Hoy · Esta semana · Ocupación (clases ya pasadas, 30 días) ·
+>   Reservas por clase. Listas: **Clases de hoy** y **Llenas · próximos 7
+>   días** (dónde hace falta otra clase). Gráfica: reservas por día de la
+>   semana. Usa `getClases()`, así que el estado de cada clase es el mismo que
+>   en la agenda.
+> - **Las cifras con lista detrás son enlaces** (flecha en la esquina) y abren
+>   Usuarios ya filtrado: `/admin/usuarios?estado=Sin plan`. Usuarios lee
+>   `?estado=` solo como filtro INICIAL; un valor que no existe se ignora.
+>   La lista de estados vive en `catalogos.ts` (`ESTADOS_MEMBRESIA`): una
+>   constante exportada desde un módulo `"use client"` llega al servidor como
+>   referencia, no como array.
+> - **WhatsApp** (`lib/admin/whatsapp.ts`): abre WhatsApp con el mensaje ya
+>   escrito, no lo envía solo; quien atiende lo revisa y pulsa enviar. Sin API
+>   de pago. Sin un móvil colombiano completo no hay botón (un número a
+>   medias llevaría a un error de WhatsApp). Botón en verde de MARCA, no el
+>   de WhatsApp.
+> - Cumpleaños del 29 de febrero: se felicitan el 28 en años no bisiestos.
+> - Las listas tienen **tope de altura** con scroll dentro: una lista larga no
+>   empuja a la de al lado ni la página cambia de alto según el día. En móvil
+>   los botones bajan a su propia línea (`basis-48`) en vez de cortar el
+>   nombre.
+> - `LineChart` estrena `formatoEje` (como `GroupedBars`): el eje de
+>   clientes salía en pesos («$5»).
+> - ⚠️ **Gotcha de pruebas**: en `next dev`, entrar por `127.0.0.1` en vez de
+>   `localhost` bloquea los recursos de desarrollo y la página NO se hidrata
+>   (pestañas muertas, gráficas a 720px). No es un fallo del código.
+> - Falta respecto a Jain: la pestaña **«Enviados»** (saber a quién ya se le
+>   recordó). Necesita una tabla; hoy la lista sigue mostrando a la persona
+>   hasta que renueve.
 
 **Organización del dashboard — rejilla bento.** Se reorganizó a partir de una
 referencia que trajo el usuario, adaptando **solo la organización**: jerarquía por
@@ -1223,8 +1279,9 @@ muy gruesa son de un box de crossfit; aquí manda la marca.
     pestaña se abre ANTES del `await`: abierta después, el navegador la trata
     como ventana emergente y la bloquea.
   - Guarda `registrado_por` (quién lo registró).
-- Fuera de esta pantalla: «Ingresos frente a gastos» y «Gastos por categoría»
-  siguen en el Dashboard, que aún lee `mock.ts`.
+- **«Ingresos y gastos por mes»** (12 meses) va al final, fuera del selector
+  de periodo: responde a «¿cómo vamos este año?». Llegó desde el Dashboard en
+  oct 2026, cuando el dashboard se quedó sin dinero.
 
 #### Planes (`/admin/planes`) — desde Supabase, oct 2026
 
@@ -1617,6 +1674,11 @@ de repetir:
       **devoluciones** (los pagos no se editan ni se borran, por diseño).
 - [ ] **Presupuestos**: se leen en Finanzas pero no hay pantalla para
       editarlos; hoy solo los mete la semilla.
+- [ ] **Dashboard: pestaña «Enviados»** como en JainSportBox (a quién ya se le
+      recordó la renovación o se le felicitó). Necesita una tabla.
+- [ ] **Rediseño con la organización de JainSportBox, resto del panel**:
+      ficha del cliente completa, acciones en la fila de Usuarios, menú
+      agrupado y títulos con descripción. El dashboard ya está (oct 2026).
 - [ ] **Notificaciones de la campana**: el primer aviso es real (membresías por
       vencer); los otros dos son de ejemplo (`mock.ts`).
 

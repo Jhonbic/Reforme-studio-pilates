@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { fmt, monedaCorta, type FormatoValor } from "@/lib/admin/format";
+import { fmt, type FormatoValor } from "@/lib/admin/format";
 
 export type PuntoLinea = { label: string; value: number };
 
@@ -9,6 +9,9 @@ type Props = {
   datos: PuntoLinea[];
   /** Nombre del formato del tooltip (no la función: cruza servidor→cliente) */
   formato: FormatoValor;
+  /** Formato de las marcas del eje Y. Por defecto, moneda abreviada (la serie
+   *  de ingresos); con clientes, `"numero"`: «$5» de clientes no significa nada. */
+  formatoEje?: FormatoValor;
   /** Nombre de la serie — el título de la tarjeta ya la nombra, así que no hay
    *  leyenda: con una sola serie sobra. */
   serie: string;
@@ -82,6 +85,7 @@ export default function LineChart({
   formato,
   serie,
   tono = "claro",
+  formatoEje = "monedaCorta",
 }: Props) {
   const c = PALETA[tono];
   // El id del degradado lleva el tono: dos gráficos con tonos distintos en la
@@ -178,7 +182,7 @@ export default function LineChart({
               className={c.ejes}
               fontSize={FUENTE}
             >
-              {monedaCorta(t)}
+              {fmt(t, formatoEje)}
             </text>
           </g>
         ))}

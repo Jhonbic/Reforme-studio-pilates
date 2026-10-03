@@ -569,49 +569,42 @@ export const getUsuarioActual = cache(
 );
 
 /**
- * Todo lo que el Dashboard necesita de la base, en una sola ida.
+ * Lo que la pestaña Clientes del Dashboard necesita de la base, en una ida.
+ * Lo calcula `lib/admin/dashboard.ts` (funciones puras).
  *
- * Se trae una vez y lo calcula `lib/admin/dashboard.ts` (funciones puras):
- * varias tarjetas leen las mismas filas —los pagos alimentan la cifra del mes,
- * la serie, el donut y los métodos—, y pedirlas cuatro veces haría cuatro
- * consultas que podrían no coincidir si entra un pago entre medias.
+ * Sin pagos ni gastos: desde oct 2026 el dinero vive en Finanzas. Todo lo que
+ * se pide aquí lo puede leer cualquier persona del equipo (RLS:
+ * `tiene_perfil()`), así que el dashboard es el mismo para los tres roles.
  *
- * ⚠️ Lo que RLS no da a un rol llega VACÍO, no con error: los gastos para
- * Recepción, gastos y pagos para Instructora. La página no pinta las
- * tarjetas de dinero a quien no es Administración, para que no salgan cifras
- * falseadas.
+ * La fecha de nacimiento no está en la vista `clientes_vigentes`, así que se
+ * pide a `clientes` y se une por id.
  */
 export async function getDatosDashboard(): Promise<DatosDashboard> {
   const supabase = await crearClienteServidor();
-  const [pagos, gastos, presupuestos, vigentes, clientes, membresias] =
-    await Promise.all([
-      supabase.from("pagos").select("fecha, importe, metodo, membresias(planes(nombre))"),
-      supabase.from("gastos").select("fecha, importe, categoria"),
-      supabase.from("presupuestos").select("categoria, mes, importe"),
-      supabase.from("clientes_vigentes").select("plan, estado, vencimiento, importe_renovacion"),
-      supabase.from("clientes").select("alta"),
-      supabase.from("membresias").select("cliente_id, inicio, vencimiento"),
-    ]);
-  for (const r of [pagos, gastos, presupuestos, vigentes, clientes, membresias]) {
+  const [vigentes, nacimientos, membresias] = await Promise.all([
+    supabase
+      .from("clientes_vigentes")
+      .select("id, nombre, telefono, plan, estado, vencimiento"),
+    supabase.from("clientes").select("id, fecha_nacimiento"),
+    supabase.from("membresias").select("cliente_id, inicio, vencimiento"),
+  ]);
+  for (const r of [vigentes, nacimientos, membresias]) {
     if (r.error) throw new Error(`No se pudo leer el dashboard: ${r.error.message}`);
   }
 
+  const nacio = new Map(
+    (nacimientos.data ?? []).map((c) => [c.id, c.fecha_nacimiento]),
+  );
   return {
-    pagos: (pagos.data ?? []).map((p) => ({
-      fecha: p.fecha,
-      importe: p.importe,
-      metodo: p.metodo,
-      plan: p.membresias?.planes?.nombre ?? null,
-    })),
-    gastos: gastos.data ?? [],
-    presupuestos: presupuestos.data ?? [],
-    vigentes: (vigentes.data ?? []).map((v) => ({
+    clientes: (vigentes.data ?? []).map((v) => ({
+      id: v.id ?? "",
+      nombre: v.nombre ?? "",
+      telefono: v.telefono,
       plan: v.plan,
       estado: v.estado,
       vencimiento: v.vencimiento,
-      importeRenovacion: v.importe_renovacion ?? 0,
+      nacimiento: nacio.get(v.id ?? "") ?? null,
     })),
-    altas: (clientes.data ?? []).map((c) => c.alta),
     membresias: (membresias.data ?? []).map((m) => ({
       clienteId: m.cliente_id,
       inicio: m.inicio,
@@ -640,8 +633,6 @@ export async function getNotificaciones(hoy: string): Promise<Notificacion[]> {
   const { cuantos, importe } = avisoPorVencer(
     {
       vigentes: data.map((v) => ({
-        plan: null,
-        estado: null,
         vencimiento: v.vencimiento,
         importeRenovacion: v.importe_renovacion ?? 0,
       })),

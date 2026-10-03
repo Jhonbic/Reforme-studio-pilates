@@ -47,6 +47,9 @@ type Props = {
   esAdmin: boolean;
   /** Para no ofrecerle a nadie las acciones que le dejarían fuera a sí mismo. */
   correoActual: string;
+  /** Filtro de estado con el que se abre. Lo pone el dashboard al pulsar una
+   *  cifra («Sin plan» → `/admin/usuarios?estado=Sin plan`). */
+  estadoInicial?: FiltroEstado;
 };
 
 /**
@@ -56,11 +59,10 @@ type Props = {
  * backend al que pedir páginas. Por eso la búsqueda no lleva `debounce`: no hay
  * ninguna petición que ahorrar.
  *
- * ⚠️ **La pestaña y los filtros son estado, no ruta.** Podrían vivir en la URL,
- * pero leer `searchParams` en la página la volvería dinámica y el panel entero
- * dejaría de compilar como `○ Static`. El precio es que un filtro concreto no
- * se puede compartir por enlace; cuando haya backend y paginación de servidor,
- * ese es el momento de subirlos a la URL.
+ * La pestaña y los filtros son estado, no ruta. La excepción es el estado
+ * INICIAL (`?estado=`), que entra por la URL para que las cifras del dashboard
+ * abran la lista ya filtrada. Desde que hay sesión el panel ya es dinámico, así
+ * que leer `searchParams` no cuesta nada.
  */
 export default function PanelUsuarios({
   clientes,
@@ -68,6 +70,7 @@ export default function PanelUsuarios({
   conteos,
   esAdmin,
   correoActual,
+  estadoInicial = "Todas",
 }: Props) {
   /** El miembro cuyo diálogo de gestión está abierto. Se guarda el ID y no el
    *  objeto: tras una acción la lista se revalida, y así el diálogo lee la
@@ -75,7 +78,7 @@ export default function PanelUsuarios({
   const [gestionando, setGestionando] = useState<string | null>(null);
   const [pestana, setPestana] = useState<Pestana>("clientes");
   const [busqueda, setBusqueda] = useState("");
-  const [estado, setEstado] = useState<FiltroEstado>("Todas");
+  const [estado, setEstado] = useState<FiltroEstado>(estadoInicial);
   const [plan, setPlan] = useState<FiltroPlan>("Todos");
   const [orden, setOrden] = useState<Orden>("nombre");
   const [pagina, setPagina] = useState(1);

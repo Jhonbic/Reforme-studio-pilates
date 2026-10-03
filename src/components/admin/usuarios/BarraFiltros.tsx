@@ -1,6 +1,7 @@
 "use client";
 
 import type { EstadoMembresia } from "@/lib/admin/types";
+import { ESTADOS_MEMBRESIA } from "@/lib/admin/catalogos";
 import { numero } from "@/lib/admin/format";
 
 export type FiltroEstado = EstadoMembresia | "Todas";
@@ -9,14 +10,7 @@ export type FiltroEstado = EstadoMembresia | "Todas";
 export type FiltroPlan = string;
 export type Orden = "nombre" | "vencimiento" | "alta" | "importe";
 
-const ESTADOS: FiltroEstado[] = [
-  "Todas",
-  "Activa",
-  "Por vencer",
-  "Vencida",
-  "Inactiva",
-  "Sin plan",
-];
+const ESTADOS: FiltroEstado[] = ["Todas", ...ESTADOS_MEMBRESIA];
 
 
 const ORDENES: { valor: Orden; etiqueta: string }[] = [
