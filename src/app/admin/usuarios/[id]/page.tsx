@@ -107,7 +107,11 @@ export default async function FichaClientePage({
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* ⚠️ Fila propia (`w-full`) y `flex-wrap` hasta `xl`: con estado +
+              Renovar + Acceso web + Acciones, en móvil «Acciones» se salía
+              de la tarjeta y la página se desplazaba de lado; en 1024px
+              aplastaban el nombre en dos líneas. En `xl` caben al lado. */}
+          <div className="flex w-full flex-wrap items-center gap-2 sm:gap-3 xl:w-auto">
             <EstadoBadge estado={cliente.estado} />
             {puedeCobrar && (
               <AsignarPlan

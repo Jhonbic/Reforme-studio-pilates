@@ -1365,6 +1365,18 @@ equipo la ve en solo lectura y sin saber quién tiene acceso.
   (`getInstructoras`): sus clases apuntan a esos ids. Pasa a la tabla con la
   agenda (paso 9).
 
+#### Cabecera de la ficha del cliente
+
+- ⚠️ Estado + «Renovar» + «Acceso web» + «Acciones» van en **fila propia con
+  `flex-wrap` hasta `xl`**: en móvil «Acciones» se salía de la tarjeta (la
+  página se desplazaba de lado) y en 1024px aplastaban el nombre. El menú de
+  «Acciones» se abre hacia la derecha mientras el botón está a la izquierda
+  (`clasePanel="xl:left-auto xl:right-0"`); alineado a la derecha se salía
+  de la pantalla en móvil.
+- ⚠️ **Gotcha de desarrollo**: si después de un `npm run build` el servidor de
+  desarrollo da 404 en `/admin/usuarios/[id]` con un id que existe, es la
+  caché: borrar `.next` y arrancar de nuevo. En producción no pasa.
+
 #### Asignar plan y cobrar (ficha del cliente) — oct 2026
 
 Botón **«Asignar plan»** (sin plan) o **«Renovar»** (con plan) en la cabecera

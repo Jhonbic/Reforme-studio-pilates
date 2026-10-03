@@ -5,7 +5,7 @@ import Modal from "@/components/admin/Modal";
 import { accesoWebCliente } from "@/lib/admin/acciones";
 
 const BOTON =
-  "control-fx relative inline-flex min-h-[44px] items-center justify-center gap-2 overflow-hidden rounded-full border border-verde/40 px-5 text-sm text-verde-700 transition-colors duration-300 hover:border-dorado hover:text-verde disabled:opacity-60";
+  "control-fx relative inline-flex min-h-[44px] items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-full border border-verde/40 px-5 text-sm text-verde-700 transition-colors duration-300 hover:border-dorado hover:text-verde disabled:opacity-60";
 const BOTON_PRIMARIO =
   "inline-flex min-h-[44px] items-center justify-center rounded-full bg-dorado px-5 text-sm font-medium text-verde-900 transition-colors duration-300 hover:bg-dorado-dark disabled:opacity-60";
 
