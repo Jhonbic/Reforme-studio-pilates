@@ -1,82 +1,96 @@
-import PanelDashboard, { type FilaClase } from "@/components/admin/inicio/PanelDashboard";
+import PanelDashboard from "@/components/admin/inicio/PanelDashboard";
 import {
+  activosEl,
   activosPorMes,
   cumpleanosDeHoy,
   porVencer,
   resumenClases,
   resumenClientes,
 } from "@/lib/admin/dashboard";
-import { fecha } from "@/lib/admin/format";
-import { diaLargo, horaEnBogota, hoyEnBogota } from "@/lib/admin/horario";
-import {
-  SEMANAS_RESERVAS,
-  getClases,
-  getDatosDashboard,
-  getReservasPorDiaSemana,
-} from "@/lib/admin/queries";
-import type { ClaseEnAgenda } from "@/lib/admin/types";
+import { horaEnBogota, hoyEnBogota, sumarDias } from "@/lib/admin/horario";
+import { getClases, getDatosDashboard } from "@/lib/admin/queries";
 import {
   enlaceWhatsApp,
   mensajeCumpleanos,
   mensajeRecordatorio,
 } from "@/lib/admin/whatsapp";
 
-/** Solo lo que pinta la fila: la agenda trae además quién reservó, y eso no
- *  tiene por qué viajar al navegador. */
-const aFila = (c: ClaseEnAgenda): FilaClase => ({
-  id: c.id,
-  fecha: c.fecha,
-  horaInicio: c.horaInicio,
-  horaFin: c.horaFin,
-  tipo: c.tipo,
-  instructora: c.instructora,
-  reservas: c.reservas,
-  cupos: c.cupos,
-  estado: c.estado,
+const FECHA_COMPLETA = new Intl.DateTimeFormat("es-CO", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
 });
 
+/** «Vence hoy», «Vence mañana», «Vence en 3 días»: como lo dice Jain. */
+function textoVence(dias: number): string {
+  if (dias === 0) return "Vence hoy";
+  if (dias === 1) return "Vence mañana";
+  return `Vence en ${dias} días`;
+}
+
 /**
- * Dashboard (rediseñado oct 2026 con la organización de JainSportBox).
+ * Dashboard: la copia del de JainSportBox (ver `PanelDashboard`).
  *
  * Se calcula entero aquí, en el servidor, con funciones puras
- * (`lib/admin/dashboard.ts`), y baja ya resuelto: el panel solo alterna
- * pestañas. Sin dinero —vive en Finanzas—, así que es el mismo para todo el
- * equipo y no hay que esconder tarjetas por rol.
+ * (`lib/admin/dashboard.ts`), y baja ya resuelto. Sin dinero, así que es el
+ * mismo para los tres roles.
  */
 export default async function DashboardPage() {
   const hoy = hoyEnBogota();
-  const [datos, agenda, porDia] = await Promise.all([
+  const [datos, agenda] = await Promise.all([
     getDatosDashboard(),
     getClases(hoy, horaEnBogota()),
-    getReservasPorDiaSemana(hoy),
   ]);
 
   const resumen = resumenClientes(datos, hoy);
-  const clases = resumenClases(agenda, hoy);
-  const dia = diaLargo(hoy);
+  const serie = activosPorMes(datos, hoy);
+  const clases = resumenClases(agenda, hoy, activosEl(hoy, datos.membresias));
+
+  // El calendario deja mirar el mes anterior, este y el siguiente: solo viaja
+  // ese tramo de la agenda, y de cada clase solo los nombres de quien reservó.
+  const mes = hoy.slice(0, 7);
+  // El día antes del 1 cae siempre en el mes anterior, y 32 días después del
+  // 1 siempre en el siguiente (ningún mes tiene más de 31).
+  const desde = sumarDias(`${mes}-01`, -1).slice(0, 7);
+  const hasta = sumarDias(`${mes}-01`, 32).slice(0, 7);
+  const delMes = agenda
+    .filter((c) => c.fecha.slice(0, 7) >= desde && c.fecha.slice(0, 7) <= hasta)
+    .map((c) => ({
+      id: c.id,
+      fecha: c.fecha,
+      horaInicio: c.horaInicio,
+      tipo: c.tipo,
+      instructora: c.instructora,
+      cancelada: c.cancelada,
+      personas: c.reservados.map((r) => r.nombre),
+    }));
+
+  const fechaTexto = FECHA_COMPLETA.format(new Date(`${hoy}T00:00:00Z`));
 
   return (
     <div className="mx-auto w-full max-w-[1440px]">
       <h1 className="sr-only">Dashboard</h1>
       <PanelDashboard
-        fechaTexto={dia.charAt(0).toUpperCase() + dia.slice(1)}
+        fechaTexto={fechaTexto.charAt(0).toUpperCase() + fechaTexto.slice(1)}
         hoy={hoy}
         clientes={{
           activos: resumen.activos,
-          diferencia: resumen.activos - resumen.activosHace30,
-          sinPlan: resumen.sinPlan,
+          // Contra el cierre del mes pasado, de la misma serie que dibuja la
+          // gráfica (como Jain).
+          deltaActivos: serie.length >= 2 ? serie[11].activos - serie[10].activos : null,
+          pendientes: resumen.sinPlan,
           recuperables: resumen.recuperables,
-          renovacion: resumen.renovacion,
+          renovacion: {
+            porcentaje: resumen.renovacion.valor,
+            renovaron: resumen.renovacion.renovaron,
+            vencieron: resumen.renovacion.vencieron,
+          },
           porVencer: porVencer(datos, hoy).map((c) => ({
             id: c.id,
             nombre: c.nombre,
-            plan: c.plan,
-            cuando:
-              c.dias === 0
-                ? "hoy"
-                : c.dias === 1
-                  ? "mañana"
-                  : `en ${c.dias} días · ${fecha(c.vencimiento)}`,
+            vence: textoVence(c.dias),
             urgente: c.dias <= 1,
             whatsapp: enlaceWhatsApp(
               c.telefono,
@@ -86,20 +100,18 @@ export default async function DashboardPage() {
           cumpleanos: cumpleanosDeHoy(datos, hoy).map((c) => ({
             id: c.id,
             nombre: c.nombre,
-            edad: c.edad,
             whatsapp: enlaceWhatsApp(c.telefono, mensajeCumpleanos(c.nombre)),
           })),
-          activosPorMes: activosPorMes(datos, hoy),
+          activosPorMes: serie,
         }}
         clases={{
           hoy: clases.hoy,
           semana: clases.semana,
-          ocupacion30: clases.ocupacion30,
-          promedio30: clases.promedio30,
-          deHoy: clases.deHoy.map(aFila),
-          llenas: clases.llenas.map(aFila),
-          porDia,
-          semanasPorDia: SEMANAS_RESERVAS,
+          promedioDiario: clases.promedioDiario,
+          participacion: clases.participacion,
+          personasSemana: clases.personasSemana,
+          activos: resumen.activos,
+          delMes,
         }}
       />
     </div>

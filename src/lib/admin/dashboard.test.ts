@@ -133,7 +133,9 @@ describe("renovación", () => {
       { clienteId: "a", inicio: "2026-10-02", vencimiento: "2026-11-01" },
       { clienteId: "b", inicio: "2026-09-05", vencimiento: "2026-10-05" },
     ];
-    expect(tasaRenovacion(datos({ membresias: m }), hoy).valor).toBe(50);
+    const t = tasaRenovacion(datos({ membresias: m }), hoy);
+    expect(t.valor).toBe(50);
+    expect(t).toMatchObject({ renovaron: 1, vencieron: 2 });
   });
 });
 
@@ -158,33 +160,55 @@ describe("clases", () => {
     };
   }
 
-  it("la ocupación solo cuenta clases que YA pasaron y no canceladas", () => {
+  it("hoy y esta semana cuentan reservas sin las canceladas", () => {
     const r = resumenClases(
       [
-        clase({ id: "1", fecha: "2026-10-10", reservas: 8, estado: "Finalizada" }),
-        clase({ id: "2", fecha: "2026-10-10", reservas: 0, estado: "Cancelada", cancelada: true }),
-        clase({ id: "3", fecha: "2026-10-16", reservas: 0 }),
+        clase({ id: "1", reservas: 4 }),
+        clase({ id: "2", reservas: 3, cancelada: true, estado: "Cancelada" }),
+        clase({ id: "3", fecha: "2026-10-13", reservas: 2 }), // martes de esta semana
+        clase({ id: "4", fecha: "2026-10-20", reservas: 9 }), // la que viene
       ],
       hoy,
+      new Set(["a"]),
     );
-    expect(r.ocupacion30).toBe(100);
-    expect(r.promedio30).toBe(8);
+    expect(r.hoy).toBe(4);
+    expect(r.semana).toBe(6);
   });
 
-  it("sin clases pasadas la ocupación es «—» (null), no 0 %", () => {
-    expect(resumenClases([], hoy).ocupacion30).toBeNull();
-  });
-
-  it("las de hoy salen en orden de hora, canceladas incluidas; las cifras no las cuentan", () => {
+  it("promedio diario: reservas pasadas entre días CON clases (un domingo cerrado no cuenta)", () => {
     const r = resumenClases(
       [
-        clase({ id: "tarde", horaInicio: "18:00" }),
-        clase({ id: "temprano", horaInicio: "07:00" }),
-        clase({ id: "anulada", horaInicio: "09:00", cancelada: true, estado: "Cancelada" }),
+        clase({ id: "1", fecha: "2026-10-10", reservas: 6 }),
+        clase({ id: "2", fecha: "2026-10-10", reservas: 2 }),
+        clase({ id: "3", fecha: "2026-10-12", reservas: 4 }),
       ],
       hoy,
+      new Set(["a"]),
     );
-    expect(r.deHoy.map((c) => c.id)).toEqual(["temprano", "anulada", "tarde"]);
-    expect(r.hoy.clases).toBe(2);
+    expect(r.promedioDiario).toBe(6);
+    expect(resumenClases([], hoy, new Set()).promedioDiario).toBeNull();
+  });
+
+  it("participación: activos distintos que reservaron esta semana, sobre los activos", () => {
+    const r = resumenClases(
+      [
+        clase({ id: "1", reservados: [{ id: "r1", clienteId: "a", nombre: "A" }] }),
+        clase({
+          id: "2",
+          fecha: "2026-10-14",
+          reservados: [
+            { id: "r2", clienteId: "a", nombre: "A" },
+            { id: "r3", clienteId: "b", nombre: "B" },
+            { id: "r4", clienteId: "sin-plan", nombre: "C" },
+          ],
+        }),
+      ],
+      hoy,
+      new Set(["a", "b", "c", "d"]),
+    );
+    // «sin-plan» reservó pero no es activo: no cuenta (si no, salía 125 %).
+    expect(r.personasSemana).toBe(2);
+    expect(r.participacion).toBe(50);
+    expect(resumenClases([], hoy, new Set()).participacion).toBeNull();
   });
 });

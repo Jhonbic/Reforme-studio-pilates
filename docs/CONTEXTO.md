@@ -197,11 +197,11 @@ En `src/components/`:
 - `AdminNav.tsx` (cliente, estado activo por `usePathname`), `AdminTopbar.tsx`
   (cliente, titula la página desde la ruta), `StatTile.tsx` (solo Finanzas),
   `SeccionPendiente.tsx`.
-- `admin/inicio/` — **el dashboard desde oct 2026**: `PanelDashboard` (las
-  dos pestañas), `Cifra` (cifra de cabecera, enlace opcional) y
-  `ListaTrabajo` (+ `FilaTrabajo`, `BotonWhatsApp`, `BotonFicha`). Se
-  borraron `TarjetaIngresos`, `GraficaIngresos`, `GraficaContable`, `Donut`
-  y `HBars`: solo los usaba la rejilla bento.
+- `admin/inicio/` — **el dashboard desde oct 2026, copia del de
+  JainSportBox**: `PanelDashboard` (cabecera, pestañas, cifras y listas) y
+  `AgendaReservas` (calendario del mes + clases del día). Se borraron
+  `TarjetaIngresos`, `GraficaIngresos`, `GraficaContable`, `Donut` y `HBars`:
+  solo los usaba la rejilla bento.
 - `admin/charts/`: `LineChart.tsx`, `GroupedBars.tsx`, `Donut.tsx` (clientes) y
   `HBars.tsx` (servidor: sin interacción, los valores ya van escritos).
   ⚠️ **Gotcha resuelto:** `LineChart` y `GroupedBars` dibujan en **píxeles
@@ -352,56 +352,48 @@ Y fuera de `admin/`, porque no es solo del panel:
 - Cada gráfico va dentro de `ChartCard`, que incluye **tabla de datos** en un
   `<details>`. No es opcional: ver la nota de contraste abajo.
 
-> ✅ **Rediseñado en oct 2026 con la ORGANIZACIÓN de JainSportBox**
-> (`../JainSportBox/frontend/src/views/DashboardView.vue`, decisión del
-> usuario: «no me gusta la organización»). Solo la organización; el aspecto
-> sigue siendo el de la marca, como en Finanzas. **Todo lo que se cuenta
-> abajo sobre la rejilla bento, las tarjetas oscuras, «Ingresos por mes»,
-> donut y vista contable es historia.** Ahora:
+> ✅ **Desde oct 2026 el dashboard es una COPIA del de JainSportBox**
+> (`../JainSportBox/frontend/src/views/DashboardView.vue` + `SesionesPanel` +
+> `BloqueCard`), con los colores de Reforme: el rojo de Jain es el dorado, el
+> negro el verde de marca y el gris el verde grisáceo. Decisión del usuario:
+> «como el de Jain, tal cual» y «las gráficas de Pilates sobran». Hubo antes
+> un intento intermedio (solo la organización, con tarjetas y listas propias)
+> que **no gustó**: no volver a adaptarlo, copiarlo. **Todo lo que se cuenta
+> abajo sobre la rejilla bento, tarjetas oscuras, «Ingresos por mes», donut,
+> vista contable y «Reservas por día de la semana» es historia.**
 >
-> - **Fecha → dos pestañas (Clientes · Clases) → 4 cifras iguales → 2 listas
->   de trabajo → 1 gráfica.** Las cuatro cifras miden lo mismo (2 por fila en
->   móvil, 4 en escritorio): con tamaños distintos el ojo salta a la grande,
->   que era lo que hacía sentir desordenado el bento.
-> - ⚠️ **Sin dinero.** Lo financiero vive entero en Finanzas (con su selector
->   de periodo); la tendencia de 12 meses de ingresos y gastos se mudó al final
->   de Finanzas. Efecto buscado: **el dashboard es igual para los tres roles**,
->   ya no hay tarjetas que esconder a quien RLS no le da los pagos, y no pide
->   pagos ni gastos a la base.
-> - **Clientes**: Activos (vigentes; frente a hace 30 días en NÚMERO de
->   clientes, no en %: con veinte clientes «+5 %» es una persona) · Sin plan
->   (el «pendiente de activar» de Jain) · Recuperables (vencieron hace < 30
->   días) · Renovación. Listas: **Por vencer · 7 días** con «Recordar» y
->   **Cumpleaños de hoy** con «Felicitar». Gráfica: clientes activos por mes.
-> - **Clases**: Hoy · Esta semana · Ocupación (clases ya pasadas, 30 días) ·
->   Reservas por clase. Listas: **Clases de hoy** y **Llenas · próximos 7
->   días** (dónde hace falta otra clase). Gráfica: reservas por día de la
->   semana. Usa `getClases()`, así que el estado de cada clase es el mismo que
->   en la agenda.
-> - **Las cifras con lista detrás son enlaces** (flecha en la esquina) y abren
->   Usuarios ya filtrado: `/admin/usuarios?estado=Sin plan`. Usuarios lee
->   `?estado=` solo como filtro INICIAL; un valor que no existe se ignora.
->   La lista de estados vive en `catalogos.ts` (`ESTADOS_MEMBRESIA`): una
->   constante exportada desde un módulo `"use client"` llega al servidor como
->   referencia, no como array.
-> - **WhatsApp** (`lib/admin/whatsapp.ts`): abre WhatsApp con el mensaje ya
->   escrito, no lo envía solo; quien atiende lo revisa y pulsa enviar. Sin API
->   de pago. Sin un móvil colombiano completo no hay botón (un número a
->   medias llevaría a un error de WhatsApp). Botón en verde de MARCA, no el
->   de WhatsApp.
+> - Cabecera «Resumen del estudio» + fecha completa → pestañas subrayadas
+>   **Clientes · Clases** + «Ver todos →».
+> - **Clientes**: Activos (frente al cierre del mes pasado: «+2 del mes
+>   pasado») · Pendientes (sin plan) · Recuperables (vencidos hace < 30 días)
+>   · Renovación («3 de 4 · últimos 30 días»). Activos y Pendientes son
+>   enlaces y abren Usuarios filtrado (`?estado=Sin plan`). Listas:
+>   **Cumpleaños hoy** («Felicitar» + «Ver perfil») y **Por vencer · 7 días**
+>   («Recordar» + «Ver», o «Sin teléfono»). Gráfica: clientes activos por mes.
+> - **Clases** (en Jain, «Asistencia»): Hoy · Esta semana · Promedio diario ·
+>   Participación, y debajo el **calendario del mes con el total de cada día
+>   y las clases del día seleccionado**, desplegables con quién reservó y un
+>   buscador por nombre (`AgendaReservas`). Deja ir al mes anterior y al
+>   siguiente: solo viaja ese tramo de la agenda.
+> - ⚠️ **Son RESERVAS, no asistencias**: Reforme no registra quién viene.
+> - ⚠️ **Participación cuenta solo ACTIVOS que reservaron.** El mostrador puede
+>   apuntar a alguien sin plan vigente (con aviso), y contarlo daba «125 %».
+> - **Promedio diario** divide entre días CON clases: un domingo cerrado no es
+>   un día con cero reservas.
+> - Sin la pestaña «Enviados» de Jain (no hay tabla donde guardarlo; decisión
+>   del usuario). La persona sigue en la lista hasta que renueve.
+> - ⚠️ **Sin dinero**, como Jain: vive en Finanzas, que recibió la gráfica de
+>   ingresos y gastos de 12 meses. El dashboard es igual para los tres roles.
+> - WhatsApp (`lib/admin/whatsapp.ts`): abre el chat con el mensaje escrito,
+>   no lo envía solo. Sin un móvil colombiano completo no hay botón.
 > - Cumpleaños del 29 de febrero: se felicitan el 28 en años no bisiestos.
-> - Las listas tienen **tope de altura** con scroll dentro: una lista larga no
->   empuja a la de al lado ni la página cambia de alto según el día. En móvil
->   los botones bajan a su propia línea (`basis-48`) en vez de cortar el
->   nombre.
-> - `LineChart` estrena `formatoEje` (como `GroupedBars`): el eje de
->   clientes salía en pesos («$5»).
+> - Copiado también lo que tiene de menos: los botones de las listas miden
+>   ~28px como en Jain, por debajo de los 44px del resto del panel.
+> - La tabla de la gráfica va `sr-only`: Jain no la enseña, pero el gráfico
+>   no puede quedarse sin texto para quien no lo ve.
 > - ⚠️ **Gotcha de pruebas**: en `next dev`, entrar por `127.0.0.1` en vez de
 >   `localhost` bloquea los recursos de desarrollo y la página NO se hidrata
 >   (pestañas muertas, gráficas a 720px). No es un fallo del código.
-> - Falta respecto a Jain: la pestaña **«Enviados»** (saber a quién ya se le
->   recordó). Necesita una tabla; hoy la lista sigue mostrando a la persona
->   hasta que renueve.
 
 **Organización del dashboard — rejilla bento.** Se reorganizó a partir de una
 referencia que trajo el usuario, adaptando **solo la organización**: jerarquía por
@@ -1676,9 +1668,9 @@ de repetir:
       editarlos; hoy solo los mete la semilla.
 - [ ] **Dashboard: pestaña «Enviados»** como en JainSportBox (a quién ya se le
       recordó la renovación o se le felicitó). Necesita una tabla.
-- [ ] **Rediseño con la organización de JainSportBox, resto del panel**:
-      ficha del cliente completa, acciones en la fila de Usuarios, menú
-      agrupado y títulos con descripción. El dashboard ya está (oct 2026).
+- [ ] **Copiar JainSportBox en el resto del panel** (el dashboard ya está,
+      oct 2026): ficha del cliente completa, acciones en la fila de
+      Usuarios, menú agrupado y títulos con descripción.
 - [ ] **Notificaciones de la campana**: el primer aviso es real (membresías por
       vencer); los otros dos son de ejemplo (`mock.ts`).
 

@@ -1,5 +1,5 @@
 import { telefonoCO } from "./format";
-import { DIAS_CORTOS, diaSemana, finDe, sumarDias } from "./horario";
+import { finDe, sumarDias } from "./horario";
 import { NOTIFICACIONES } from "./mock";
 import { cache } from "react";
 import {
@@ -316,64 +316,6 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
       reservados,
     };
   });
-}
-
-/**
- * Cuántas semanas hacia atrás mira el reparto por día de la semana. Un patrón
- * semanal necesita repeticiones para no ser el ruido de una semana rara.
- * (Los datos de ejemplo traen dos semanas de pasado: el resto suma cero.)
- */
-export const SEMANAS_RESERVAS = 4;
-
-export type ReservasPorDia = {
-  /** `"Lun"`, `"Mar"`… empezando en lunes. */
-  dia: string;
-  reservas: number;
-  cupos: number;
-  clases: number;
-};
-
-/**
- * Reservas acumuladas por día de la semana, de lunes a domingo.
- *
- * Responde a «¿qué días llena el estudio?», que es lo que decide dónde añadir
- * clases y dónde quitarlas. Por eso se agrupa por **día de la semana** y no por
- * fecha: un lunes suelto no dice nada, catorce lunes sí.
- *
- * ⚠️ **Son RESERVAS, no asistencias verificadas.** No existe todavía el
- * registro de quién apareció. Cuando exista, esta misma función devuelve un
- * campo más y la tarjeta pasa a dos series (reservado / asistió).
- *
- * ⚠️ **Solo clases que ya pasaron** (`fecha < hoy`) **y no canceladas**: con
- * las futuras dentro, el reparto mezclaría lo ocurrido con lo que aún puede
- * cambiar.
- *
- * ⚠️ **Los siete días salen siempre, aunque el domingo sea cero.** El hueco es
- * información: el estudio cierra.
- */
-export async function getReservasPorDiaSemana(hoy: string): Promise<ReservasPorDia[]> {
-  const supabase = await crearClienteServidor();
-  const { data, error } = await supabase
-    .from("clases")
-    .select("fecha, cupos, reservas(count)")
-    .eq("cancelada", false)
-    .gte("fecha", sumarDias(hoy, -7 * SEMANAS_RESERVAS))
-    .lt("fecha", hoy);
-  if (error) throw new Error(`No se pudieron leer las reservas: ${error.message}`);
-
-  const acumulado: ReservasPorDia[] = DIAS_CORTOS.map((dia) => ({
-    dia,
-    reservas: 0,
-    cupos: 0,
-    clases: 0,
-  }));
-  for (const c of data) {
-    const d = acumulado[diaSemana(c.fecha)];
-    d.reservas += c.reservas[0]?.count ?? 0;
-    d.cupos += c.cupos;
-    d.clases += 1;
-  }
-  return acumulado;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

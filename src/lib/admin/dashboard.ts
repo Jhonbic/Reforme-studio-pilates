@@ -53,14 +53,18 @@ const MESES_CORTOS = MESES_LARGOS.map((m) => m[0].toUpperCase() + m.slice(1, 3))
 const suma = <T>(filas: T[], valor: (f: T) => number) =>
   filas.reduce((t, f) => t + valor(f), 0);
 
-/** Clientes con una membresía que cubre ese día. Es la definición de «activo». */
-function vigentesEl(dia: string, membresias: DatosDashboard["membresias"]): number {
+/** Ids de los clientes con una membresía que cubre ese día. Es la definición
+ *  de «activo». */
+export function activosEl(dia: string, membresias: DatosDashboard["membresias"]): Set<string> {
   const ids = new Set<string>();
   for (const m of membresias) {
     if (m.inicio <= dia && dia <= m.vencimiento) ids.add(m.clienteId);
   }
-  return ids.size;
+  return ids;
 }
+
+const vigentesEl = (dia: string, membresias: DatosDashboard["membresias"]) =>
+  activosEl(dia, membresias).size;
 
 function ultimos(dias: number, hoy: string): Periodo {
   return { desde: sumarDias(hoy, -(dias - 1)), hasta: hoy };
@@ -209,13 +213,16 @@ export function activosPorMes(d: DatosDashboard, hoy: string) {
  * `null` si en la ventana no venció ninguna: sin vencimientos la pregunta no
  * aplica, y eso no es «0 %» (que sería «nadie renovó»).
  */
-function tasaEn(v: Periodo, membresias: DatosDashboard["membresias"]): number | null {
+function tasaEn(v: Periodo, membresias: DatosDashboard["membresias"]) {
   const vencidas = membresias.filter((m) => enPeriodo(m.vencimiento, v));
-  if (vencidas.length === 0) return null;
   const renovadas = vencidas.filter((m) =>
     membresias.some((o) => o.clienteId === m.clienteId && o.inicio > m.inicio),
   );
-  return (renovadas.length / vencidas.length) * 100;
+  return {
+    vencieron: vencidas.length,
+    renovaron: renovadas.length,
+    tasa: vencidas.length ? (renovadas.length / vencidas.length) * 100 : null,
+  };
 }
 
 /** Tasa de renovación de los últimos 30 días (sin hoy: lo que vence hoy aún
@@ -224,11 +231,14 @@ export function tasaRenovacion(d: Pick<DatosDashboard, "membresias">, hoy: strin
   const ayer = sumarDias(hoy, -1);
   const v = ultimos(VENTANA, ayer);
   const previa = ultimos(VENTANA, sumarDias(v.desde, -1));
-  const valor = tasaEn(v, d.membresias);
-  const anterior = tasaEn(previa, d.membresias);
+  const actual = tasaEn(v, d.membresias);
+  const anterior = tasaEn(previa, d.membresias).tasa;
   return {
-    valor,
-    variacion: valor !== null && anterior !== null ? valor - anterior : null,
+    valor: actual.tasa,
+    variacion: actual.tasa !== null && anterior !== null ? actual.tasa - anterior : null,
+    /** «3 de 4 · últimos 30 días», como lo dice JainSportBox. */
+    vencieron: actual.vencieron,
+    renovaron: actual.renovaron,
   };
 }
 
@@ -237,52 +247,41 @@ export function tasaRenovacion(d: Pick<DatosDashboard, "membresias">, hoy: strin
 // ---------------------------------------------------------------------------
 
 /**
- * Las cifras y listas de la pestaña Clases. Recibe la agenda ya resuelta
- * (`getClases()`): así el estado de cada clase es el mismo que en la agenda.
+ * Las cuatro cifras de la pestaña Clases, las mismas que la pestaña
+ * «Asistencia» de JainSportBox: hoy, esta semana, promedio diario y
+ * participación.
  *
  * ⚠️ Son RESERVAS, no asistencias: todavía no existe el registro de quién
- * vino. Por eso se habla de «ocupación» y nunca de «asistencia».
+ * vino. Jain cuenta entradas al box; aquí se cuenta quién apartó cupo.
  */
-export function resumenClases(clases: ClaseEnAgenda[], hoy: string) {
+export function resumenClases(clases: ClaseEnAgenda[], hoy: string, activos: Set<string>) {
   const activas = clases.filter((c) => !c.cancelada);
-
-  const deHoy = clases
-    .filter((c) => c.fecha === hoy)
-    .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
-  const hoyActivas = deHoy.filter((c) => !c.cancelada);
+  const reservasDe = (filas: ClaseEnAgenda[]) => suma(filas, (c) => c.reservas);
 
   const lunes = lunesDe(hoy);
-  const semana = activas.filter((c) => c.fecha >= lunes && c.fecha <= sumarDias(lunes, 6));
+  const domingo = sumarDias(lunes, 6);
+  const semana = activas.filter((c) => c.fecha >= lunes && c.fecha <= domingo);
 
-  // Ocupación de lo que YA pasó: con las futuras dentro, una clase de mañana
-  // a medio reservar bajaría la cifra solo por ser de mañana.
-  const pasadas = activas.filter(
-    (c) => c.fecha >= sumarDias(hoy, -VENTANA) && c.estado === "Finalizada",
-  );
-  const reservasPasadas = suma(pasadas, (c) => c.reservas);
-  const cuposPasados = suma(pasadas, (c) => c.cupos);
+  // Promedio de lo que YA pasó, por día con clases: un domingo cerrado no es
+  // un día con cero reservas, es un día que no cuenta.
+  const desde = sumarDias(hoy, -VENTANA);
+  const pasadas = activas.filter((c) => c.fecha >= desde && c.fecha < hoy);
+  const dias = new Set(pasadas.map((c) => c.fecha)).size;
+
+  // ⚠️ Solo los ACTIVOS que reservaron: el mostrador puede apuntar a alguien
+  // sin plan vigente (con aviso), y contarlo daba participaciones de «125 %».
+  const personasSemana = new Set(
+    semana.flatMap((c) => c.reservados.map((r) => r.clienteId)).filter((id) => activos.has(id)),
+  ).size;
 
   return {
-    hoy: {
-      clases: hoyActivas.length,
-      reservas: suma(hoyActivas, (c) => c.reservas),
-      cupos: suma(hoyActivas, (c) => c.cupos),
-    },
-    semana: {
-      clases: semana.length,
-      reservas: suma(semana, (c) => c.reservas),
-      cupos: suma(semana, (c) => c.cupos),
-    },
-    /** `null` sin clases pasadas: la pregunta no aplica, no es «0 %». */
-    ocupacion30: cuposPasados ? (reservasPasadas / cuposPasados) * 100 : null,
-    promedio30: pasadas.length ? reservasPasadas / pasadas.length : null,
-    deHoy,
-    /** Llenas en los próximos 7 días: la señal de dónde hace falta otra clase. */
-    llenas: activas
-      .filter(
-        (c) => c.estado === "Llena" && c.fecha >= hoy && c.fecha <= sumarDias(hoy, DIAS_POR_VENCER),
-      )
-      .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.horaInicio.localeCompare(b.horaInicio)),
+    hoy: reservasDe(activas.filter((c) => c.fecha === hoy)),
+    semana: reservasDe(semana),
+    /** `null` sin días con clases: la pregunta no aplica. */
+    promedioDiario: dias ? Math.round(reservasDe(pasadas) / dias) : null,
+    personasSemana,
+    /** De los clientes activos, qué parte reservó esta semana. */
+    participacion: activos.size ? Math.round((personasSemana / activos.size) * 100) : null,
   };
 }
 

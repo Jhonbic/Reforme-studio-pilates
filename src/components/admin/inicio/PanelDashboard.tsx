@@ -1,416 +1,445 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
-import ChartCard from "../ChartCard";
-import EstadoClaseBadge from "../clases/EstadoClaseBadge";
-import GroupedBars from "../charts/GroupedBars";
+import { useState, type ReactNode } from "react";
 import LineChart from "../charts/LineChart";
-import Variacion from "../Variacion";
-import Cifra from "./Cifra";
-import ListaTrabajo, { BotonFicha, BotonWhatsApp, FilaTrabajo } from "./ListaTrabajo";
-import { numero, porcentaje } from "@/lib/admin/format";
-import { diaRelativo } from "@/lib/admin/horario";
-import type { EstadoClase } from "@/lib/admin/types";
+import AgendaReservas, { type ClaseDelMes } from "./AgendaReservas";
+import { numero } from "@/lib/admin/format";
 
 export type FilaPorVencer = {
   id: string;
   nombre: string;
-  plan: string;
-  /** «hoy», «mañana», «en 3 días · vie 9 oct». */
-  cuando: string;
+  /** «Vence hoy», «Vence mañana», «Vence en 3 días». */
+  vence: string;
   urgente: boolean;
   whatsapp: string | null;
 };
 
-export type FilaCumpleanos = {
-  id: string;
-  nombre: string;
-  edad: number | null;
-  whatsapp: string | null;
-};
-
-export type FilaClase = {
-  id: string;
-  fecha: string;
-  horaInicio: string;
-  horaFin: string;
-  tipo: string;
-  instructora: string;
-  reservas: number;
-  cupos: number;
-  estado: EstadoClase;
-};
+export type FilaCumpleanos = { id: string; nombre: string; whatsapp: string | null };
 
 type Props = {
-  /** «Viernes, 2 de octubre». */
+  /** «Viernes, 2 de octubre de 2026». */
   fechaTexto: string;
   hoy: string;
   clientes: {
     activos: number;
-    /** Activos de hoy menos los de hace 30 días. */
-    diferencia: number;
-    sinPlan: number;
+    /** Activos de hoy menos los del cierre del mes pasado; `null` sin mes anterior. */
+    deltaActivos: number | null;
+    pendientes: number;
     recuperables: number;
-    renovacion: { valor: number | null; variacion: number | null };
+    renovacion: { porcentaje: number | null; renovaron: number; vencieron: number };
     porVencer: FilaPorVencer[];
     cumpleanos: FilaCumpleanos[];
     activosPorMes: { mes: string; anio: number; activos: number }[];
   };
   clases: {
-    hoy: { clases: number; reservas: number; cupos: number };
-    semana: { clases: number; reservas: number; cupos: number };
-    ocupacion30: number | null;
-    promedio30: number | null;
-    deHoy: FilaClase[];
-    llenas: FilaClase[];
-    porDia: { dia: string; clases: number; reservas: number; cupos: number }[];
-    semanasPorDia: number;
+    hoy: number;
+    semana: number;
+    promedioDiario: number | null;
+    participacion: number | null;
+    personasSemana: number;
+    activos: number;
+    delMes: ClaseDelMes[];
   };
 };
 
-const PESTANAS = [
-  { id: "clientes", etiqueta: "Clientes", ver: { href: "/admin/usuarios", texto: "Ver clientes →" } },
-  { id: "clases", etiqueta: "Clases", ver: { href: "/admin/clases", texto: "Abrir agenda →" } },
+const TABS = [
+  { key: "clientes", label: "Clientes", ver: "/admin/usuarios" },
+  { key: "clases", label: "Clases", ver: "/admin/clases" },
 ] as const;
 
-type Pestana = (typeof PESTANAS)[number]["id"];
+type Tab = (typeof TABS)[number]["key"];
 
-const C1 = "var(--color-chart-1)";
-
-const PASTILLA = "rounded-full border border-beige bg-arena px-3 py-1 text-xs text-verde-700";
+/* Las piezas de JainSportBox, con los colores de Reforme: el rojo de Jain es
+   aquí el dorado, el negro el verde de marca, el gris el verde grisáceo. */
+const TARJETA = "rounded-2xl border border-beige bg-white p-5 shadow-card";
+const ROTULO = "mb-2 text-xs font-bold uppercase tracking-widest text-verde-300";
+const CIFRA = "font-cifra text-3xl font-bold text-verde";
+const NOTA = "mt-1 text-xs text-verde-300";
+const BOTON_VER =
+  "rounded-lg border border-beige bg-white px-3 py-1.5 text-xs font-semibold text-verde-700 transition-colors hover:border-dorado";
 
 /**
- * Dashboard con la organización de JainSportBox (decisión del usuario, oct
- * 2026): fecha → dos pestañas → cuatro cifras iguales → dos listas de trabajo
- * → una gráfica de tendencia. Solo la organización: el aspecto es el de la
- * marca, como ya se hizo en Finanzas.
+ * Dashboard, copia de la ORGANIZACIÓN y la FORMA del de JainSportBox
+ * (`../JainSportBox/frontend/src/views/DashboardView.vue`) con los colores de
+ * Reforme. Decisión del usuario (oct 2026): «como el de Jain, tal cual».
  *
- * ⚠️ **Dos pestañas y solo dos, Clientes y Clases.** Lo financiero no vuelve
- * aquí: vive entero en Finanzas, con su selector de periodo. Era la mitad de
- * la rejilla anterior y lo que la hacía pesada.
- *
- * Las pestañas son estado de cliente: todo viaja ya calculado y cambiar de
- * una a otra es instantáneo.
+ * Diferencias que son de datos, no de diseño:
+ * - La segunda pestaña es **Clases** y cuenta RESERVAS: Jain cuenta entradas
+ *   al box y Reforme todavía no registra quién viene.
+ * - Sin la pestaña «Enviados» de las listas: Jain guarda a quién ya se le
+ *   escribió y Reforme no tiene tabla para eso (decisión del usuario).
+ * - Lo financiero no aparece, igual que en Jain: vive en Finanzas.
  */
-export default function PanelDashboard({ fechaTexto, hoy, clientes, clases }: Props) {
-  const [pestana, setPestana] = useState<Pestana>("clientes");
-  const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const actual = PESTANAS.find((p) => p.id === pestana) ?? PESTANAS[0];
-
-  function irA(i: number) {
-    const n = (i + PESTANAS.length) % PESTANAS.length;
-    setPestana(PESTANAS[n].id);
-    refs.current[n]?.focus();
-  }
+export default function PanelDashboard({ fechaTexto, clientes, clases, hoy }: Props) {
+  const [tab, setTab] = useState<Tab>("clientes");
+  const ver = TABS.find((t) => t.key === tab)?.ver ?? "/admin/usuarios";
 
   return (
     <div>
-      <p className="eyebrow text-dorado-dark">{fechaTexto}</p>
+      <div className="mb-6">
+        <h2 className="text-3xl font-bold tracking-tight text-verde">Resumen del estudio</h2>
+        <p className="mt-1 text-verde-300">{fechaTexto}</p>
+      </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <div role="tablist" aria-label="Resumen del estudio" className="flex gap-2">
-          {PESTANAS.map((p, i) => {
-            const activa = p.id === pestana;
-            return (
-              /* Mismas pestañas que Usuarios: borde siempre en la inactiva
-                 (sin él no se lee como control) y dorado en la activa, el
-                 mismo «seleccionado» de todo el panel. */
-              <button
-                key={p.id}
-                ref={(el) => {
-                  refs.current[i] = el;
-                }}
-                role="tab"
-                type="button"
-                id={`pestana-${p.id}`}
-                aria-selected={activa}
-                aria-controls="panel-resumen"
-                tabIndex={activa ? 0 : -1}
-                onClick={() => setPestana(p.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowRight") irA(i + 1);
-                  if (e.key === "ArrowLeft") irA(i - 1);
-                }}
-                className={`control-fx relative min-h-[44px] overflow-hidden rounded-full border px-5 text-sm font-bold transition-[color,background-color,border-color,box-shadow] duration-300 ${
-                  activa
-                    ? "border-dorado bg-dorado text-verde-900"
-                    : "border-beige text-verde-700 hover:border-dorado hover:text-verde hover:ring-2 hover:ring-dorado/25 focus-visible:border-dorado focus-visible:ring-2 focus-visible:ring-dorado/25"
-                }`}
-              >
-                {!activa && <span className="control-sheen control-sheen--lento" aria-hidden="true" />}
-                {p.etiqueta}
-              </button>
-            );
-          })}
-        </div>
-        <Link
-          href={actual.ver.href}
-          className="ml-auto inline-flex min-h-[44px] items-center text-sm text-dorado-dark underline-offset-4 transition-colors duration-300 hover:text-verde hover:underline"
-        >
-          {actual.ver.texto}
+      {/* Dos pestañas y solo dos. Lo financiero no vuelve aquí: vive entero en
+          Finanzas, que tiene su propio selector de periodo. */}
+      <div role="tablist" aria-label="Resumen" className="mb-6 flex items-center gap-6 border-b border-beige">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            onClick={() => setTab(t.key)}
+            className={`-mb-px border-b-2 pb-3 text-xs font-bold uppercase tracking-widest transition-colors ${
+              tab === t.key
+                ? "border-dorado text-dorado-dark"
+                : "border-transparent text-verde-300 hover:text-verde-700"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+        <Link href={ver} className="ml-auto pb-3 text-xs font-bold text-dorado-dark hover:underline">
+          Ver todos →
         </Link>
       </div>
 
-      <div
-        id="panel-resumen"
-        role="tabpanel"
-        aria-labelledby={`pestana-${pestana}`}
-        className="mt-6 space-y-4 xl:space-y-5"
-      >
-        {pestana === "clientes" ? (
-          <PestanaClientes datos={clientes} />
-        ) : (
-          <PestanaClases datos={clases} hoy={hoy} />
-        )}
-      </div>
+      {tab === "clientes" ? <BloqueClientes d={clientes} /> : <BloqueClases d={clases} hoy={hoy} />}
     </div>
   );
 }
 
-function Rejilla4({ children, etiqueta }: { children: React.ReactNode; etiqueta: string }) {
+// ═══════════ BLOQUE: CLIENTES ═══════════
+
+function BloqueClientes({ d }: { d: Props["clientes"] }) {
+  const { deltaActivos: delta, renovacion } = d;
   return (
-    <section aria-label={etiqueta} className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 xl:gap-5">
-      {children}
+    <section className="mb-10">
+      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {/* Activos y Pendientes navegan: la flecha del encabezado los marca como enlace. */}
+        <TarjetaEnlace href="/admin/usuarios" rotulo="Activos">
+          <p className={CIFRA}>{numero(d.activos)}</p>
+          {/* Compara activos contra activos (cierre del mes pasado), no altas:
+              puesto debajo de este número, un delta de altas se lee como
+              clientes perdidos. */}
+          {delta !== null && (
+            <p
+              className={`mt-1 text-xs ${
+                delta > 0
+                  ? "text-[var(--color-estado-ok)]"
+                  : delta < 0
+                    ? "text-[var(--color-estado-grave)]"
+                    : "text-verde-300"
+              }`}
+            >
+              {delta === 0
+                ? "Igual que el mes pasado"
+                : `${delta > 0 ? "+" : "−"}${Math.abs(delta)} del mes pasado`}
+            </p>
+          )}
+        </TarjetaEnlace>
+
+        {/* Sin acento de color aunque haya pendientes: alguien sin plan es
+            trabajo normal del día, no una alarma. El número ya lo dice. */}
+        <TarjetaEnlace href={`/admin/usuarios?estado=${encodeURIComponent("Sin plan")}`} rotulo="Pendientes">
+          <p className={CIFRA}>{numero(d.pendientes)}</p>
+          <p className={NOTA}>{d.pendientes === 1 ? "Cliente sin plan" : "Clientes sin plan"}</p>
+        </TarjetaEnlace>
+
+        <div className={TARJETA}>
+          <p className={ROTULO}>Recuperables</p>
+          <p className={CIFRA}>{numero(d.recuperables)}</p>
+          <p className={NOTA}>Vencidos hace menos de 30 días</p>
+        </div>
+
+        <div className={TARJETA}>
+          <p className={ROTULO}>Renovación</p>
+          <p className={CIFRA}>
+            {renovacion.porcentaje !== null ? `${Math.round(renovacion.porcentaje)}%` : "—"}
+          </p>
+          <p className={NOTA}>
+            {renovacion.renovaron} de {renovacion.vencieron} · últimos 30 días
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Cumpleaños de hoy */}
+        <Lista
+          icono={<IconoPastel />}
+          titulo="Cumpleaños hoy"
+          cuantos={d.cumpleanos.length}
+          alto="12.5rem"
+          vacio={{ icono: <IconoPersonas />, texto: "No hay clientes por felicitar" }}
+        >
+          {d.cumpleanos.map((u) => (
+            <Fila key={u.id} nombre={u.nombre}>
+              {/* Se pregunta por el enlace, no por el teléfono: un número
+                  incompleto genera un botón que lleva a un error de WhatsApp. */}
+              {u.whatsapp && <BotonWhatsApp href={u.whatsapp} texto="Felicitar" quien={u.nombre} />}
+              <Link href={`/admin/usuarios/${u.id}`} className={BOTON_VER}>
+                Ver perfil
+              </Link>
+            </Fila>
+          ))}
+        </Lista>
+
+        {/* Membresías por vencer: los recordatorios de WhatsApp */}
+        <Lista
+          titulo="Por vencer · 7 días"
+          cuantos={d.porVencer.length}
+          alto="14rem"
+          vacio={{ icono: <IconoCampana />, texto: "Ninguna membresía vence esta semana" }}
+        >
+          {d.porVencer.map((a) => (
+            <Fila
+              key={a.id}
+              nombre={a.nombre}
+              detalle={
+                <p
+                  className={`text-xs ${
+                    a.urgente ? "font-semibold text-[var(--color-estado-grave)]" : "text-verde-300"
+                  }`}
+                >
+                  {a.vence}
+                </p>
+              }
+            >
+              {a.whatsapp ? (
+                <BotonWhatsApp href={a.whatsapp} texto="Recordar" quien={a.nombre} icono={false} />
+              ) : (
+                <span className="rounded-full bg-arena px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-verde-300">
+                  Sin teléfono
+                </span>
+              )}
+              <Link href={`/admin/usuarios/${a.id}`} className={BOTON_VER}>
+                Ver
+              </Link>
+            </Fila>
+          ))}
+        </Lista>
+      </div>
+
+      {/* Evolución de clientes activos, al pie del bloque: arriba van las
+          tarjetas y las dos listas accionables (hoy), aquí la tendencia. */}
+      <div className={`${TARJETA} mt-4`}>
+        <div className="mb-4">
+          <p className="text-xs font-bold uppercase tracking-widest text-verde-300">
+            Clientes activos por mes
+          </p>
+          <p className="mt-1 text-xs text-verde-300">
+            Reconstruido a partir de las membresías registradas
+          </p>
+        </div>
+        <LineChart
+          datos={d.activosPorMes.map((m) => ({ label: m.mes, value: m.activos }))}
+          formato="clientes"
+          formatoEje="numero"
+          serie="Clientes activos"
+        />
+        {/* La tabla equivalente, solo para lectores de pantalla: Jain no la
+            enseña, pero un gráfico sin texto deja fuera a quien no lo ve. */}
+        <table className="sr-only">
+          <caption>Clientes activos por mes</caption>
+          <tbody>
+            {d.activosPorMes.map((m) => (
+              <tr key={`${m.mes}-${m.anio}`}>
+                <th scope="row">
+                  {m.mes} {m.anio}
+                </th>
+                <td>{m.activos}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
 
-function Rejilla2({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:gap-5">{children}</div>;
-}
+// ═══════════ BLOQUE: CLASES ═══════════
 
-function PestanaClientes({ datos }: { datos: Props["clientes"] }) {
-  const { diferencia, renovacion } = datos;
+function BloqueClases({ d, hoy }: { d: Props["clases"]; hoy: string }) {
   return (
-    <>
-      <Rejilla4 etiqueta="Cifras de clientes">
-        <Cifra
-          etiqueta="Activos"
-          valor={numero(datos.activos)}
-          href="/admin/usuarios"
-          /* En NÚMERO de clientes y no en %: con veinte clientes, «+5 %» es
-             una persona y se lee como mucho más. */
-          detalle={
-            diferencia === 0
-              ? "Igual que hace 30 días"
-              : `${diferencia > 0 ? "+" : "−"}${numero(Math.abs(diferencia))} frente a hace 30 días`
-          }
-        />
-        <Cifra
-          etiqueta="Sin plan"
-          valor={numero(datos.sinPlan)}
-          href={`/admin/usuarios?estado=${encodeURIComponent("Sin plan")}`}
-          detalle="Registrados que aún no pagan"
-        />
-        <Cifra
-          etiqueta="Recuperables"
-          valor={numero(datos.recuperables)}
-          href="/admin/usuarios?estado=Vencida"
-          detalle="Vencieron hace menos de 30 días"
-        />
-        <Cifra
-          etiqueta="Renovación"
-          /* Sin vencimientos en la ventana no es «0 %» (nadie renovó): es que
-             la pregunta no aplica. */
-          valor={renovacion.valor === null ? "—" : porcentaje(renovacion.valor, 0)}
-          detalle={
-            renovacion.valor === null ? (
-              "Nadie venció en 30 días"
-            ) : (
-              <span className="flex flex-wrap items-center gap-x-1.5">
-                {/* En PUNTOS: de 60 % a 70 % son 10 puntos, no «+16,7 %». */}
-                <Variacion valor={renovacion.variacion} />
-                de las que vencieron en 30 días
-              </span>
-            )
-          }
-        />
-      </Rejilla4>
+    <section className="mb-6">
+      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className={TARJETA}>
+          <p className={ROTULO}>Hoy</p>
+          <p className={CIFRA}>{numero(d.hoy)}</p>
+          <p className={NOTA}>Reservas</p>
+        </div>
+        <div className={TARJETA}>
+          <p className={ROTULO}>Esta semana</p>
+          <p className={CIFRA}>{numero(d.semana)}</p>
+          <p className={NOTA}>Reservas</p>
+        </div>
+        <div className={TARJETA}>
+          <p className={ROTULO}>Promedio diario</p>
+          <p className={CIFRA}>{d.promedioDiario === null ? "—" : numero(d.promedioDiario)}</p>
+          <p className={NOTA}>Últimos 30 días</p>
+        </div>
+        <div className={TARJETA}>
+          <p className={ROTULO}>Participación</p>
+          <p className={CIFRA}>{d.participacion === null ? "—" : `${d.participacion}%`}</p>
+          <p className={NOTA}>
+            {d.personasSemana} de {d.activos} reservaron esta semana
+          </p>
+        </div>
+      </div>
 
-      <Rejilla2>
-        <ListaTrabajo
-          titulo="Por vencer · 7 días"
-          cuantos={datos.porVencer.length}
-          vacio="Nadie vence esta semana"
-        >
-          {datos.porVencer.map((c) => (
-            <FilaTrabajo
-              key={c.id}
-              titulo={c.nombre}
-              detalle={
-                <>
-                  {c.plan && <>{c.plan} · </>}
-                  {/* Hoy y mañana en rojo: es lo que no puede esperar. El texto
-                      ya lo dice, el color solo lo subraya. */}
-                  <span className={c.urgente ? "font-bold text-[var(--color-estado-grave)]" : undefined}>
-                    vence {c.cuando}
-                  </span>
-                </>
-              }
-              acciones={
-                <>
-                  <BotonWhatsApp
-                    href={c.whatsapp}
-                    texto="Recordar"
-                    etiqueta={`Recordar a ${c.nombre} por WhatsApp`}
-                  />
-                  <BotonFicha href={`/admin/usuarios/${c.id}`} etiqueta={`Ver la ficha de ${c.nombre}`} />
-                </>
-              }
-            />
-          ))}
-        </ListaTrabajo>
-
-        <ListaTrabajo
-          titulo="Cumpleaños de hoy"
-          cuantos={datos.cumpleanos.length}
-          vacio="Hoy nadie cumple años"
-        >
-          {datos.cumpleanos.map((c) => (
-            <FilaTrabajo
-              key={c.id}
-              titulo={c.nombre}
-              detalle={c.edad === null ? "Cumple años hoy" : `Cumple ${c.edad} años`}
-              acciones={
-                <>
-                  <BotonWhatsApp
-                    href={c.whatsapp}
-                    texto="Felicitar"
-                    etiqueta={`Felicitar a ${c.nombre} por WhatsApp`}
-                  />
-                  <BotonFicha href={`/admin/usuarios/${c.id}`} etiqueta={`Ver la ficha de ${c.nombre}`} />
-                </>
-              }
-            />
-          ))}
-        </ListaTrabajo>
-      </Rejilla2>
-
-      <ChartCard
-        titulo="Clientes activos por mes"
-        accion={<span className={PASTILLA}>Últimos 12 meses</span>}
-        tabla={{
-          cabeceras: ["Mes", "Clientes activos"],
-          filas: datos.activosPorMes.map((m) => [`${m.mes} ${m.anio}`, numero(m.activos)]),
-        }}
-      >
-        <LineChart
-          datos={datos.activosPorMes.map((m) => ({ label: m.mes, value: m.activos }))}
-          formato="clientes"
-          serie="Clientes activos"
-          formatoEje="numero"
-        />
-      </ChartCard>
-    </>
+      {/* Clases por día (en Jain, las sesiones por bloque horario). */}
+      <AgendaReservas clases={d.delMes} hoy={hoy} />
+    </section>
   );
 }
 
-function PestanaClases({ datos, hoy }: { datos: Props["clases"]; hoy: string }) {
-  const { semana } = datos;
+// ═══════════ Piezas ═══════════
+
+function TarjetaEnlace({ href, rotulo, children }: { href: string; rotulo: string; children: ReactNode }) {
   return (
-    <>
-      <Rejilla4 etiqueta="Cifras de clases">
-        <Cifra
-          etiqueta="Hoy"
-          valor={numero(datos.hoy.clases)}
-          href="/admin/clases"
-          detalle={
-            datos.hoy.clases === 0
-              ? "Sin clases programadas"
-              : `${numero(datos.hoy.reservas)} de ${numero(datos.hoy.cupos)} cupos reservados`
-          }
-        />
-        <Cifra
-          etiqueta="Esta semana"
-          valor={numero(semana.reservas)}
-          detalle={
-            semana.clases === 0
-              ? "Sin clases programadas"
-              : `reservas de ${numero(semana.cupos)} cupos · ${numero(semana.clases)} clases`
-          }
-        />
-        <Cifra
-          etiqueta="Ocupación"
-          valor={datos.ocupacion30 === null ? "—" : porcentaje(datos.ocupacion30, 0)}
-          detalle="Clases de los últimos 30 días"
-        />
-        <Cifra
-          etiqueta="Por clase"
-          valor={
-            datos.promedio30 === null
-              ? "—"
-              : datos.promedio30.toLocaleString("es-CO", { maximumFractionDigits: 1 })
-          }
-          detalle="Reservas de media, 30 días"
-        />
-      </Rejilla4>
-
-      <Rejilla2>
-        <ListaTrabajo titulo="Clases de hoy" cuantos={datos.deHoy.length} vacio="Hoy no hay clases">
-          {datos.deHoy.map((c) => (
-            <FilaClaseResumen key={c.id} clase={c} />
-          ))}
-        </ListaTrabajo>
-
-        <ListaTrabajo
-          titulo="Llenas · próximos 7 días"
-          cuantos={datos.llenas.length}
-          vacio="Ninguna clase está llena"
+    <Link href={href} className={`group block transition-colors hover:border-dorado ${TARJETA}`}>
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-xs font-bold uppercase tracking-widest text-verde-300">{rotulo}</p>
+        <svg
+          className="h-4 w-4 shrink-0 text-verde-300 transition-all group-hover:translate-x-0.5 group-hover:text-verde"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+          aria-hidden="true"
         >
-          {datos.llenas.map((c) => (
-            <FilaClaseResumen key={c.id} clase={c} dia={mayuscula(diaRelativo(c.fecha, hoy))} />
-          ))}
-        </ListaTrabajo>
-      </Rejilla2>
-
-      {/* ⚠️ Son RESERVAS, no asistencias: aún no existe el registro de quién
-          vino. Esta es la tarjeta donde entrará la asistencia como segunda
-          serie. Solo clases ya pasadas y no canceladas. */}
-      <ChartCard
-        titulo="Reservas por día de la semana"
-        accion={<span className={PASTILLA}>Últimas {datos.semanasPorDia} semanas</span>}
-        tabla={{
-          cabeceras: ["Día", "Clases", "Reservas", "Cupos", "Ocupación"],
-          filas: datos.porDia.map((d) => [
-            d.dia,
-            numero(d.clases),
-            numero(d.reservas),
-            numero(d.cupos),
-            d.cupos ? porcentaje((d.reservas / d.cupos) * 100, 0) : "—",
-          ]),
-        }}
-      >
-        <GroupedBars
-          datos={datos.porDia.map((d) => ({ label: d.dia, valores: [d.reservas] }))}
-          series={[{ nombre: "Reservas", color: C1 }]}
-          categoria="día de la semana"
-          formato="numero"
-          formatoEje="numero"
-        />
-      </ChartCard>
-    </>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+        </svg>
+      </div>
+      {children}
+    </Link>
   );
 }
 
-/** «lunes, 5 de octubre» → «Lunes, 5 de octubre», para que case con «Mañana». */
-const mayuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
-
-/** Solo se pinta la pastilla cuando dice algo: «Programada» es lo normal. */
-function FilaClaseResumen({ clase: c, dia }: { clase: FilaClase; dia?: string }) {
+function Lista({
+  icono,
+  titulo,
+  cuantos,
+  alto,
+  vacio,
+  children,
+}: {
+  icono?: ReactNode;
+  titulo: string;
+  cuantos: number;
+  /** Tope de filas visibles (Jain: 4 en cumpleaños, ~5 en vencimientos). */
+  alto: string;
+  vacio: { icono: ReactNode; texto: string };
+  children: ReactNode;
+}) {
   return (
-    <FilaTrabajo
-      titulo={
-        <>
-          <span className="font-cifra font-normal">
-            {dia ? `${dia} · ` : ""}
-            {c.horaInicio}–{c.horaFin}
-          </span>{" "}
-          · {c.tipo}
-        </>
-      }
-      detalle={`${c.instructora} · ${numero(c.reservas)} / ${numero(c.cupos)} reservas`}
-      acciones={c.estado !== "Programada" ? <EstadoClaseBadge estado={c.estado} /> : undefined}
-    />
+    <div className="overflow-hidden rounded-2xl border border-beige bg-white">
+      <div className="flex items-center gap-3 border-b border-beige px-4 py-3">
+        {icono}
+        <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-verde">
+          {titulo}
+          {cuantos > 0 && (
+            <span className="flex h-4 items-center rounded-full bg-dorado px-1.5 text-[10px] font-bold text-verde-900">
+              {cuantos}
+            </span>
+          )}
+        </h3>
+      </div>
+      {cuantos === 0 ? (
+        /* Vacío: mismo alto que la lista llena, para que la tarjeta no salte. */
+        <div
+          className="flex flex-col items-center justify-center px-4 text-center"
+          style={{ minHeight: alto }}
+        >
+          {vacio.icono}
+          <p className="text-sm font-medium text-verde-300">{vacio.texto}</p>
+        </div>
+      ) : (
+        <div className="flex flex-col divide-y divide-beige overflow-y-auto" style={{ maxHeight: alto }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Fila({ nombre, detalle, children }: { nombre: string; detalle?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-verde">{nombre}</p>
+        {detalle}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">{children}</div>
+    </div>
+  );
+}
+
+function BotonWhatsApp({
+  href,
+  texto,
+  quien,
+  icono = true,
+}: {
+  href: string;
+  texto: string;
+  quien: string;
+  icono?: boolean;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`${texto} a ${quien} por WhatsApp`}
+      className="flex items-center gap-1.5 rounded-lg bg-verde px-3 py-1.5 text-xs font-bold text-arena transition-colors hover:bg-verde-700"
+    >
+      {icono && (
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 0C5.373 0 0 5.373 0 12c0 2.126.553 4.116 1.522 5.85L0 24l6.335-1.48A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.006-1.371l-.36-.214-3.73.871.938-3.63-.234-.373A9.817 9.817 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z" />
+        </svg>
+      )}
+      {texto}
+    </a>
+  );
+}
+
+function IconoPastel() {
+  return (
+    <svg className="h-4 w-4 shrink-0 text-verde-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.513m6-4.871c1.355 0 2.697.056 4.024.166C17.155 8.51 18 9.473 18 10.608v2.513M15 8.25v-1.5m-6 1.5v-1.5m12 9.75-1.5.75a3.354 3.354 0 0 1-3 0 3.354 3.354 0 0 0-3 0 3.354 3.354 0 0 1-3 0 3.354 3.354 0 0 0-3 0 3.354 3.354 0 0 1-3 0L3 16.5m15-3.379a48.474 48.474 0 0 0-6-.371c-2.032 0-4.034.126-6 .371m12 0c.39.049.777.102 1.163.16 1.07.16 1.837 1.094 1.837 2.175v5.169c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 20.625v-5.17c0-1.08.768-2.014 1.837-2.174A47.78 47.78 0 0 1 6 13.12"
+      />
+    </svg>
+  );
+}
+
+function IconoPersonas() {
+  return (
+    <svg className="mb-3 h-10 w-10 text-beige" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.5}
+        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+      />
+    </svg>
+  );
+}
+
+function IconoCampana() {
+  return (
+    <svg className="mb-3 h-10 w-10 text-beige" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.5}
+        d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+      />
+    </svg>
   );
 }
