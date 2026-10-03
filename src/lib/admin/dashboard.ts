@@ -2,10 +2,8 @@ import { moneda } from "./format";
 import { diasEntre, lunesDe, sumarDias } from "./horario";
 import { MESES_LARGOS, enPeriodo, type Periodo } from "./periodo";
 import type {
-  CategoriaGasto,
   ClaseEnAgenda,
   EstadoMembresia,
-  MesFinanciero,
 } from "./types";
 import { edad } from "../validacion";
 
@@ -286,39 +284,8 @@ export function resumenClases(clases: ClaseEnAgenda[], hoy: string, activos: Set
 }
 
 // ---------------------------------------------------------------------------
-// Finanzas y campana
+// Campana
 // ---------------------------------------------------------------------------
-
-/**
- * Los últimos doce meses, el en curso incluido, con ingresos y gastos. La usa
- * Finanzas para la tendencia del año.
- *
- * ⚠️ **Salen los doce aunque alguno esté a cero.** Un mes sin datos es
- * información («no se cobró nada»), y quitarlo haría que la gráfica uniera dos
- * meses no consecutivos como si fueran seguidos.
- */
-export function serieMensual(
-  d: {
-    pagos: { fecha: string; importe: number }[];
-    gastos: { fecha: string; importe: number; categoria?: CategoriaGasto }[];
-  },
-  hoy: string,
-): MesFinanciero[] {
-  let anio = Number(hoy.slice(0, 4));
-  let mes = Number(hoy.slice(5, 7)) - 1;
-  const serie: MesFinanciero[] = [];
-  for (let i = 0; i < 12; i++) {
-    const clave = `${anio}-${String(mes + 1).padStart(2, "0")}`;
-    serie.unshift({
-      mes: MESES_CORTOS[mes],
-      anio,
-      ingresos: suma(d.pagos.filter((p) => p.fecha.startsWith(clave)), (p) => p.importe),
-      gastos: suma(d.gastos.filter((g) => g.fecha.startsWith(clave)), (g) => g.importe),
-    });
-    [anio, mes] = mes === 0 ? [anio - 1, 11] : [anio, mes - 1];
-  }
-  return serie;
-}
 
 /** El primer aviso de la campana: las mismas personas que «Por vencer». */
 export function avisoPorVencer(

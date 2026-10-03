@@ -231,15 +231,6 @@ export type MiembroEquipo = {
   acceso?: boolean | null;
 };
 
-/** Un mes cerrado de la contabilidad. `mes` es la etiqueta corta ("Ene"). */
-export type MesFinanciero = {
-  mes: string;
-  /** Año, para desambiguar cuando la serie cruza de diciembre a enero */
-  anio: number;
-  ingresos: number;
-  gastos: number;
-};
-
 /**
  * Una modalidad del catálogo, con sus condiciones de venta.
  *

@@ -5,7 +5,6 @@ import {
   porVencer,
   resumenClases,
   resumenClientes,
-  serieMensual,
   tasaRenovacion,
   type ClienteResumen,
   type DatosDashboard,
@@ -114,12 +113,6 @@ describe("series", () => {
     expect(s[9]).toMatchObject({ mes: "Ago", activos: 0 });
   });
 
-  it("la serie de dinero trae doce meses aunque estén a cero", () => {
-    const s = serieMensual({ pagos: [], gastos: [] }, hoy);
-    expect(s).toHaveLength(12);
-    expect(s[11]).toMatchObject({ mes: "Oct", anio: 2026 });
-    expect(s[0]).toMatchObject({ mes: "Nov", anio: 2025 });
-  });
 });
 
 describe("renovación", () => {

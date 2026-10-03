@@ -1,9 +1,5 @@
 import Card from "@/components/admin/Card";
-import ChartCard from "@/components/admin/ChartCard";
-import GroupedBars from "@/components/admin/charts/GroupedBars";
 import PanelFinanzas from "@/components/admin/finanzas/PanelFinanzas";
-import { serieMensual } from "@/lib/admin/dashboard";
-import { moneda } from "@/lib/admin/format";
 import { hoyEnBogota } from "@/lib/admin/horario";
 import {
   getMovimientos,
@@ -22,9 +18,10 @@ import {
  * congelada del mock: aquí los datos son de verdad, y con la fecha de julio
  * «este mes» enseñaría un mes en el que la base no tiene nada.
  *
- * Desde oct 2026 TODO el dinero vive aquí (estructura de JainSportBox): el
- * Dashboard ya no tiene tarjetas de dinero, y la tendencia del año
- * («Ingresos y gastos por mes») se mudó al final de esta pantalla.
+ * Desde oct 2026 todo el dinero vive aquí (como en JainSportBox): el
+ * Dashboard ya no tiene tarjetas de dinero. La gráfica de «ingresos frente a
+ * gastos» por mes NO está en ninguna pantalla: el usuario la quiso fuera
+ * («gráficas feas sin sentido»). No volver a ponerla.
  */
 export default async function FinanzasPage() {
   const usuario = await getUsuarioActual();
@@ -52,45 +49,11 @@ export default async function FinanzasPage() {
     getPresupuestos(),
   ]);
   const hoy = hoyEnBogota();
-  const meses = serieMensual(
-    {
-      pagos: movimientos.filter((m) => m.tipo === "cobro"),
-      gastos: movimientos.filter((m) => m.tipo === "gasto"),
-    },
-    hoy,
-  );
 
   return (
     <div className="mx-auto w-full max-w-[1440px]">
       <h1 className="sr-only">Finanzas</h1>
       <PanelFinanzas movimientos={movimientos} presupuestos={presupuestos} hoy={hoy} />
-
-      {/* La tendencia del año, que antes estaba en el Dashboard. Va aparte del
-          selector de periodo a propósito: responde a «¿cómo vamos este año?»,
-          no al periodo que se esté mirando arriba. */}
-      <ChartCard
-        className="mt-4 xl:mt-5"
-        titulo="Ingresos y gastos por mes"
-        descripcion="Los últimos doce meses. La distancia entre las dos barras de cada mes es la utilidad."
-        tabla={{
-          cabeceras: ["Mes", "Ingresos", "Gastos", "Utilidad"],
-          filas: meses.map((m) => [
-            `${m.mes} ${m.anio}`,
-            moneda(m.ingresos),
-            moneda(m.gastos),
-            moneda(m.ingresos - m.gastos),
-          ]),
-        }}
-      >
-        <GroupedBars
-          datos={meses.map((m) => ({ label: m.mes, valores: [m.ingresos, m.gastos] }))}
-          series={[
-            { nombre: "Ingresos", color: "var(--color-chart-1)" },
-            { nombre: "Gastos", color: "var(--color-chart-2)" },
-          ]}
-          formato="moneda"
-        />
-      </ChartCard>
     </div>
   );
 }

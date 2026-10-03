@@ -382,8 +382,10 @@ Y fuera de `admin/`, porque no es solo del panel:
 >   un día con cero reservas.
 > - Sin la pestaña «Enviados» de Jain (no hay tabla donde guardarlo; decisión
 >   del usuario). La persona sigue en la lista hasta que renueve.
-> - ⚠️ **Sin dinero**, como Jain: vive en Finanzas, que recibió la gráfica de
->   ingresos y gastos de 12 meses. El dashboard es igual para los tres roles.
+> - ⚠️ **Sin dinero**, como Jain: vive en Finanzas. El dashboard es igual para
+>   los tres roles. ⚠️ La gráfica de **ingresos frente a gastos por mes no
+>   está en NINGUNA pantalla**: se mudó un momento a Finanzas y el usuario la
+>   quiso fuera («gráficas feas sin sentido»). No volver a ponerla.
 > - WhatsApp (`lib/admin/whatsapp.ts`): abre el chat con el mensaje escrito,
 >   no lo envía solo. Sin un móvil colombiano completo no hay botón.
 > - Cumpleaños del 29 de febrero: se felicitan el 28 en años no bisiestos.
@@ -1271,9 +1273,9 @@ muy gruesa son de un box de crossfit; aquí manda la marca.
     pestaña se abre ANTES del `await`: abierta después, el navegador la trata
     como ventana emergente y la bloquea.
   - Guarda `registrado_por` (quién lo registró).
-- **«Ingresos y gastos por mes»** (12 meses) va al final, fuera del selector
-  de periodo: responde a «¿cómo vamos este año?». Llegó desde el Dashboard en
-  oct 2026, cuando el dashboard se quedó sin dinero.
+- ⚠️ **Sin gráfica de ingresos frente a gastos por mes** (decisión del
+  usuario, oct 2026: «gráficas feas sin sentido»). Estuvo un momento aquí al
+  salir del Dashboard y se quitó.
 
 #### Planes (`/admin/planes`) — desde Supabase, oct 2026
 
