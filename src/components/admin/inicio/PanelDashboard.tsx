@@ -84,7 +84,11 @@ export default function PanelDashboard({ fechaTexto, clientes, clases, hoy }: Pr
 
       {/* Dos pestañas y solo dos. Lo financiero no vuelve aquí: vive entero en
           Finanzas, que tiene su propio selector de periodo. */}
-      <div role="tablist" aria-label="Resumen" className="mb-6 flex items-center gap-6 border-b border-beige">
+      <div
+        role="tablist"
+        aria-label="Resumen"
+        className="mb-6 flex items-center gap-6 border-b border-beige"
+      >
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -101,7 +105,10 @@ export default function PanelDashboard({ fechaTexto, clientes, clases, hoy }: Pr
             {t.label}
           </button>
         ))}
-        <Link href={ver} className="ml-auto pb-3 text-xs font-bold text-dorado-dark hover:underline">
+        <Link
+          href={ver}
+          className="ml-auto pb-3 text-xs font-bold text-dorado-dark hover:underline"
+        >
           Ver todos →
         </Link>
       </div>
@@ -143,7 +150,10 @@ function BloqueClientes({ d }: { d: Props["clientes"] }) {
 
         {/* Sin acento de color aunque haya pendientes: alguien sin plan es
             trabajo normal del día, no una alarma. El número ya lo dice. */}
-        <TarjetaEnlace href={`/admin/usuarios?estado=${encodeURIComponent("Sin plan")}`} rotulo="Pendientes">
+        <TarjetaEnlace
+          href={`/admin/usuarios?estado=${encodeURIComponent("Sin plan")}`}
+          rotulo="Pendientes"
+        >
           <p className={CIFRA}>{numero(d.pendientes)}</p>
           <p className={NOTA}>{d.pendientes === 1 ? "Cliente sin plan" : "Clientes sin plan"}</p>
         </TarjetaEnlace>
@@ -240,20 +250,25 @@ function BloqueClientes({ d }: { d: Props["clientes"] }) {
           serie="Clientes activos"
         />
         {/* La tabla equivalente, solo para lectores de pantalla: Jain no la
-            enseña, pero un gráfico sin texto deja fuera a quien no lo ve. */}
-        <table className="sr-only">
-          <caption>Clientes activos por mes</caption>
-          <tbody>
-            {d.activosPorMes.map((m) => (
-              <tr key={`${m.mes}-${m.anio}`}>
-                <th scope="row">
-                  {m.mes} {m.anio}
-                </th>
-                <td>{m.activos}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            enseña, pero un gráfico sin texto deja fuera a quien no lo ve.
+            ⚠️ El `sr-only` va en un DIV que la envuelve, NO en la `<table>`:
+            una tabla no respeta el alto de 1px, y en posición absoluta
+            estiraba la página ~300px de vacío por debajo del dashboard. */}
+        <div className="sr-only">
+          <table>
+            <caption>Clientes activos por mes</caption>
+            <tbody>
+              {d.activosPorMes.map((m) => (
+                <tr key={`${m.mes}-${m.anio}`}>
+                  <th scope="row">
+                    {m.mes} {m.anio}
+                  </th>
+                  <td>{m.activos}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   );
@@ -297,7 +312,15 @@ function BloqueClases({ d, hoy }: { d: Props["clases"]; hoy: string }) {
 
 // ═══════════ Piezas ═══════════
 
-function TarjetaEnlace({ href, rotulo, children }: { href: string; rotulo: string; children: ReactNode }) {
+function TarjetaEnlace({
+  href,
+  rotulo,
+  children,
+}: {
+  href: string;
+  rotulo: string;
+  children: ReactNode;
+}) {
   return (
     <Link href={href} className={`group block transition-colors hover:border-dorado ${TARJETA}`}>
       <div className="mb-2 flex items-center justify-between">
@@ -310,7 +333,11 @@ function TarjetaEnlace({ href, rotulo, children }: { href: string; rotulo: strin
           strokeWidth={2.5}
           aria-hidden="true"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"
+          />
         </svg>
       </div>
       {children}
@@ -357,7 +384,10 @@ function Lista({
           <p className="text-sm font-medium text-verde-300">{vacio.texto}</p>
         </div>
       ) : (
-        <div className="flex flex-col divide-y divide-beige overflow-y-auto" style={{ maxHeight: alto }}>
+        <div
+          className="flex flex-col divide-y divide-beige overflow-y-auto"
+          style={{ maxHeight: alto }}
+        >
           {children}
         </div>
       )}
@@ -365,7 +395,15 @@ function Lista({
   );
 }
 
-function Fila({ nombre, detalle, children }: { nombre: string; detalle?: ReactNode; children: ReactNode }) {
+function Fila({
+  nombre,
+  detalle,
+  children,
+}: {
+  nombre: string;
+  detalle?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-2.5">
       <div className="min-w-0">
@@ -408,7 +446,14 @@ function BotonWhatsApp({
 
 function IconoPastel() {
   return (
-    <svg className="h-4 w-4 shrink-0 text-verde-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+    <svg
+      className="h-4 w-4 shrink-0 text-verde-300"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      aria-hidden="true"
+    >
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -420,7 +465,13 @@ function IconoPastel() {
 
 function IconoPersonas() {
   return (
-    <svg className="mb-3 h-10 w-10 text-beige" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+    <svg
+      className="mb-3 h-10 w-10 text-beige"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      aria-hidden="true"
+    >
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -433,7 +484,13 @@ function IconoPersonas() {
 
 function IconoCampana() {
   return (
-    <svg className="mb-3 h-10 w-10 text-beige" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+    <svg
+      className="mb-3 h-10 w-10 text-beige"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      aria-hidden="true"
+    >
       <path
         strokeLinecap="round"
         strokeLinejoin="round"

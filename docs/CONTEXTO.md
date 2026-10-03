@@ -392,7 +392,10 @@ Y fuera de `admin/`, porque no es solo del panel:
 > - Copiado también lo que tiene de menos: los botones de las listas miden
 >   ~28px como en Jain, por debajo de los 44px del resto del panel.
 > - La tabla de la gráfica va `sr-only`: Jain no la enseña, pero el gráfico
->   no puede quedarse sin texto para quien no lo ve.
+>   no puede quedarse sin texto para quien no lo ve. ⚠️ **El `sr-only` va en un
+>   `<div>` que envuelve la tabla, nunca en la `<table>`**: una tabla no
+>   respeta el alto de 1px y, en posición absoluta, estiraba la página ~300px
+>   de vacío por debajo del dashboard (lo vio el usuario al hacer scroll).
 > - ⚠️ **Gotcha de pruebas**: en `next dev`, entrar por `127.0.0.1` en vez de
 >   `localhost` bloquea los recursos de desarrollo y la página NO se hidrata
 >   (pestañas muertas, gráficas a 720px). No es un fallo del código.
