@@ -1708,9 +1708,22 @@ de repetir:
 - [ ] **Cuando el estudio tenga datos reales**, decidir qué hacer con los 20
       clientes de ejemplo (`supabase/seed.sql`). La semilla **no** se debe volver
       a lanzar contra el remoto con datos reales: empieza con un `truncate`.
+- [x] ~~Planes reales~~ — cargados en producción el 6 oct 2026 (imágenes del
+      estudio), todos de **30 días**: Mat (Inicio 4 · Origen 8 · Armonía 12),
+      Reformer (Esencia 4 · Equilibrio 8 · Evolución 12) y Fusión (Esencial
+      8+4 · Equilibrio 12+4 · Evolución 16+4; `clases_incluidas` = el total).
+      La modalidad va en la descripción hasta que exista el campo. Los 4 de
+      ejemplo se borraron y sus 23 membresías pasaron a planes reales
+      (Clase suelta → Inicio, Mensual → Origen, Pack 10 → Equilibrio,
+      Trimestral → Fusión Esencial). Copia previa en
+      `../respaldo-reforme-ngjy-2026-10-06-planes/`. ⚠️ `supabase/seed.sql`
+      sigue sembrando los planes de ejemplo en LOCAL.
+- [ ] **Precio de Fusión Inicio (4 Reformer + 4 Mat)**: no salía en la imagen,
+      no está cargado.
 - [ ] **Confirmar con el estudio las modalidades de clase** (`tipo_clase`:
       Reformer · Mat · Privada, ahora un enum de la base) y los cupos de
-      `catalogos.ts`. Son una suposición; cambiar el enum es una migración.
+      `catalogos.ts`. Reformer y Mat están confirmadas por sus planes;
+      «Privada» sigue siendo una suposición.
 - [ ] **Programar el horario real** en producción: hoy tiene la agenda de
       ejemplo (207 clases con las instructoras de ejemplo).
 - [ ] **`public/terminos-y-condiciones.pdf`** no existe: el alta de cliente
@@ -1724,6 +1737,39 @@ de repetir:
       AuthShell usan el isotipo recreado a mano (`Logo.tsx`).
 - [ ] Destino para los `href="#"`: «¿Olvidaste tu contraseña?» en `/login`, y
       términos y privacidad en `/registro`.
+
+### Lo que pide el estudio y falta (su lista de 10 módulos, oct 2026)
+
+El estudio mandó una tabla de módulos (Dashboard, Clientes, Valoración física,
+Planes, Reservas, Asistencia, Notificaciones, Financiero, Instructores,
+Configuración). Lo que falta, por módulo:
+
+1. **Dashboard**: meta de 60 clientes (actuales y faltantes), ingresos del mes
+   y pagos pendientes (⚠️ el estudio SÍ quiere ver ingresos aquí; se quitaron
+   al copiar Jain).
+2. **Clientes**: historial de planes, reservas, asistencias y pagos en la
+   ficha; clases compradas / usadas / disponibles.
+3. **Valoración física** (sección de la ficha): todo — valoración inicial
+   (peso, estatura, IMC, % grasa, masa muscular…), seguimientos, quién la
+   hizo, evolución en tabla o gráfica. Solo usuarios autorizados.
+4. **Planes**: modalidad (Reformer / Mat / Fusión con dos bolsas), salas
+   permitidas y descuento automático de clase al reservar/asistir.
+5. **Reservas**: salas, reservar solo lo que permite el plan, lista de espera,
+   reprogramar.
+6. **Asistencia**: marcar asistió / no vino, descontar según asistencia,
+   política de cancelación configurable, historial.
+7. **Notificaciones automáticas** (WhatsApp y/o correo): confirmación de
+   reserva, recordatorio de clase, cancelaciones, plan por vencer o vencido,
+   pocas clases. Personalizables.
+8. **Financiero**: Daviplata y «otros» como método, pagos pendientes y
+   cartera (hoy todo se cobra al asignar), ventas.
+9. **Instructores**: salas e historial completo de clases dictadas.
+10. **Configuración**: salas, horario semanal, cupos, política de cancelación,
+    días no laborables y otros parámetros, editables sin el desarrollador.
+
+⚠️ **La base de casi todo es el sistema de clases por plan** (modalidad +
+bolsas de clases + descuento al reservar/asistir): de él dependen 2, 4, 5 y 6
+y el aviso de «pocas clases» del 7.
 
 ### Funcionalidad pendiente (pasos 9–11 y más)
 
