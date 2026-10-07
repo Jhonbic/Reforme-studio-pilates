@@ -39,6 +39,7 @@ export default function PanelClases({
   instructoras,
   clientes,
   puedeEditar,
+  miEquipoId,
   hoy,
 }: {
   clases: ClaseEnAgenda[];
@@ -46,6 +47,8 @@ export default function PanelClases({
   /** Para apuntar gente a una clase. Vacío si quien mira no puede. */
   clientes: ClienteParaReservar[];
   puedeEditar: boolean;
+  /** Id en `equipo` de quien mira: la instructora marca la asistencia de sus clases. */
+  miEquipoId: string | null;
   hoy: string;
 }) {
   /** La clase cuyo diálogo de reservas está abierto. Por ID y no el objeto:
@@ -202,6 +205,7 @@ export default function PanelClases({
                 key={c.id}
                 clase={c}
                 puedeEditar={puedeEditar}
+                miEquipoId={miEquipoId}
                 onEditar={() => abrirEdicion(c)}
                 onQuitar={() => setQuitando(c)}
                 onReservas={() => setViendo(c.id)}
@@ -278,6 +282,7 @@ export default function PanelClases({
         clase={clases.find((c) => c.id === viendo) ?? null}
         clientes={clientes}
         puedeEditar={puedeEditar}
+        miEquipoId={miEquipoId}
         onCerrar={() => setViendo(null)}
       />
     </>

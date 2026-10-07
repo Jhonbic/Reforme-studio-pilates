@@ -173,11 +173,29 @@ export type EstadoClase = "Cancelada" | "Finalizada" | "Llena" | "Programada";
  * puede salir «Llena» en un sitio y «Programada» en otro.
  */
 /** Una persona apuntada a una clase. */
+/** Lo que se marca de cada reserva cuando la clase ya empezó. */
+export type Asistencia = "Asistió" | "No vino";
+
 export type ReservaEnClase = {
   /** Id de la fila de `reservas`: es lo que se borra al quitarla. */
   id: string;
   clienteId: string;
   nombre: string;
+  /** `null` = sin marcar. No cambia el saldo: la clase se descontó al reservar. */
+  asistencia: Asistencia | null;
+};
+
+/** Una clase en el historial de la ficha de un cliente. */
+export type ClaseDelCliente = {
+  reservaId: string;
+  fecha: string;
+  horaInicio: string;
+  tipo: TipoClase;
+  instructora: string;
+  cancelada: boolean;
+  /** Ya empezó: hasta entonces no hay asistencia que marcar. */
+  empezada: boolean;
+  asistencia: Asistencia | null;
 };
 
 export type ClaseEnAgenda = Clase & {
@@ -188,6 +206,8 @@ export type ClaseEnAgenda = Clase & {
   estado: EstadoClase;
   /** Cupos sin reservar. Nunca negativo. */
   libres: number;
+  /** Ya empezó (por la hora de Bogotá): desde ahí se marca la asistencia. */
+  empezada: boolean;
   /** Quién la reservó, por orden alfabético. `reservas` es su longitud. */
   reservados: ReservaEnClase[];
 };

@@ -130,6 +130,7 @@ describe("clases", () => {
     libres: 4,
     cancelada: false,
     estado: "Finalizada",
+    empezada: true,
     reservados: [],
     ...p,
   });
@@ -149,7 +150,7 @@ describe("clases", () => {
   });
 
   it("dormido = activo sin reservas en ±14 días; quien reservó para la semana que viene no lo es", () => {
-    const r = (clienteId: string) => ({ id: clienteId, clienteId, nombre: clienteId });
+    const r = (clienteId: string) => ({ id: clienteId, clienteId, nombre: clienteId, asistencia: null });
     const lista = dormidos(
       [
         clase({ fecha: "2026-09-10", reservados: [r("a")] }),
@@ -165,7 +166,7 @@ describe("clases", () => {
   });
 
   it("uso del plan: reservas por semana frente a lo que incluye", () => {
-    const r = { id: "r", clienteId: "a", nombre: "A" };
+    const r = { id: "r", clienteId: "a", nombre: "A", asistencia: null };
     const filas = usoPorPlan(
       datos({ membresias: [m("a", "2026-10-01", "2026-10-31")] }),
       [1, 2, 3, 4, 5, 6, 7, 8].map((i) => clase({ id: String(i), fecha: "2026-10-0" + ((i % 9) || 1), reservados: [r] })),

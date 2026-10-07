@@ -1,5 +1,6 @@
 "use client";
 
+import { puedeMarcarAsistencia, resumenAsistencia } from "@/lib/admin/asistencia";
 import { numero } from "@/lib/admin/format";
 import { duracionLegible } from "@/lib/admin/horario";
 import type { ClaseEnAgenda } from "@/lib/admin/types";
@@ -24,6 +25,7 @@ const ACCION =
 export default function FilaClase({
   clase,
   puedeEditar,
+  miEquipoId,
   onEditar,
   onQuitar,
   onReservas,
@@ -31,6 +33,8 @@ export default function FilaClase({
   clase: ClaseEnAgenda;
   /** Las instructoras ven la agenda sin botones de editar ni quitar. */
   puedeEditar: boolean;
+  /** La instructora de la clase también marca la asistencia. */
+  miEquipoId: string | null;
   onEditar: () => void;
   onQuitar: () => void;
   onReservas: () => void;
@@ -48,6 +52,13 @@ export default function FilaClase({
 
   const ocupacion = clase.cupos ? (clase.reservas / clase.cupos) * 100 : 0;
   const anulada = clase.estado === "Cancelada";
+
+  /* Asistencia: solo tiene sentido en una clase empezada, no anulada y con
+     alguien dentro. */
+  const marcable = puedeMarcarAsistencia(clase, puedeEditar, miEquipoId);
+  const conAsistencia = clase.empezada && !anulada && clase.reservas > 0;
+  const asistencia = resumenAsistencia(clase.reservados);
+  const rotuloReservas = marcable ? "Asistencia" : editable ? "Reservas" : "Quién reservó";
 
   /* Los dos estados que merecen pastilla: los que se salen de lo esperado. Ver
      la nota de abajo. */
@@ -127,10 +138,25 @@ export default function FilaClase({
           type="button"
           onClick={onReservas}
           className="mt-1 text-xs text-dorado-dark underline-offset-2 hover:underline"
-          aria-label={`Quién reservó ${clase.tipo} de las ${clase.horaInicio}`}
+          /* El nombre accesible EMPIEZA por lo que se lee en pantalla: quien
+             dicta «pulsa Asistencia» con control por voz tiene que acertar. */
+          aria-label={`${rotuloReservas} · ${clase.tipo} de las ${clase.horaInicio}`}
         >
-          {editable ? "Reservas" : "Quién reservó"}
+          {rotuloReservas}
         </button>
+        {/* Lo pendiente se dice en ámbar a quien puede resolverlo; el resto
+            ve cuántos vinieron. Símbolo + texto, nunca solo color. */}
+        {conAsistencia &&
+          (marcable && asistencia.sinMarcar > 0 ? (
+            <p className="text-xs text-[var(--color-estado-aviso)]">
+              ▲ {numero(asistencia.sinMarcar)} sin marcar
+            </p>
+          ) : asistencia.asistio + asistencia.noVino > 0 ? (
+            <p className="text-xs text-verde-700">
+              ✓ {numero(asistencia.asistio)} de {numero(clase.reservas)}{" "}
+              {asistencia.asistio === 1 ? "vino" : "vinieron"}
+            </p>
+          ) : null)}
       </div>
 
       {/* Acciones. En móvil ocupan el ancho para que sean fáciles de acertar. */}

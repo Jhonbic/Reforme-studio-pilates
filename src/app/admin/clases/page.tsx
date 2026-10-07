@@ -4,6 +4,7 @@ import {
   getClases,
   getClientes,
   getInstructoras,
+  getMiEquipoId,
   getUsuarioActual,
 } from "@/lib/admin/queries";
 
@@ -17,7 +18,8 @@ import {
  * ella es instantáneo.
  *
  * Programar, cancelar y apuntar gente es del mostrador (Administración y
- * Recepción); las instructoras la consultan. RLS lo vuelve a impedir.
+ * Recepción); las instructoras la consultan y marcan la asistencia de SUS
+ * clases. RLS y `marcar_asistencia` lo vuelven a impedir.
  *
  * El `<h1>` va `sr-only` porque el visible lo pone `AdminTopbar` desde la ruta.
  */
@@ -27,11 +29,13 @@ export default async function ClasesPage() {
   const puedeEditar =
     usuario?.rol === "Administración" || usuario?.rol === "Recepción";
 
-  const [clases, instructoras, clientes] = await Promise.all([
+  const [clases, instructoras, clientes, miEquipoId] = await Promise.all([
     getClases(hoy, horaEnBogota()),
     getInstructoras(),
     // La lista para apuntar gente: solo hace falta a quien puede apuntar.
     puedeEditar ? getClientes() : Promise.resolve([]),
+    // La instructora de una clase marca su asistencia (y la base lo comprueba).
+    getMiEquipoId(),
   ]);
 
   return (
@@ -42,6 +46,7 @@ export default async function ClasesPage() {
         instructoras={instructoras}
         clientes={clientes.map((c) => ({ id: c.id, nombre: c.nombre, estado: c.estado }))}
         puedeEditar={puedeEditar}
+        miEquipoId={miEquipoId}
         hoy={hoy}
       />
     </div>

@@ -7,10 +7,12 @@ import AccesoWebCliente from "@/components/admin/usuarios/AccesoWebCliente";
 import AsignarPlan from "@/components/admin/usuarios/AsignarPlan";
 import Avatar from "@/components/admin/usuarios/Avatar";
 import EstadoBadge from "@/components/admin/usuarios/EstadoBadge";
+import HistorialClases from "@/components/admin/usuarios/HistorialClases";
 import { documento, fecha, moneda } from "@/lib/admin/format";
-import { hoyEnBogota } from "@/lib/admin/horario";
+import { horaEnBogota, hoyEnBogota } from "@/lib/admin/horario";
 import {
   getCliente,
+  getHistorialClases,
   getPlanesALaVenta,
   getSaldoCliente,
   getUsuarioActual,
@@ -74,10 +76,11 @@ export default async function FichaClientePage({
   params,
 }: PageProps<"/admin/usuarios/[id]">) {
   const { id } = await params;
-  const [cliente, usuario, saldo] = await Promise.all([
+  const [cliente, usuario, saldo, historial] = await Promise.all([
     getCliente(id),
     getUsuarioActual(),
     getCliente(id).then((c) => (c ? getSaldoCliente(c.id, hoyEnBogota()) : [])),
+    getCliente(id).then((c) => (c ? getHistorialClases(c.id, hoyEnBogota(), horaEnBogota()) : [])),
   ]);
   // Cobrar es del mostrador, igual que en la base (RLS). A una instructora no
   // se le enseña un botón que acabaría en «no tienes permiso».
@@ -200,8 +203,11 @@ export default async function FichaClientePage({
           </dl>
         </Card>
 
-        <Card className="md:col-span-2">
-          <CardHeader titulo="Actividad" />
+        {/* `min-w-0`: el historial lleva `truncate`, y un hijo de rejilla no
+            encoge por debajo de su contenido: ensanchaba la columna y la
+            página se desplazaba de lado en móvil. */}
+        <Card className="min-w-0 md:col-span-2">
+          <CardHeader titulo="Clases" />
           <dl className="mt-4">
             <Dato etiqueta="Última asistencia" numerico>
               {/* `null` significa «nunca vino», que no es lo mismo que «no
@@ -211,9 +217,9 @@ export default async function FichaClientePage({
                 : "Todavía no ha asistido a ninguna clase"}
             </Dato>
           </dl>
+          <HistorialClases clases={historial} />
           <p className="mt-4 text-sm text-verde-300">
-            El historial de clases, los pagos y las notas de la ficha todavía
-            no se muestran aquí. Los cobros se ven en Finanzas.
+            Los pagos todavía no se muestran aquí: se ven en Finanzas.
           </p>
         </Card>
       </div>

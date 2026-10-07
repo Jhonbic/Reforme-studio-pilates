@@ -11,6 +11,7 @@ import {
 import { hoyEnBogota } from "./horario";
 import { getUsuarioActual } from "./queries";
 import type {
+  Asistencia,
   BorradorClase,
   BorradorPlan,
   CategoriaGasto,
@@ -877,6 +878,46 @@ export async function quitarReserva(reservaId: string): Promise<ResultadoClase> 
   if (error) return { ok: false, error: `No se pudo quitar la reserva: ${error.message}` };
   if (count === 0) return { ok: false, error: "Esa reserva ya no existe." };
   revalidarAgenda();
+  return { ok: true };
+}
+
+/**
+ * Marca «Asistió» / «No vino» en varias reservas de una clase (o las desmarca,
+ * con `null`). Una sola acción para una reserva o para «el resto vinieron».
+ *
+ * ⚠️ El permiso NO se comprueba aquí con el rol: también marca la instructora
+ * de ESA clase, y eso solo lo sabe la base. `marcar_asistencia` lo decide
+ * (mostrador o instructora de la clase; clase empezada y no cancelada) y aquí
+ * solo se traduce su respuesta.
+ *
+ * No toca el saldo: la clase se descontó al reservar, y faltar no la devuelve.
+ */
+export async function marcarAsistencia(
+  reservaIds: string[],
+  asistencia: Asistencia | null,
+): Promise<ResultadoClase> {
+  if (!(await getUsuarioActual())) return { ok: false, error: "Tu sesión se cerró: vuelve a entrar." };
+  if (asistencia !== null && asistencia !== "Asistió" && asistencia !== "No vino")
+    return { ok: false, error: "Valor de asistencia no válido." };
+  if (reservaIds.length === 0 || reservaIds.length > 100 || !reservaIds.every((id) => UUID_VALIDO.test(id)))
+    return { ok: false, error: "Reserva no válida." };
+
+  const supabase = await crearClienteServidor();
+  for (const id of reservaIds) {
+    const { error } = await supabase.rpc("marcar_asistencia", {
+      p_reserva: id,
+      // El tipo generado no admite null, pero la función sí: es «desmarcar».
+      p_asistencia: asistencia as Asistencia,
+    });
+    if (error) {
+      if (error.code === "42501" || error.code === "P0001" || error.code === "P0002")
+        return { ok: false, error: error.message };
+      return { ok: false, error: `No se pudo marcar la asistencia: ${error.message}` };
+    }
+  }
+  revalidarAgenda();
+  // «Asistió» mueve la última asistencia, y con ella el estado «Inactiva».
+  revalidatePath("/admin/usuarios", "layout");
   return { ok: true };
 }
 

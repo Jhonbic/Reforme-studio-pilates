@@ -148,6 +148,7 @@ describe("clases", () => {
       libres: 4,
       cancelada: false,
       estado: "Programada",
+      empezada: true,
       reservados: [],
       ...parcial,
     };
@@ -185,14 +186,14 @@ describe("clases", () => {
   it("participación: activos distintos que reservaron esta semana, sobre los activos", () => {
     const r = resumenClases(
       [
-        clase({ id: "1", reservados: [{ id: "r1", clienteId: "a", nombre: "A" }] }),
+        clase({ id: "1", reservados: [{ id: "r1", clienteId: "a", nombre: "A", asistencia: null }] }),
         clase({
           id: "2",
           fecha: "2026-10-14",
           reservados: [
-            { id: "r2", clienteId: "a", nombre: "A" },
-            { id: "r3", clienteId: "b", nombre: "B" },
-            { id: "r4", clienteId: "sin-plan", nombre: "C" },
+            { id: "r2", clienteId: "a", nombre: "A", asistencia: null },
+            { id: "r3", clienteId: "b", nombre: "B", asistencia: null },
+            { id: "r4", clienteId: "sin-plan", nombre: "C", asistencia: null },
           ],
         }),
       ],

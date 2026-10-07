@@ -12,20 +12,29 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(40);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000a1', 'admin-test@reforme.local'),
   ('00000000-0000-0000-0000-0000000000c1', 'cliente-con-plan@reforme.local'),
   ('00000000-0000-0000-0000-0000000000c2', 'cliente-sin-plan@reforme.local'),
-  ('00000000-0000-0000-0000-0000000000f1', 'cuenta-sin-nada@reforme.local');
+  ('00000000-0000-0000-0000-0000000000f1', 'cuenta-sin-nada@reforme.local'),
+  ('00000000-0000-0000-0000-0000000000a2', 'instructora-test@reforme.local'),
+  ('00000000-0000-0000-0000-0000000000a3', 'otra-instructora@reforme.local');
 
 insert into perfiles (id, nombre, rol)
   values ('00000000-0000-0000-0000-0000000000a1', 'Admin test', 'Administración');
 
-insert into equipo (id, nombre, correo, rol) values
-  ('00000000-0000-0000-0000-0000000000e1', 'Instructora test', 'instructora-test@reforme.local', 'Instructora');
+insert into perfiles (id, nombre, rol) values
+  ('00000000-0000-0000-0000-0000000000a2', 'Instructora test', 'Instructora'),
+  ('00000000-0000-0000-0000-0000000000a3', 'Otra instructora', 'Instructora');
+
+insert into equipo (id, nombre, correo, rol, cuenta_id) values
+  ('00000000-0000-0000-0000-0000000000e1', 'Instructora test', 'instructora-test@reforme.local', 'Instructora',
+   '00000000-0000-0000-0000-0000000000a2'),
+  ('00000000-0000-0000-0000-0000000000e2', 'Otra instructora', 'otra-instructora@reforme.local', 'Instructora',
+   '00000000-0000-0000-0000-0000000000a3');
 
 insert into clientes (id, nombre, identificacion, cuenta_id, acepta_terminos) values
   ('00000000-0000-0000-0000-0000000000d1', 'Cliente con plan', 'TEST001', '00000000-0000-0000-0000-0000000000c1', true),
@@ -126,6 +135,10 @@ set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000f1","role":"authenticated"}';
 select is((select count(*)::int from clientes), 0,
   'registrarse por la API no da acceso a ningún cliente');
+select throws_ok(
+  $$select * from saldo_clases('00000000-0000-0000-0000-0000000000d1')$$,
+  '42501', null,
+  'una cuenta sin perfil ni ficha no ve el saldo de nadie');
 reset role;
 
 -- Permisos: Administración ---------------------------------------------------------
@@ -219,6 +232,54 @@ select is(
   (select clases_reformer || '+' || clases_mat from membresias
    where cliente_id = '00000000-0000-0000-0000-0000000000d2'),
   '1+2', 'la venta copia las clases del plan a la membresía');
+reset role;
+
+-- Asistencia -----------------------------------------------------------------------
+-- Una clase YA PASADA de la instructora test, con una reserva de «Cliente con plan».
+-- Sin sesión simulada (carga del sistema): si no, la regla de saldo la frenaría.
+set local request.jwt.claims to '{}';
+insert into clases (id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos) values
+  ('00000000-0000-0000-0000-00000000aa09', 'Mat', '2020-01-06', '09:00', 55, '00000000-0000-0000-0000-0000000000e1', 10);
+insert into reservas (id, clase_id, cliente_id) values
+  ('00000000-0000-0000-0000-0000000000ab', '00000000-0000-0000-0000-00000000aa09', '00000000-0000-0000-0000-0000000000d1');
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select throws_ok(
+  $$select marcar_asistencia('00000000-0000-0000-0000-0000000000ab', 'Asistió')$$,
+  '42501', null, 'un cliente no marca su propia asistencia');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select throws_ok(
+  $$select marcar_asistencia('00000000-0000-0000-0000-0000000000ab', 'Asistió')$$,
+  '42501', null, 'otra instructora no marca una clase que no es suya');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select lives_ok(
+  $$select marcar_asistencia('00000000-0000-0000-0000-0000000000ab', 'Asistió')$$,
+  'la instructora de la clase marca la asistencia');
+reset role;
+
+select ok(
+  (select ultima_asistencia >= '2020-01-06' from clientes where id = '00000000-0000-0000-0000-0000000000d1'),
+  '«Asistió» actualiza la última asistencia del cliente');
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$select marcar_asistencia(
+      (select id from reservas where clase_id = '00000000-0000-0000-0000-00000000aa02'
+                                 and cliente_id = '00000000-0000-0000-0000-0000000000d1'),
+      'Asistió')$$,
+  'P0001', 'La clase todavía no ha empezado.',
+  'no se marca la asistencia de una clase que no ha empezado');
+select lives_ok(
+  $$select marcar_asistencia('00000000-0000-0000-0000-0000000000ab', 'No vino')$$,
+  'recepción o administración corrigen una marca');
 reset role;
 
 select * from finish();

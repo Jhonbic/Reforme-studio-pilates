@@ -410,6 +410,9 @@ export type Database = {
       };
       reservas: {
         Row: {
+          asistencia: Database["public"]["Enums"]["asistencia"] | null;
+          asistencia_marcada_en: string | null;
+          asistencia_marcada_por: string | null;
           clase_id: string;
           cliente_id: string;
           creado_en: string;
@@ -418,6 +421,9 @@ export type Database = {
         };
         ComputedFields: never;
         Insert: {
+          asistencia?: Database["public"]["Enums"]["asistencia"] | null;
+          asistencia_marcada_en?: string | null;
+          asistencia_marcada_por?: string | null;
           clase_id: string;
           cliente_id: string;
           creado_en?: string;
@@ -425,6 +431,9 @@ export type Database = {
           membresia_id?: string | null;
         };
         Update: {
+          asistencia?: Database["public"]["Enums"]["asistencia"] | null;
+          asistencia_marcada_en?: string | null;
+          asistencia_marcada_por?: string | null;
           clase_id?: string;
           cliente_id?: string;
           creado_en?: string;
@@ -514,6 +523,10 @@ export type Database = {
         Args: { p_hoy?: string; p_ultima_asistencia: string; p_vencimiento: string };
         Returns: Database["public"]["Enums"]["estado_membresia"];
       };
+      marcar_asistencia: {
+        Args: { p_asistencia: Database["public"]["Enums"]["asistencia"]; p_reserva: string };
+        Returns: undefined;
+      };
       membresia_para: {
         Args: {
           p_cliente: string;
@@ -523,6 +536,7 @@ export type Database = {
         Returns: string;
       };
       mi_cliente_id: { Args: Record<PropertyKey, never>; Returns: string };
+      mi_equipo_id: { Args: Record<PropertyKey, never>; Returns: string };
       mi_rol: {
         Args: Record<PropertyKey, never>;
         Returns: Database["public"]["Enums"]["rol_equipo"];
@@ -553,6 +567,7 @@ export type Database = {
       tiene_perfil: { Args: Record<PropertyKey, never>; Returns: boolean };
     };
     Enums: {
+      asistencia: "Asistió" | "No vino";
       categoria_gasto: "Arriendo" | "Nómina" | "Servicios" | "Mantenimiento" | "Marketing";
       estado_membresia: "Activa" | "Por vencer" | "Vencida" | "Inactiva" | "Sin plan";
       metodo_pago: "Efectivo" | "Nequi" | "Transferencia" | "Tarjeta";
@@ -678,6 +693,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      asistencia: ["Asistió", "No vino"],
       categoria_gasto: ["Arriendo", "Nómina", "Servicios", "Mantenimiento", "Marketing"],
       estado_membresia: ["Activa", "Por vencer", "Vencida", "Inactiva", "Sin plan"],
       metodo_pago: ["Efectivo", "Nequi", "Transferencia", "Tarjeta"],

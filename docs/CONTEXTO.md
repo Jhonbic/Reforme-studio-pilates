@@ -69,8 +69,8 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 |---|---|
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
-| `npm test` | **Vitest**, 37 tests de la lógica pura: periodos, fechas, validaciones, formato y cálculos del dashboard (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 33 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm test` | **Vitest**, 57 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
+| `npm run test:db` | **pgTAP**, 40 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -1393,6 +1393,48 @@ no), y **lo que no se usa en los 30 días se pierde**.
   permiten sus planes). Las demás quedan sin ligar y no descuentan.
 - 13 tests nuevos en `reglas_test.sql` (33 en total).
 
+#### Asistencia (oct 2026, paso 2 de la lista del estudio)
+
+Migración `20261007120000_asistencia`. Hasta aquí se sabía quién RESERVÓ, no
+quién VINO.
+
+- Cada reserva tiene **`asistencia`** (`Asistió` · `No vino` · NULL = sin
+  marcar), con **quién la marcó y cuándo** (`asistencia_marcada_por/_en`): es
+  lo que se mira si un cliente dice «yo sí vine».
+- ⚠️ **Marcar NO toca el saldo.** La clase se descontó al reservar (paso 1) y
+  faltar no la devuelve: es la regla del estudio.
+- Se marca con **`marcar_asistencia(reserva, valor)`** (security definer),
+  que decide todo: **mostrador o la instructora DE ESA CLASE** (las demás no
+  estaban), solo con la clase **empezada** (desde la hora de inicio, no la de
+  fin: se pasa lista durante la clase) y **no cancelada**. `null` desmarca.
+- «Asistió» mueve **`clientes.ultima_asistencia`** (solo hacia delante): la
+  regla de «Inactiva» funciona ya con asistencias de verdad.
+- ⚠️ **Fallo de seguridad cazado por un test, y arreglado en la misma
+  migración**: `es_mostrador()` y `mi_cliente_id()` devuelven **NULL** (no
+  false) a quien no es del equipo o no es cliente, y `if not (NULL)` NO entra
+  en el `if`. Así, un cliente podía marcar su propia asistencia, y una cuenta
+  sin ficha ni perfil (registrada por la API) leía el **saldo de cualquier
+  cliente** (`saldo_clases`, en producción desde el paso 1). Ahora las dos
+  comprobaciones van con **`coalesce(..., false)`**. **Toda comprobación de
+  permiso en plpgsql con estas funciones necesita el `coalesce`.**
+- **En la agenda**: el botón de la fila dice «Asistencia» a quien puede
+  marcar, y debajo «▲ 3 sin marcar» (ámbar) o «✓ 5 de 6 vinieron». Dentro,
+  recuento arriba y dos botones por persona («Asistió» / «No vino», con
+  `aria-pressed`; pulsar el puesto lo quita) y **«Vinieron los N que
+  faltan»**, porque lo normal es que vengan todos. Empezada la clase ya no se
+  ofrece «Quitar». En móvil el nombre va en su línea y los botones debajo.
+- Las reglas de pantalla viven en `lib/admin/asistencia.ts`
+  (`puedeMarcarAsistencia`, `resumenAsistencia`): la fila y el diálogo no
+  pueden contradecirse. `mi_equipo_id()` le dice a la página quién es la
+  instructora que mira.
+- **Ficha del cliente → «Clases»**: sus últimas 30 reservas con su estado
+  (Próxima · Asistió · No vino · Sin marcar · Clase cancelada) y «Vino a X de
+  Y clases marcadas». ⚠️ «Sin marcar» va en **neutro**, no ámbar: ahí no se
+  puede resolver, y todo lo anterior a oct 2026 está sin marcar.
+- El aviso de «sin plan vigente» al apuntar a alguien ya no dice «se puede
+  apuntar»: desde el paso 1 la base no deja (salvo privadas).
+- 7 tests nuevos en `reglas_test.sql` (40 en total).
+
 #### Planes (`/admin/planes`) — desde Supabase, oct 2026
 
 - El catálogo sale de la tabla `planes`, del más barato al más caro. La clave
@@ -1619,7 +1661,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **13 migraciones, todas aplicadas en local y en remoto** |
+| Esquema | `supabase/migrations/` — **14 migraciones, todas aplicadas en local y en remoto** |
 
 ### Variables de entorno
 
@@ -1802,8 +1844,8 @@ Configuración). Lo que falta, por módulo:
    plan»); faltan las salas permitidas.
 5. **Reservas**: ~~reservar solo lo que permite el plan~~ (hecho); faltan
    salas, lista de espera y reprogramar.
-6. **Asistencia**: marcar asistió / no vino, descontar según asistencia,
-   política de cancelación configurable, historial.
+6. **Asistencia**: ~~marcar asistió / no vino e historial~~ (hecho,
+   «Asistencia»); falta la política de cancelación configurable.
 7. **Notificaciones automáticas** (WhatsApp y/o correo): confirmación de
    reserva, recordatorio de clase, cancelaciones, plan por vencer o vencido,
    pocas clases. Personalizables.
@@ -1825,9 +1867,9 @@ y el aviso de «pocas clases» del 7.
       horario se repita, tabla de plantilla + «generar la semana».
 - [ ] **Avisar a quien tenía reservada una clase cancelada**: hoy hay que
       llamar a mano (la lista está en «Quién reservó»).
-- [ ] **Registro de asistencias**: hoy se sabe quién reserva, no quién viene.
-      Con él, «Reservas por día» pasa a dos series (reservó / asistió) y
-      `clientes.ultima_asistencia` se actualiza sola.
+- [x] ~~Registro de asistencias~~ — hecho (ver §6, Asistencia).
+- [ ] **Asistencia en Estadísticas**: tasa de «reserva y no viene» por
+      cliente y por horario. Esperar unas semanas de marcas reales.
 - [x] ~~`/registro` real y área de cliente~~ — hecho en el paso 10.
 - [ ] **Registro sin protección contra spam**: cualquiera puede crear cuentas
       en bucle. Antes de anunciarlo: CAPTCHA (Turnstile/hCaptcha) o límite

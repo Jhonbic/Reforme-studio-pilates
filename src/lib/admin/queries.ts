@@ -15,6 +15,7 @@ type FilaClienteVigente =
   Database["public"]["Views"]["clientes_vigentes"]["Row"];
 import type {
   Clase,
+  ClaseDelCliente,
   ClaseEnAgenda,
   Cliente,
   EstadoClase,
@@ -239,6 +240,11 @@ function estadoDeClase(
   return "Programada";
 }
 
+/** Misma frontera que `marcar_asistencia` en la base: desde la hora de inicio. */
+function yaEmpezo(fecha: string, horaInicio: string, hoy: string, ahora: string) {
+  return fecha < hoy || (fecha === hoy && horaInicio <= ahora);
+}
+
 /**
  * Ventana de la agenda que viaja al navegador: 5 semanas atrás y 13 por
  * delante. Cambiar de día dentro de ella es instantáneo; fuera de ella la tira
@@ -264,7 +270,7 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
   const { data, error } = await supabase
     .from("clases")
     .select(
-      "id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos, cancelada, equipo(nombre), reservas(id, cliente_id, clientes(nombre))",
+      "id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos, cancelada, equipo(nombre), reservas(id, cliente_id, asistencia, clientes(nombre))",
     )
     .gte("fecha", sumarDias(hoy, -AGENDA_DIAS_ATRAS))
     .lte("fecha", sumarDias(hoy, AGENDA_DIAS_ADELANTE))
@@ -278,6 +284,7 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
         id: r.id,
         clienteId: r.cliente_id,
         nombre: r.clientes?.nombre ?? "Cliente eliminado",
+        asistencia: r.asistencia,
       }))
       .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
     const clase: Clase = {
@@ -304,6 +311,7 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
       /* Nunca negativo: la base no deja que haya más reservas que cupos, pero
          «−2 libres» sería ruido si algún día pasara. */
       libres: Math.max(0, clase.cupos - clase.reservas),
+      empezada: yaEmpezo(clase.fecha, clase.horaInicio, hoy, ahora),
       reservados,
     };
   });
@@ -661,4 +669,56 @@ export async function getSaldoCliente(clienteId: string, hoy: string): Promise<S
   )
     .filter((s) => s.total > 0)
     .map((s) => ({ ...s }));
+}
+
+/**
+ * El id en `equipo` de quien tiene la sesión (o `null`). La agenda lo usa para
+ * dejar a una instructora marcar la asistencia de SUS clases, y solo de esas;
+ * la base lo vuelve a comprobar en `marcar_asistencia`.
+ */
+export async function getMiEquipoId(): Promise<string | null> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("mi_equipo_id");
+  if (error) throw new Error(`No se pudo leer tu ficha del equipo: ${error.message}`);
+  return data ?? null;
+}
+
+/** Cuántas clases del historial viajan a la ficha: las más recientes. */
+const HISTORIAL_CLASES = 30;
+
+/**
+ * Las clases que ha reservado un cliente, de la más reciente a la más antigua,
+ * con su asistencia. Incluye las próximas: en recepción también se pregunta
+ * «¿cuándo viene?».
+ */
+export async function getHistorialClases(
+  clienteId: string,
+  hoy: string,
+  ahora: string,
+): Promise<ClaseDelCliente[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase
+    .from("reservas")
+    .select("id, asistencia, clases!inner(fecha, hora_inicio, tipo, cancelada, equipo(nombre))")
+    .eq("cliente_id", clienteId)
+    // Ordena las RESERVAS por la fecha de su clase (relación a uno). Con
+    // `referencedTable` solo se ordenaría dentro del embebido.
+    .order("clases(fecha)", { ascending: false })
+    .order("clases(hora_inicio)", { ascending: false })
+    .limit(HISTORIAL_CLASES);
+  if (error) throw new Error(`No se pudo leer el historial de clases: ${error.message}`);
+
+  return data.map((r) => {
+      const horaInicio = r.clases.hora_inicio.slice(0, 5);
+      return {
+        reservaId: r.id,
+        fecha: r.clases.fecha,
+        horaInicio,
+        tipo: r.clases.tipo,
+        instructora: r.clases.equipo?.nombre ?? "Sin asignar",
+        cancelada: r.clases.cancelada,
+        empezada: yaEmpezo(r.clases.fecha, horaInicio, hoy, ahora),
+        asistencia: r.asistencia,
+      };
+  });
 }
