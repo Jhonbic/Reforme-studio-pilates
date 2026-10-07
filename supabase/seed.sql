@@ -23,15 +23,15 @@ truncate table reservas, clases, pagos, membresias, clientes, gastos, presupuest
 -- Los planes REALES del estudio (oct 2026), todos de 30 días. Las clases de
 -- cada tipo son las que se descuentan al reservar.
 
-insert into planes (nombre, precio, vigencia_dias, modalidad, clases_reformer, clases_mat, descripcion, caracteristicas) values
-  ('Inicio',            140000, 30, 'Mat',       0,  4, 'Plan Mat',                    array['Clases de Mat']),
-  ('Origen',            260000, 30, 'Mat',       0,  8, 'Plan Mat',                    array['Clases de Mat']),
-  ('Armonía',           360000, 30, 'Mat',       0, 12, 'Plan Mat',                    array['Clases de Mat']),
-  ('Esencia',           220000, 30, 'Reformer',  4,  0, 'Plan Reformer',               array['Clases en Reformer']),
-  ('Equilibrio',        360000, 30, 'Reformer',  8,  0, 'Plan Reformer',               array['Clases en Reformer']),
-  ('Evolución',         480000, 30, 'Reformer', 12,  0, 'Plan Reformer',               array['Clases en Reformer']),
-  ('Fusión Esencial',   470000, 30, 'Fusión',    8,  4, 'Plan Fusión: Reformer y Mat', array['8 clases en Reformer', '4 clases de Mat']),
-  ('Fusión Equilibrio', 580000, 30, 'Fusión',   12,  4, 'Plan Fusión: Reformer y Mat', array['12 clases en Reformer', '4 clases de Mat']);
+insert into planes (nombre, precio, vigencia_dias, modalidad, clases_reformer, clases_mat) values
+  ('Inicio',            140000, 30, 'Mat',       0,  4),
+  ('Origen',            260000, 30, 'Mat',       0,  8),
+  ('Armonía',           360000, 30, 'Mat',       0, 12),
+  ('Esencia',           220000, 30, 'Reformer',  4,  0),
+  ('Equilibrio',        360000, 30, 'Reformer',  8,  0),
+  ('Evolución',         480000, 30, 'Reformer', 12,  0),
+  ('Fusión Esencial',   470000, 30, 'Fusión',    8,  4),
+  ('Fusión Equilibrio', 580000, 30, 'Fusión',   12,  4);
 
 
 -- Equipo ---------------------------------------------------------------------

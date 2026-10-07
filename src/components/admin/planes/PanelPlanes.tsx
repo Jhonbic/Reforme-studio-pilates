@@ -4,7 +4,7 @@ import { useState } from "react";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import { cambiarVentaPlan, eliminarPlan } from "@/lib/admin/acciones";
 import { useToast } from "@/context/ToastContext";
-import { numero } from "@/lib/admin/format";
+import { moneda, numero } from "@/lib/admin/format";
 import type { ModalidadPlan, PlanConMetricas } from "@/lib/admin/types";
 import FormularioPlan from "./FormularioPlan";
 import TarjetaPlan from "./TarjetaPlan";
@@ -77,10 +77,21 @@ export default function PanelPlanes({ planes }: { planes: PlanConMetricas[] }) {
         if (deEsta.length === 0) return null;
         return (
           <section key={m} aria-labelledby={`modalidad-${m}`} className="mt-8 first-of-type:mt-4">
-            <h2 id={`modalidad-${m}`} className="eyebrow mb-3 text-dorado-dark">
-              {m === "Fusión" ? "Fusión · Reformer y Mat" : m}
-            </h2>
-            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
+            {/* Encabezado del grupo: qué es, cuántos planes y desde cuánto. */}
+            <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-beige pb-2">
+              <h2 id={`modalidad-${m}`} className="font-display text-2xl text-verde">
+                {m === "Fusión" ? "Fusión" : m}
+              </h2>
+              <p className="text-sm text-verde-300">
+                {m === "Fusión" ? "Reformer y Mat · " : ""}
+                {deEsta.length} {deEsta.length === 1 ? "plan" : "planes"} · desde{" "}
+                {moneda(Math.min(...deEsta.map((p) => p.precio)))}
+              </p>
+            </div>
+            {/* Tres columnas: cada modalidad trae tres planes (4, 8 y 12), así
+                que cada fila es una modalidad completa sin huecos. Con cuatro
+                columnas quedaba una vacía a la derecha en todas las filas. */}
+            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:gap-5">
               {deEsta.map((p) => (
                 <li key={p.id} className="flex">
                   <TarjetaPlan

@@ -1380,6 +1380,14 @@ no), y **lo que no se usa en los 30 días se pierde**.
   tarjeta del plan; la ficha, «Clases que le quedan».
 - Planes se **agrupa por modalidad**; el formulario pide modalidad y solo las
   clases de esa modalidad; «Asignar plan» agrupa con `<optgroup>`.
+- **Tarjetas de plan reorganizadas** (decisión del usuario: «están mal
+  organizadas»): rejilla de **3 columnas** (cada modalidad son 3 planes; con 4
+  quedaba un hueco en cada fila), tarjetas `w-full` (antes medían su
+  contenido y la destacada salía más ancha), encabezado de grupo con nº de
+  planes y «desde $X», una sola línea de clases + **precio por clase**, y «El
+  más contratado» como pastilla de una línea. Se vaciaron en la base la
+  descripción «Plan Mat» y la característica «Clases de Mat»: repetían lo que
+  ya dice la tarjeta.
 - Las reservas que ya existían se ligaron por fecha hasta agotar el saldo:
   en local, 159 de 750 (los datos de ejemplo reservaban mucho más de lo que
   permiten sus planes). Las demás quedan sin ligar y no descuentan.

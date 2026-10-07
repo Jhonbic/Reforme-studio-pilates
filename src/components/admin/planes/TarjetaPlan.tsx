@@ -42,29 +42,25 @@ export default function TarjetaPlan({
   onEliminar: () => void;
 }) {
   return (
+    /* `w-full`: sin él la tarjeta medía lo que su contenido y no lo que su
+       hueco de la rejilla, y la destacada (nombre más largo) salía más ancha
+       que sus vecinas. */
     <Card
       tono={destacado ? "oscuro" : "claro"}
-      className="flex flex-col"
+      className="flex w-full flex-col"
       as="article"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3
-            className={`text-lg font-bold leading-tight ${
-              destacado ? "text-arena" : "text-verde"
-            }`}
-          >
-            {plan.nombreVisible}
-          </h3>
-
           {/* ⚠️ Ranura de altura fija para el distintivo, aunque no haya
-              ninguno. Antes el eyebrow solo existía en la tarjeta destacada, y
-              eso empujaba su precio una línea por debajo del de las otras
-              tres: en una tabla de precios, donde se compara en horizontal,
-              basta ese desfase para que se lea como un error de maquetación. */}
-          <div className="mt-1 min-h-[1.5rem]">
+              ninguno: si solo existiera en la destacada, su precio quedaría una
+              línea por debajo del de las vecinas. Pastilla de UNA línea: como
+              eyebrow, «El más contratado» se partía en dos. */}
+          <div className="min-h-[1.75rem]">
             {destacado ? (
-              <p className="eyebrow text-dorado-light">El más contratado</p>
+              <span className="inline-flex whitespace-nowrap rounded-full bg-dorado px-2.5 py-0.5 text-xs font-bold text-verde-900">
+                ★ El más contratado
+              </span>
             ) : (
               !plan.seVende && (
                 <span className="inline-flex rounded-full border border-beige bg-beige/40 px-2.5 py-0.5 text-xs text-verde-300">
@@ -73,6 +69,13 @@ export default function TarjetaPlan({
               )
             )}
           </div>
+          <h3
+            className={`mt-1 text-lg font-bold leading-tight ${
+              destacado ? "text-arena" : "text-verde"
+            }`}
+          >
+            {plan.nombreVisible}
+          </h3>
         </div>
 
         <Dropdown
@@ -104,7 +107,7 @@ export default function TarjetaPlan({
 
       {/* El precio, que es a lo que se viene. La unidad al lado y en pequeño:
           «$190.000 / mes» se lee de un golpe, «$190.000 cada 30 días» no. */}
-      <p className="mt-5 flex flex-wrap items-baseline gap-x-1.5">
+      <p className="mt-4 flex flex-wrap items-baseline gap-x-1.5">
         <span
           className={`font-cifra text-4xl leading-none ${
             destacado ? "text-arena" : "text-verde"
@@ -119,38 +122,37 @@ export default function TarjetaPlan({
         </span>
       </p>
 
-      {/* ⚠️ Dos líneas fijas: `line-clamp-2` recorta si sobra y `min-h` rellena
-          si falta. Las descripciones van de una línea a dos, y sin esto todo lo
-          que viene debajo —clases, características, pie— arranca a distinta
-          altura en cada tarjeta. El formulario ya pide «una línea», así que
-          recortar a dos no esconde nada en la práctica. */}
+      {/* Lo que trae, una sola vez: antes la descripción («Plan Mat»), esta
+          línea y una característica («Clases de Mat») decían lo mismo. Y el
+          precio por clase, que es lo que sirve para comparar planes. */}
       <p
-        className={`mt-3 line-clamp-2 min-h-[2.5rem] text-sm ${
-          destacado ? "text-beige/85" : "text-verde-700"
-        }`}
-      >
-        {plan.descripcion}
-      </p>
-
-      <p
-        className={`mt-4 text-sm ${
+        className={`mt-4 text-base font-bold ${
           destacado ? "text-dorado-light" : "text-dorado-dark"
         }`}
       >
-        {/* Fusión dice las dos bolsas; Mat y Reformer, su número. */}
         {plan.modalidad === "Fusión"
           ? `${numero(plan.clasesReformer)} Reformer + ${numero(plan.clasesMat)} Mat`
           : `${numero(plan.clasesIncluidas)} ${plan.clasesIncluidas === 1 ? "clase" : "clases"} de ${plan.modalidad}`}
       </p>
+      {plan.clasesIncluidas > 0 && (
+        <p className={`mt-0.5 text-xs ${destacado ? "text-beige/75" : "text-verde-300"}`}>
+          {moneda(Math.round(plan.precio / plan.clasesIncluidas))} por clase
+        </p>
+      )}
 
-      {/* `flex-1` empuja las métricas al fondo, así las cuatro tarjetas alinean
-          su pie aunque tengan distinto número de características. */}
-      <ul className="mt-5 flex-1 space-y-2.5">
+      {plan.descripcion && (
+        <p className={`mt-3 text-sm ${destacado ? "text-beige/85" : "text-verde-700"}`}>
+          {plan.descripcion}
+        </p>
+      )}
+
+      {/* `flex-1` empuja las métricas al fondo, así las tarjetas alinean su pie
+          aunque tengan distinto número de características. */}
+      <ul className="mt-4 flex-1 space-y-2.5">
         {plan.caracteristicas.map((c) => (
           <li key={c} className="flex gap-2.5 text-sm">
             {/* El ✓ va `aria-hidden`: un lector leería «marca de verificación»
-                delante de cada línea, que no aporta nada — la lista ya es una
-                lista de lo que incluye. */}
+                delante de cada línea, que no aporta nada. */}
             <span
               aria-hidden="true"
               className={destacado ? "text-dorado-light" : "text-dorado"}
