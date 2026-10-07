@@ -69,8 +69,8 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 |---|---|
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
-| `npm test` | **Vitest**, 57 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 40 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm test` | **Vitest**, 58 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
+| `npm run test:db` | **pgTAP**, 45 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -1435,6 +1435,40 @@ quién VINO.
   apuntar»: desde el paso 1 la base no deja (salvo privadas).
 - 7 tests nuevos en `reglas_test.sql` (40 en total).
 
+#### Salas (oct 2026)
+
+Migración `20261008120000_salas`. El estudio tiene **dos salas, una de
+Reformer y una de Mat, y en cada una caben como mucho 8 personas** (decisión
+del estudio).
+
+- Tabla **`salas`** (`id`, `nombre`, `capacidad`) y no una constante: el
+  módulo de Configuración dejará cambiar el aforo sin tocar código. Lectura
+  para el personal; editar, solo Administración (aún sin pantalla).
+- Cada clase tiene **`sala`**. Reformer y Mat van **siempre** en la suya (el
+  trigger `clases_sala_y_aforo` lo fuerza, no se pregunta); la **privada** en
+  la que se elija, Reformer por defecto.
+- ⚠️ **Dos clases no pueden ocupar la misma sala a la vez**, y lo impide la
+  base (`clases_sala_sin_solapes`, exclusión `[)` como la de instructora; las
+  canceladas no cuentan). Reformer y Mat a la misma hora sí: son salas
+  distintas. **El aviso ámbar «se puede, pero hacen falta dos salas» del
+  formulario desapareció**: en la misma sala ahora es un bloqueo, y en salas
+  distintas no hay nada que avisar.
+- ⚠️ **Los cupos no pasan de la capacidad de la sala** (mismo trigger, solo al
+  crear o al cambiar cupos, sala o tipo: una clase antigua con más gente se
+  puede seguir cancelando). `CUPOS_SUGERIDOS` de Mat bajó de 12 a 8.
+- **Formulario**: la sala ocupada se dice EN VIVO bajo «Hora de inicio» («La
+  sala de Mat está ocupada: Mat con Ana de 09:00 a 09:55»), que es donde se
+  arregla; «Sala» solo aparece en una privada; la ayuda de cupos dice el
+  máximo. Si la base lo rechaza igualmente (otra persona programó a la vez),
+  el error vuelve a la hora. En la agenda, la privada dice su sala.
+- Datos: las 57 clases de Mat de ejemplo con 12 cupos bajaron a 8, salvo las
+  que ya tenían más gente (8 pasadas y, en producción, **una futura: 9 oct
+  18:00 con 9 personas**, que se queda en 9 hasta que se toque). Copia previa
+  en `../respaldo-reforme-ngjy-2026-10-08-salas/`. La semilla siembra Mat con 8.
+- 5 tests nuevos en `reglas_test.sql` (45). ⚠️ El test anula las clases de
+  hoy y mañana dentro de su transacción: en local la semilla podía ocupar la
+  sala de la clase de prueba «dentro de una hora».
+
 #### Planes (`/admin/planes`) — desde Supabase, oct 2026
 
 - El catálogo sale de la tabla `planes`, del más barato al más caro. La clave
@@ -1661,7 +1695,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **14 migraciones, todas aplicadas en local y en remoto** |
+| Esquema | `supabase/migrations/` — **15 migraciones, todas aplicadas en local y en remoto** |
 
 ### Variables de entorno
 
@@ -1841,9 +1875,9 @@ Configuración). Lo que falta, por módulo:
    (peso, estatura, IMC, % grasa, masa muscular…), seguimientos, quién la
    hizo, evolución en tabla o gráfica. Solo usuarios autorizados.
 4. **Planes**: ~~modalidad y descuento al reservar~~ (hecho, «Clases por
-   plan»); faltan las salas permitidas.
-5. **Reservas**: ~~reservar solo lo que permite el plan~~ (hecho); faltan
-   salas, lista de espera y reprogramar.
+   plan»). Las salas que permite cada plan salen de su modalidad.
+5. **Reservas**: ~~reservar solo lo que permite el plan~~ y ~~salas~~ (hecho,
+   «Salas»); faltan lista de espera y reprogramar.
 6. **Asistencia**: ~~marcar asistió / no vino e historial~~ (hecho,
    «Asistencia»); falta la política de cancelación configurable.
 7. **Notificaciones automáticas** (WhatsApp y/o correo): confirmación de
@@ -1852,7 +1886,7 @@ Configuración). Lo que falta, por módulo:
 8. **Financiero**: Daviplata y «otros» como método, pagos pendientes y
    cartera (hoy todo se cobra al asignar), ventas.
 9. **Instructores**: salas e historial completo de clases dictadas.
-10. **Configuración**: salas, horario semanal, cupos, política de cancelación,
+10. **Configuración**: salas (la tabla existe; falta la pantalla), horario semanal, cupos, política de cancelación,
     días no laborables y otros parámetros, editables sin el desarrollador.
 
 ⚠️ **La base de casi todo es el sistema de clases por plan** (modalidad +

@@ -5,6 +5,7 @@ import {
   getClientes,
   getInstructoras,
   getMiEquipoId,
+  getSalas,
   getUsuarioActual,
 } from "@/lib/admin/queries";
 
@@ -29,13 +30,14 @@ export default async function ClasesPage() {
   const puedeEditar =
     usuario?.rol === "Administración" || usuario?.rol === "Recepción";
 
-  const [clases, instructoras, clientes, miEquipoId] = await Promise.all([
+  const [clases, instructoras, clientes, miEquipoId, salas] = await Promise.all([
     getClases(hoy, horaEnBogota()),
     getInstructoras(),
     // La lista para apuntar gente: solo hace falta a quien puede apuntar.
     puedeEditar ? getClientes() : Promise.resolve([]),
     // La instructora de una clase marca su asistencia (y la base lo comprueba).
     getMiEquipoId(),
+    getSalas(),
   ]);
 
   return (
@@ -47,6 +49,7 @@ export default async function ClasesPage() {
         clientes={clientes.map((c) => ({ id: c.id, nombre: c.nombre, estado: c.estado }))}
         puedeEditar={puedeEditar}
         miEquipoId={miEquipoId}
+        salas={salas}
         hoy={hoy}
       />
     </div>

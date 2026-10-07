@@ -117,9 +117,20 @@ export type TipoClase = "Reformer" | "Mat" | "Privada";
  * dejaría atrás todas sus clases pasadas diciendo el nombre viejo. Es la misma
  * regla por la que `Pago` guarda `clienteId`.
  */
+/** Las salas del estudio. Reformer y Mat van en la suya; la privada, en la que se elija. */
+export type SalaId = "Reformer" | "Mat";
+
+export type Sala = {
+  id: SalaId;
+  nombre: string;
+  /** Tope de cupos de cualquier clase que se dé en ella. */
+  capacidad: number;
+};
+
 export type Clase = {
   id: string;
   tipo: TipoClase;
+  sala: SalaId;
   /** ISO corto, `"2026-07-27"`. */
   fecha: string;
   /** 24 h, `"07:00"`. Ver `lib/admin/horario.ts` para el porqué del formato. */
@@ -223,6 +234,8 @@ export type ClaseEnAgenda = Clase & {
  */
 export type BorradorClase = {
   tipo: TipoClase;
+  /** Solo se elige en una privada: Reformer y Mat van siempre en la suya. */
+  sala: SalaId;
   fecha: string;
   horaInicio: string;
   duracionMin: number;

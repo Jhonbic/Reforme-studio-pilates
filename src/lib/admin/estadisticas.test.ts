@@ -131,6 +131,7 @@ describe("clases", () => {
     cancelada: false,
     estado: "Finalizada",
     empezada: true,
+    sala: "Reformer",
     reservados: [],
     ...p,
   });

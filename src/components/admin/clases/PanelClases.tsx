@@ -7,7 +7,7 @@ import { cancelarClase, eliminarClase } from "@/lib/admin/acciones";
 import { useToast } from "@/context/ToastContext";
 import { numero } from "@/lib/admin/format";
 import { diaLargo, diaRelativo } from "@/lib/admin/horario";
-import type { ClaseEnAgenda, MiembroEquipo } from "@/lib/admin/types";
+import type { ClaseEnAgenda, MiembroEquipo, Sala } from "@/lib/admin/types";
 import FilaClase from "./FilaClase";
 import FormularioClase from "./FormularioClase";
 import ReservasClase, { type ClienteParaReservar } from "./ReservasClase";
@@ -40,6 +40,7 @@ export default function PanelClases({
   clientes,
   puedeEditar,
   miEquipoId,
+  salas,
   hoy,
 }: {
   clases: ClaseEnAgenda[];
@@ -49,6 +50,8 @@ export default function PanelClases({
   puedeEditar: boolean;
   /** Id en `equipo` de quien mira: la instructora marca la asistencia de sus clases. */
   miEquipoId: string | null;
+  /** Las salas y su aforo, para el formulario. */
+  salas: Sala[];
   hoy: string;
 }) {
   /** La clase cuyo diálogo de reservas está abierto. Por ID y no el objeto:
@@ -223,6 +226,7 @@ export default function PanelClases({
         fechaPorDefecto={dia < hoy ? hoy : dia}
         hoy={hoy}
         instructoras={instructoras}
+        salas={salas}
         clases={clases}
         onCerrar={() => setFormAbierto(false)}
         onGuardado={(resumen, esNueva) =>

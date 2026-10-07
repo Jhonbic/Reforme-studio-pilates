@@ -107,15 +107,14 @@ export const TIPOS_CLASE: TipoClase[] = ["Reformer", "Mat", "Privada"];
 /**
  * Cuánta gente cabe en cada modalidad, como valor de partida al crear.
  *
- * ⚠️ **Es una sugerencia, no un límite**: el campo queda editable porque el
- * aforo real depende de cuántas máquinas haya en la sala, y eso no lo sabe el
- * código. Lo que sí evita es teclear «8» seiscientas veces.
+ * Es una sugerencia: el TOPE es la capacidad de la sala (tabla `salas`, 8 en
+ * cada una), que la base hace cumplir. Esto evita teclear «8» cada vez.
  *
  * `Privada` es 1 por definición: si cupieran dos, no sería privada.
  */
 export const CUPOS_SUGERIDOS: Record<TipoClase, number> = {
   Reformer: 8,
-  Mat: 12,
+  Mat: 8,
   Privada: 1,
 };
 

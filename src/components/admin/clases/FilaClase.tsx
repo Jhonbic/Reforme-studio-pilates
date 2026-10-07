@@ -106,6 +106,8 @@ export default function FilaClase({
               Sin él, «Ana María Solano» podría ser cualquier cosa. */}
           <span className="text-verde-300">Instructora · </span>
           {clase.instructora}
+          {/* Reformer y Mat ya dicen su sala con el nombre; la privada no. */}
+          {clase.tipo === "Privada" && <span className="text-verde-300"> · Sala de {clase.sala}</span>}
         </p>
       </div>
 

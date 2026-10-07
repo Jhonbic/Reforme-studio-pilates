@@ -715,7 +715,7 @@ export async function cambiarMiContrasena(actual: string, nueva: string): Promis
 
 export type ResultadoClase =
   | { ok: true }
-  | { ok: false; error: string; campo?: "instructoraId" | "cupos" };
+  | { ok: false; error: string; campo?: "instructoraId" | "cupos" | "horaInicio" };
 
 const TIPOS_CLASE: TipoClase[] = ["Reformer", "Mat", "Privada"];
 const esTipoClase = (v: string): v is TipoClase => (TIPOS_CLASE as string[]).includes(v);
@@ -740,7 +740,15 @@ function revalidarAgenda() {
  * por el formulario.
  */
 function errorDeClase(e: { code?: string; message: string }): ResultadoClase {
-  // 23P01 = violación de la restricción de exclusión `clases_instructora_sin_solapes`.
+  // 23P01 = violación de una restricción de exclusión. Hay dos: sala y
+  // instructora; el mensaje trae el nombre de la que saltó.
+  if (e.code === "23P01" && e.message.includes("clases_sala_sin_solapes")) {
+    return {
+      ok: false,
+      campo: "horaInicio",
+      error: "Esa sala ya está ocupada a esa hora. Elige otra hora.",
+    };
+  }
   if (e.code === "23P01") {
     return {
       ok: false,
@@ -767,6 +775,7 @@ export async function guardarClase(
   if (prohibido) return { ok: false, error: prohibido };
 
   if (!esTipoClase(b.tipo)) return { ok: false, error: "Tipo de clase no válido." };
+  if (b.sala !== "Reformer" && b.sala !== "Mat") return { ok: false, error: "Sala no válida." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(b.fecha)) return { ok: false, error: "Fecha no válida." };
   if (!/^\d{2}:\d{2}$/.test(b.horaInicio)) return { ok: false, error: "Hora no válida." };
   if (!Number.isInteger(b.duracionMin) || b.duracionMin < 15 || b.duracionMin > 240)
@@ -781,6 +790,8 @@ export async function guardarClase(
 
   const fila = {
     tipo: b.tipo,
+    // La base la fuerza para Reformer y Mat; solo cuenta en una privada.
+    sala: b.sala,
     fecha: b.fecha,
     hora_inicio: b.horaInicio,
     duracion_min: b.duracionMin,

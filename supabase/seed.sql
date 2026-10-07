@@ -270,7 +270,7 @@ select
   p.hora::time,
   p.dur,
   i.id,
-  case p.tipo when 'Reformer' then 8 when 'Mat' then 12 else 1 end,
+  case p.tipo when 'Reformer' then 8 when 'Mat' then 8 else 1 end,
   -- ~2 % anuladas: las justas para que el estado exista sin que la agenda
   -- parezca rota.
   abs(hashtext(dd.fecha::text || p.hora || p.tipo || 'anulada')) % 45 = 0

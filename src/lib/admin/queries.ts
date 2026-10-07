@@ -17,6 +17,8 @@ import type {
   Clase,
   ClaseDelCliente,
   ClaseEnAgenda,
+  Sala,
+  SalaId,
   Cliente,
   EstadoClase,
   EstadoMembresia,
@@ -191,6 +193,14 @@ export async function getEquipo(esAdmin: boolean): Promise<MiembroEquipo[]> {
  * instructora dada de baja se siguen viendo —pasaron de verdad—, pero su nombre
  * desaparece del desplegable del formulario.
  */
+/** Las salas y su aforo (tabla `salas`): el formulario de clase no deja pasar de ahí. */
+export async function getSalas(): Promise<Sala[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("salas").select("id, nombre, capacidad").order("id", { ascending: false });
+  if (error) throw new Error(`No se pudieron leer las salas: ${error.message}`);
+  return data.map((s) => ({ id: s.id as SalaId, nombre: s.nombre, capacidad: s.capacidad }));
+}
+
 export async function getInstructoras(): Promise<MiembroEquipo[]> {
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase
@@ -270,7 +280,7 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
   const { data, error } = await supabase
     .from("clases")
     .select(
-      "id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos, cancelada, equipo(nombre), reservas(id, cliente_id, asistencia, clientes(nombre))",
+      "id, tipo, sala, fecha, hora_inicio, duracion_min, instructora_id, cupos, cancelada, equipo(nombre), reservas(id, cliente_id, asistencia, clientes(nombre))",
     )
     .gte("fecha", sumarDias(hoy, -AGENDA_DIAS_ATRAS))
     .lte("fecha", sumarDias(hoy, AGENDA_DIAS_ADELANTE))
@@ -290,6 +300,7 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
     const clase: Clase = {
       id: f.id,
       tipo: f.tipo,
+      sala: f.sala as SalaId,
       fecha: f.fecha,
       // Postgres devuelve `time` como «07:00:00»; la agenda trabaja en «07:00»
       // (se ordena igual alfabética que cronológicamente).

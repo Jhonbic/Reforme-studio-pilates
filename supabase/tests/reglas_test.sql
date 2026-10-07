@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(40);
+select plan(45);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -49,6 +49,11 @@ insert into membresias (cliente_id, plan_id, inicio, vencimiento, importe)
   values ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000b1',
           '2031-01-01', '2031-12-31', 100000);
 
+-- En local la base trae la agenda de ejemplo: las clases de hoy y mañana se
+-- anulan (dentro de esta transacción) para que la clase de prueba «dentro de
+-- una hora» no choque por sala con una de la semilla. En la CI no hay nada.
+update clases set cancelada = true where fecha between current_date and current_date + 1;
+
 -- Agenda: solapes de instructora -----------------------------------------------
 select lives_ok(
   $$insert into clases (id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos)
@@ -71,6 +76,38 @@ select lives_ok(
   $$insert into clases (tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos, cancelada)
     values ('Mat', '2031-03-03', '07:30', 30, '00000000-0000-0000-0000-0000000000e1', 8, true)$$,
   'una clase cancelada deja libre su hueco');
+
+-- Salas: una de Reformer y una de Mat, 8 personas cada una --------------------
+select throws_ok(
+  $$insert into clases (tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos)
+    values ('Reformer', '2031-03-03', '07:20', 50, '00000000-0000-0000-0000-0000000000e2', 8)$$,
+  '23P01', null,
+  'dos clases no pueden ocupar la misma sala a la vez, aunque sean de instructoras distintas');
+
+select lives_ok(
+  $$insert into clases (tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos)
+    values ('Mat', '2031-03-03', '07:00', 50, '00000000-0000-0000-0000-0000000000e2', 8)$$,
+  'Reformer y Mat a la misma hora sí: son salas distintas');
+
+select throws_ok(
+  $$insert into clases (tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos)
+    values ('Mat', '2031-03-10', '07:00', 50, '00000000-0000-0000-0000-0000000000e2', 9)$$,
+  'P0001', 'En la sala de Mat caben 8 personas: no se pueden abrir 9 cupos.',
+  'los cupos no pasan del aforo de la sala');
+
+insert into clases (id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos, sala)
+  values ('00000000-0000-0000-0000-00000000aa10', 'Mat', '2031-03-11', '07:00', 50,
+          '00000000-0000-0000-0000-0000000000e2', 8, 'Reformer');
+select is(
+  (select sala from clases where id = '00000000-0000-0000-0000-00000000aa10'),
+  'Mat',
+  'una clase de Mat va siempre en la sala de Mat, se diga lo que se diga');
+
+select throws_ok(
+  $$insert into clases (tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos, sala)
+    values ('Privada', '2031-03-03', '07:10', 30, '00000000-0000-0000-0000-0000000000e1', 1, 'Mat')$$,
+  '23P01', null,
+  'una privada ocupa la sala que se elija: en la de Mat choca con la clase de Mat');
 
 -- Agenda: aforo ------------------------------------------------------------------
 select lives_ok(
@@ -100,16 +137,16 @@ select throws_ok(
 
 -- Una clase futura con cupo, y otra que empieza dentro de una hora.
 insert into clases (id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos) values
-  ('00000000-0000-0000-0000-00000000aa02', 'Mat', '2031-03-04', '09:00', 55, '00000000-0000-0000-0000-0000000000e1', 10),
+  ('00000000-0000-0000-0000-00000000aa02', 'Mat', '2031-03-04', '09:00', 55, '00000000-0000-0000-0000-0000000000e1', 8),
   ('00000000-0000-0000-0000-00000000aa03', 'Mat',
    (localtimestamp + interval '1 hour')::date,
-   (localtimestamp + interval '1 hour')::time, 30, '00000000-0000-0000-0000-0000000000e1', 10);
+   (localtimestamp + interval '1 hour')::time, 30, '00000000-0000-0000-0000-0000000000e1', 8);
 insert into reservas (clase_id, cliente_id)
   values ('00000000-0000-0000-0000-00000000aa03', '00000000-0000-0000-0000-0000000000d1');
 -- Para agotar el saldo: más Mat, dos Reformer y una Privada, en días distintos.
 insert into clases (id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos) values
-  ('00000000-0000-0000-0000-00000000aa04', 'Mat',      '2031-03-05', '09:00', 55, '00000000-0000-0000-0000-0000000000e1', 10),
-  ('00000000-0000-0000-0000-00000000aa05', 'Mat',      '2031-03-06', '09:00', 55, '00000000-0000-0000-0000-0000000000e1', 10),
+  ('00000000-0000-0000-0000-00000000aa04', 'Mat',      '2031-03-05', '09:00', 55, '00000000-0000-0000-0000-0000000000e1', 8),
+  ('00000000-0000-0000-0000-00000000aa05', 'Mat',      '2031-03-06', '09:00', 55, '00000000-0000-0000-0000-0000000000e1', 8),
   ('00000000-0000-0000-0000-00000000aa06', 'Reformer', '2031-03-07', '09:00', 50, '00000000-0000-0000-0000-0000000000e1', 8),
   ('00000000-0000-0000-0000-00000000aa07', 'Reformer', '2031-03-08', '09:00', 50, '00000000-0000-0000-0000-0000000000e1', 8),
   ('00000000-0000-0000-0000-00000000aa08', 'Privada',  '2031-03-09', '09:00', 50, '00000000-0000-0000-0000-0000000000e1', 1);
@@ -239,7 +276,7 @@ reset role;
 -- Sin sesión simulada (carga del sistema): si no, la regla de saldo la frenaría.
 set local request.jwt.claims to '{}';
 insert into clases (id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos) values
-  ('00000000-0000-0000-0000-00000000aa09', 'Mat', '2020-01-06', '09:00', 55, '00000000-0000-0000-0000-0000000000e1', 10);
+  ('00000000-0000-0000-0000-00000000aa09', 'Mat', '2020-01-06', '09:00', 55, '00000000-0000-0000-0000-0000000000e1', 8);
 insert into reservas (id, clase_id, cliente_id) values
   ('00000000-0000-0000-0000-0000000000ab', '00000000-0000-0000-0000-00000000aa09', '00000000-0000-0000-0000-0000000000d1');
 

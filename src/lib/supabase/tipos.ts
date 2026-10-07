@@ -33,6 +33,7 @@ export type Database = {
           hora_inicio: string;
           id: string;
           instructora_id: string;
+          sala: string;
           tipo: Database["public"]["Enums"]["tipo_clase"];
         };
         ComputedFields: never;
@@ -45,6 +46,7 @@ export type Database = {
           hora_inicio: string;
           id?: string;
           instructora_id: string;
+          sala: string;
           tipo: Database["public"]["Enums"]["tipo_clase"];
         };
         Update: {
@@ -56,6 +58,7 @@ export type Database = {
           hora_inicio?: string;
           id?: string;
           instructora_id?: string;
+          sala?: string;
           tipo?: Database["public"]["Enums"]["tipo_clase"];
         };
         Relationships: [
@@ -64,6 +67,13 @@ export type Database = {
             columns: ["instructora_id"];
             isOneToOne: false;
             referencedRelation: "equipo";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "clases_sala_fkey";
+            columns: ["sala"];
+            isOneToOne: false;
+            referencedRelation: "salas";
             referencedColumns: ["id"];
           },
         ];
@@ -470,6 +480,25 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      salas: {
+        Row: {
+          capacidad: number;
+          id: string;
+          nombre: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          capacidad: number;
+          id: string;
+          nombre: string;
+        };
+        Update: {
+          capacidad?: number;
+          id?: string;
+          nombre?: string;
+        };
+        Relationships: [];
       };
     };
     Views: {

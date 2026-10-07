@@ -4,7 +4,6 @@ import { useRef, useState, useTransition } from "react";
 import Modal from "@/components/admin/Modal";
 import CampoSelect from "@/components/admin/campos/CampoSelect";
 import CampoTexto from "@/components/admin/campos/CampoTexto";
-import { AVISO } from "@/components/admin/campos/estilos";
 import {
   CUPOS_SUGERIDOS,
   DURACIONES_MIN,
@@ -14,10 +13,13 @@ import {
 import { guardarClase } from "@/lib/admin/acciones";
 import { numero } from "@/lib/admin/format";
 import { duracionLegible, rangoHorario, seSolapan } from "@/lib/admin/horario";
+import { salaDeClase } from "@/lib/admin/salas";
 import type {
   BorradorClase,
   ClaseEnAgenda,
   MiembroEquipo,
+  Sala,
+  SalaId,
   TipoClase,
 } from "@/lib/admin/types";
 import { soloDigitos } from "@/lib/validacion";
@@ -28,11 +30,11 @@ const BOTON_PRIMARIO =
 const BOTON =
   "control-fx relative inline-flex min-h-[44px] items-center justify-center gap-2 overflow-hidden rounded-full border border-verde/40 px-5 text-sm text-verde-700 transition-colors duration-300 hover:border-dorado hover:text-verde";
 
-type Campo = "instructoraId" | "cupos" | "fecha";
+type Campo = "instructoraId" | "cupos" | "fecha" | "horaInicio";
 type Errores = Partial<Record<Campo, string>>;
 
 /** El orden en que se enfocan al fallar el envío. */
-const ORDEN: Campo[] = ["fecha", "instructoraId", "cupos"];
+const ORDEN: Campo[] = ["fecha", "horaInicio", "instructoraId", "cupos"];
 
 /**
  * Alta y edición de una clase.
@@ -56,6 +58,7 @@ export default function FormularioClase({
   fechaPorDefecto,
   hoy,
   instructoras,
+  salas,
   clases,
   onCerrar,
   onGuardado,
@@ -67,6 +70,8 @@ export default function FormularioClase({
   fechaPorDefecto: string;
   hoy: string;
   instructoras: MiembroEquipo[];
+  /** Las dos salas y su aforo (tabla `salas`). */
+  salas: Sala[];
   /** La agenda entera, para detectar choques de horario. */
   clases: ClaseEnAgenda[];
   onCerrar: () => void;
@@ -77,6 +82,7 @@ export default function FormularioClase({
   function vacia(fecha: string): BorradorClase {
     return {
       tipo: "Reformer",
+      sala: "Reformer",
       fecha,
       horaInicio: "07:00",
       duracionMin: 50,
@@ -91,6 +97,7 @@ export default function FormularioClase({
   function aBorrador(c: ClaseEnAgenda): BorradorClase {
     return {
       tipo: c.tipo,
+      sala: c.sala,
       fecha: c.fecha,
       horaInicio: c.horaInicio,
       duracionMin: c.duracionMin,
@@ -147,17 +154,20 @@ export default function FormularioClase({
       ) ?? null)
     : null;
 
-  /* Dos clases a la vez con instructoras distintas son legítimas —hacen falta
-     dos salas— pero conviene saberlo. Es la tercera categoría del proyecto: el
-     aviso ámbar que NO bloquea, como «el teléfono de emergencia es el mismo del
-     cliente» en el alta. */
-  const simultanea =
+  /* ⚠️ Hay DOS salas (Reformer y Mat): dos clases a la vez en la MISMA sala
+     no caben, y se dice en vivo, como el choque de instructora. En salas
+     distintas no hay nada que avisar. Antes era un aviso ámbar («hacen falta
+     dos salas»); con las salas reales es un bloqueo, y la base lo impide
+     (`clases_sala_sin_solapes`). */
+  const sala = salaDeClase(v.tipo, v.sala);
+  const capacidad = salas.find((s) => s.id === sala)?.capacidad ?? 0;
+  const salaOcupada =
     clases.find(
       (c) =>
         c.id !== clase?.id &&
         !c.cancelada &&
         c.fecha === v.fecha &&
-        c.instructoraId !== v.instructoraId &&
+        c.sala === sala &&
         seSolapan(c.horaInicio, c.duracionMin, v.horaInicio, v.duracionMin),
     ) ?? null;
 
@@ -171,16 +181,22 @@ export default function FormularioClase({
         return valores.fecha < hoy
           ? "No se puede programar una clase en un día que ya pasó."
           : "";
+      case "horaInicio":
+        return "";
       case "instructoraId":
         return valores.instructoraId ? "" : "Elige quién va a dar la clase.";
-      case "cupos":
+      case "cupos": {
         if (valores.cupos <= 0) return "Tiene que caber al menos una persona.";
+        const s = salaDeClase(valores.tipo, valores.sala);
+        const tope = salas.find((x) => x.id === s)?.capacidad ?? 0;
+        if (tope && valores.cupos > tope) return `En la sala de ${s} caben ${numero(tope)} personas.`;
         /* El aforo no puede quedar por debajo de la gente que ya reservó: esas
            personas tienen su sitio confirmado y el sistema no puede dejarlas
            fuera sin que nadie decida a quién. */
         return clase && valores.cupos < clase.reservas
           ? `Ya hay ${numero(clase.reservas)} ${clase.reservas === 1 ? "reserva" : "reservas"}: el aforo no puede bajar de ahí sin cancelarlas antes.`
           : "";
+      }
     }
   }
 
@@ -195,6 +211,11 @@ export default function FormularioClase({
          tocado: una Privada de 8 personas no es una privada. */
       if (campo === "tipo" && !cuposTocados) {
         siguiente.cupos = CUPOS_SUGERIDOS[valor as TipoClase];
+      }
+      /* Errores que dependen de dos campos (cupos frente a la sala): si el
+         cambio de modalidad o de sala los arregla, se quitan. */
+      if ((campo === "tipo" || campo === "sala") && errores.cupos && !errorDe("cupos", siguiente)) {
+        setErrores((e) => ({ ...e, cupos: "" }));
       }
 
       /* `onChange` solo QUITA errores, nunca los pone. */
@@ -226,6 +247,10 @@ export default function FormularioClase({
     /* El choque bloquea aunque no viva en `errores`: ya está en pantalla desde
        antes de pulsar, así que aquí solo hay que no dejar pasar. El foco va a la
        instructora, que es el campo que casi siempre se quiere cambiar. */
+    if (salaOcupada) {
+      refs.current.horaInicio?.focus();
+      return;
+    }
     if (choque) {
       refs.current.instructoraId?.focus();
       return;
@@ -270,7 +295,11 @@ export default function FormularioClase({
             etiqueta="Modalidad"
             value={v.tipo}
             onChange={(e) => set("tipo", e.target.value as TipoClase)}
-            ayuda="Al cambiarla se ajusta el aforo sugerido."
+            ayuda={
+              v.tipo === "Privada"
+                ? "Una privada se da en la sala que elijas."
+                : `Se da en la sala de ${v.tipo}.`
+            }
           >
             {TIPOS_CLASE.map((t) => (
               <option key={t} value={t}>
@@ -294,8 +323,8 @@ export default function FormularioClase({
             error={errores.cupos}
             ayuda={
               clase && clase.reservas > 0
-                ? `${numero(clase.reservas)} ya ${clase.reservas === 1 ? "reservó" : "reservaron"}.`
-                : "Cuántas personas caben en la sala."
+                ? `${numero(clase.reservas)} ya ${clase.reservas === 1 ? "reservó" : "reservaron"} · máximo ${numero(capacidad)}.`
+                : `Máximo ${numero(capacidad)}: es lo que cabe en la sala de ${sala}.`
             }
             autoComplete="off"
             ref={(el) => {
@@ -303,6 +332,23 @@ export default function FormularioClase({
             }}
           />
         </div>
+
+        {/* La sala solo se elige en una privada: Reformer y Mat van siempre en
+            la suya, y preguntarlo sería ofrecer un error. */}
+        {v.tipo === "Privada" && (
+          <CampoSelect
+            nombre="sala"
+            etiqueta="Sala"
+            value={v.sala}
+            onChange={(e) => set("sala", e.target.value as SalaId)}
+          >
+            {salas.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nombre}
+              </option>
+            ))}
+          </CampoSelect>
+        )}
 
         {/* Cuándo */}
         <div className="grid gap-4 sm:grid-cols-2">
@@ -326,7 +372,16 @@ export default function FormularioClase({
             etiqueta="Hora de inicio"
             value={v.horaInicio}
             onChange={(e) => set("horaInicio", e.target.value)}
+            /* La sala ocupada va AQUÍ: lo normal es arreglarlo cambiando la hora. */
+            error={
+              salaOcupada
+                ? `La sala de ${sala} está ocupada: ${salaOcupada.tipo} con ${salaOcupada.instructora} de ${salaOcupada.horaInicio} a ${salaOcupada.horaFin}.`
+                : errores.horaInicio
+            }
             ayuda="El estudio abre de 05:00 a 21:00."
+            ref={(el) => {
+              refs.current.horaInicio = el;
+            }}
           >
             {HORAS_CLASE.map((h) => (
               <option key={h} value={h}>
@@ -391,16 +446,6 @@ export default function FormularioClase({
             </option>
           ))}
         </CampoSelect>
-
-        {/* Aviso ámbar: no bloquea. Se calla si hay choque — dos mensajes sobre
-            el mismo horario compiten, y manda el que impide guardar. */}
-        {!choque && simultanea && (
-          <p className={AVISO}>
-            A esa hora ya hay {simultanea.tipo} con {simultanea.instructora} (
-            {simultanea.horaInicio}–{simultanea.horaFin}). Se puede, pero hacen
-            falta dos salas.
-          </p>
-        )}
 
         {errorEnvio && (
           <p role="alert" className="rounded-xl border border-[color-mix(in_srgb,var(--color-estado-grave)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-grave)_8%,transparent)] px-4 py-3 text-sm text-[var(--color-estado-grave)]">
