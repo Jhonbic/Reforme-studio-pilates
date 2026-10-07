@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useTransition } from "react";
 import Card from "@/components/admin/Card";
 import Modal from "@/components/admin/Modal";
@@ -9,7 +8,7 @@ import { copiarDiaHorario, guardarFranja } from "@/lib/admin/acciones";
 import { numero } from "@/lib/admin/format";
 import { finDe } from "@/lib/admin/horario";
 import type { FranjaHorario, MiembroEquipo, Sala } from "@/lib/admin/types";
-import GenerarClases from "./GenerarClases";
+import PestanasClases from "./PestanasClases";
 
 const BOTON =
   "control-fx relative inline-flex min-h-[44px] items-center gap-2 overflow-hidden rounded-full border border-verde/40 px-5 text-sm text-verde-700 transition-colors duration-300 hover:border-dorado hover:text-verde";
@@ -34,7 +33,7 @@ export const NOMBRES_DIA: Record<number, string> = {
  * momento (no hay «Guardar»): es una plantilla, no una clase con gente dentro.
  *
  * ⚠️ Una instructora no puede dar a la misma hora en las dos salas: en el
- * desplegable sale deshabilitada «· en la otra sala». Si no, «Generar» se
+ * desplegable sale deshabilitada «· en la otra sala». Si no, la agenda se
  * saltaría en silencio la segunda clase (la base no deja solaparla).
  */
 export default function PanelHorario({
@@ -42,15 +41,14 @@ export default function PanelHorario({
   instructoras,
   salas,
   puedeEditar,
-  hoy,
-  ahora,
+  semanas,
 }: {
   franjas: FranjaHorario[];
   instructoras: MiembroEquipo[];
   salas: Sala[];
   puedeEditar: boolean;
-  hoy: string;
-  ahora: string;
+  /** Cuántas semanas por delante mantiene la agenda (`ajustes`). */
+  semanas: number;
 }) {
   const { mostrarAviso } = useToast();
   const dias = [...new Set(franjas.map((f) => f.dia))].sort((a, b) => a - b);
@@ -58,7 +56,6 @@ export default function PanelHorario({
   const [guardando, setGuardando] = useState<string | null>(null);
   const [, iniciar] = useTransition();
   const [copiando, setCopiando] = useState(false);
-  const [generando, setGenerando] = useState(false);
 
   const nombreDe = (id: string | null) => instructoras.find((i) => i.id === id)?.nombre;
   const nombreSala = (id: string) => salas.find((s) => s.id === id)?.nombre ?? `Sala de ${id}`;
@@ -78,34 +75,37 @@ export default function PanelHorario({
     iniciar(async () => {
       const r = await guardarFranja(f.id, activa, instructoraId);
       setGuardando(null);
-      if (!r.ok) mostrarAviso(r.error, "error");
+      if (!r.ok) return mostrarAviso(r.error, "error");
+      /* Apagar no borra las clases que alguien ya reservó: se dice, porque
+         esas personas cuentan con su clase y alguien tiene que decidir. */
+      if (r.conReservas > 0)
+        mostrarAviso(
+          `${numero(r.conReservas)} ${r.conReservas === 1 ? "clase ya tenía" : "clases ya tenían"} reservas y se ${r.conReservas === 1 ? "queda" : "quedan"} en la agenda. Si no se van a dar, cancélalas allí y avisa a quienes reservaron.`,
+          "warning",
+        );
     });
   }
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-verde-300">
-          {numero(total.length)} {total.length === 1 ? "clase" : "clases"} por semana
-          {totalSin > 0 && (
-            <span className="text-[var(--color-estado-aviso)]">
-              {" "}
-              · ▲ {numero(totalSin)} sin instructora
-            </span>
-          )}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/admin/clases" className={BOTON}>
-            <span className="control-sheen control-sheen--lento" aria-hidden="true" />
-            Ver la agenda
-          </Link>
-          {puedeEditar && (
-            <button type="button" onClick={() => setGenerando(true)} className={BOTON_PRIMARIO}>
-              Generar clases
-            </button>
-          )}
-        </div>
-      </div>
+      <PestanasClases actual="/admin/clases/horario" />
+
+      {/* Lo que antes había que hacer a mano («Generar») ahora pasa solo: se
+          dice aquí, que es donde se toca el horario. */}
+      <p className="mt-4 text-sm text-verde-700">
+        {numero(total.length)} {total.length === 1 ? "clase" : "clases"} por semana
+        {totalSin > 0 && (
+          <span className="text-[var(--color-estado-aviso)]">
+            {" "}
+            · ▲ {numero(totalSin)} sin instructora (no salen en la agenda)
+          </span>
+        )}
+        <span className="text-verde-300">
+          {" "}
+          · La agenda sigue a este horario sola: siempre {numero(semanas)} semanas por delante, y
+          cada cambio pasa a las próximas clases.
+        </span>
+      </p>
 
       <Card densidad="plana" resalte={false} className="mt-4">
         {/* Días: pestañas con cuántas clases tiene cada uno. Mismo par de
@@ -247,9 +247,6 @@ export default function PanelHorario({
         />
       )}
 
-      {generando && (
-        <GenerarClases franjas={franjas} hoy={hoy} ahora={ahora} onCerrar={() => setGenerando(false)} />
-      )}
     </>
   );
 }

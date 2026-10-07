@@ -23,6 +23,25 @@ export type Database = {
   };
   public: {
     Tables: {
+      ajustes: {
+        Row: {
+          agenda_generada_hasta: string | null;
+          id: boolean;
+          semanas_por_delante: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          agenda_generada_hasta?: string | null;
+          id?: boolean;
+          semanas_por_delante?: number;
+        };
+        Update: {
+          agenda_generada_hasta?: string | null;
+          id?: boolean;
+          semanas_por_delante?: number;
+        };
+        Relationships: [];
+      };
       clases: {
         Row: {
           cancelada: boolean;
@@ -30,6 +49,7 @@ export type Database = {
           cupos: number;
           duracion_min: number;
           fecha: string;
+          franja_id: string | null;
           hora_inicio: string;
           id: string;
           instructora_id: string;
@@ -43,6 +63,7 @@ export type Database = {
           cupos: number;
           duracion_min: number;
           fecha: string;
+          franja_id?: string | null;
           hora_inicio: string;
           id?: string;
           instructora_id: string;
@@ -55,6 +76,7 @@ export type Database = {
           cupos?: number;
           duracion_min?: number;
           fecha?: string;
+          franja_id?: string | null;
           hora_inicio?: string;
           id?: string;
           instructora_id?: string;
@@ -62,6 +84,13 @@ export type Database = {
           tipo?: Database["public"]["Enums"]["tipo_clase"];
         };
         Relationships: [
+          {
+            foreignKeyName: "clases_franja_id_fkey";
+            columns: ["franja_id"];
+            isOneToOne: false;
+            referencedRelation: "horario_semanal";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "clases_instructora_id_fkey";
             columns: ["instructora_id"];
@@ -593,20 +622,25 @@ export type Database = {
         Returns: number;
       };
       copiar_dia_horario: { Args: { p_desde: number; p_dias: number[] }; Returns: number };
+      crear_clases_de_horario: {
+        Args: { p_desde: string; p_franja?: string; p_hasta: string };
+        Returns: number;
+      };
+      disponibles_para: {
+        Args: { p_fecha: string; p_tipo: Database["public"]["Enums"]["tipo_clase"] };
+        Returns: {
+          cliente_id: string;
+          disponibles: number;
+        }[];
+      };
       es_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       es_mostrador: { Args: Record<PropertyKey, never>; Returns: boolean };
       estado_de_membresia: {
         Args: { p_hoy?: string; p_ultima_asistencia: string; p_vencimiento: string };
         Returns: Database["public"]["Enums"]["estado_membresia"];
       };
-      generar_clases: {
-        Args: { p_desde: string; p_hasta: string };
-        Returns: {
-          creadas: number;
-          sin_instructora: number;
-          ya_estaban: number;
-        }[];
-      };
+      extender_agenda: { Args: Record<PropertyKey, never>; Returns: number };
+      extender_agenda_interna: { Args: Record<PropertyKey, never>; Returns: number };
       marcar_asistencia: {
         Args: { p_asistencia: Database["public"]["Enums"]["asistencia"]; p_reserva: string };
         Returns: undefined;

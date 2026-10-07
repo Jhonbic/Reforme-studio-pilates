@@ -732,6 +732,8 @@ function revalidarAgenda() {
   revalidatePath("/admin/clases");
   // El dashboard enseña las reservas por día de la semana.
   revalidatePath("/admin");
+  // La ficha del cliente enseña su saldo y sus próximas clases.
+  revalidatePath("/admin/usuarios", "layout");
 }
 
 /**
@@ -879,6 +881,29 @@ export async function reservar(claseId: string, clienteId: string): Promise<Resu
   return { ok: true };
 }
 
+/**
+ * Cuántas clases le quedan a cada cliente para el día y la modalidad de una
+ * clase (`disponibles_para`). La pide el buscador de «Apuntar a» al abrirse:
+ * así recepción ve «le quedan 2 de Mat» antes de pulsar, y no después del
+ * error. Una privada no descuenta: devuelve `null`.
+ */
+export async function disponiblesParaClase(
+  claseId: string,
+): Promise<{ ok: true; disponibles: Record<string, number> | null } | { ok: false; error: string }> {
+  const prohibido = await soloMostrador();
+  if (prohibido) return { ok: false, error: prohibido };
+  if (!UUID_VALIDO.test(claseId)) return { ok: false, error: "Clase no válida." };
+
+  const supabase = await crearClienteServidor();
+  const { data: clase } = await supabase.from("clases").select("fecha, tipo").eq("id", claseId).maybeSingle();
+  if (!clase) return { ok: false, error: "La clase ya no existe." };
+  if (clase.tipo === "Privada") return { ok: true, disponibles: null };
+
+  const { data, error } = await supabase.rpc("disponibles_para", { p_fecha: clase.fecha, p_tipo: clase.tipo });
+  if (error) return { ok: false, error: `No se pudo leer el saldo: ${error.message}` };
+  return { ok: true, disponibles: Object.fromEntries(data.map((d) => [d.cliente_id, d.disponibles])) };
+}
+
 /** Quita una reserva y libera el cupo. */
 export async function quitarReserva(reservaId: string): Promise<ResultadoClase> {
   const prohibido = await soloMostrador();
@@ -941,12 +966,16 @@ function revalidarHorario() {
   revalidatePath("/admin/clases", "layout");
 }
 
-/** Enciende o apaga una franja y le pone (o quita) instructora. */
+/**
+ * Enciende o apaga una franja y le pone (o quita) instructora. La base
+ * (trigger `horario_sincroniza_clases`) lleva el cambio a las próximas clases.
+ * Devuelve cuántas próximas clases con reservas se quedaron sin poder quitar.
+ */
 export async function guardarFranja(
   id: string,
   activa: boolean,
   instructoraId: string | null,
-): Promise<ResultadoClase> {
+): Promise<{ ok: true; conReservas: number } | { ok: false; error: string }> {
   const prohibido = await soloMostrador();
   if (prohibido) return { ok: false, error: prohibido };
   if (!UUID_VALIDO.test(id) || (instructoraId !== null && !UUID_VALIDO.test(instructoraId)))
@@ -959,8 +988,20 @@ export async function guardarFranja(
     .eq("id", id);
   if (error) return { ok: false, error: `No se pudo guardar el horario: ${error.message}` };
   if (count === 0) return { ok: false, error: "Esa franja ya no existe." };
+
+  // Apagada (o sin instructora), lo que sigue en la agenda es lo que tenía reservas.
+  let conReservas = 0;
+  if (!activa || !instructoraId) {
+    const { count: quedan } = await supabase
+      .from("clases")
+      .select("id", { count: "exact", head: true })
+      .eq("franja_id", id)
+      .eq("cancelada", false)
+      .gte("fecha", hoyEnBogota());
+    conReservas = quedan ?? 0;
+  }
   revalidarHorario();
-  return { ok: true };
+  return { ok: true, conReservas };
 }
 
 /** Copia lo encendido de un día (y quién lo da) a otros días. */
@@ -979,34 +1020,6 @@ export async function copiarDiaHorario(
   if (error) return { ok: false, error: `No se pudo copiar el día: ${error.message}` };
   revalidarHorario();
   return { ok: true, cambiadas: data };
-}
-
-/**
- * Crea las clases del horario entre dos fechas. La base decide todo
- * (`generar_clases`): solo franjas encendidas con instructora, nada en el
- * pasado y nada repetido, así que se puede lanzar otra vez sin miedo.
- */
-export async function generarClases(
-  desde: string,
-  hasta: string,
-): Promise<
-  | { ok: true; creadas: number; yaEstaban: number; sinInstructora: number }
-  | { ok: false; error: string }
-> {
-  const prohibido = await soloMostrador();
-  if (prohibido) return { ok: false, error: prohibido };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))
-    return { ok: false, error: "Fechas no válidas." };
-
-  const supabase = await crearClienteServidor();
-  const { data, error } = await supabase.rpc("generar_clases", { p_desde: desde, p_hasta: hasta });
-  if (error) {
-    if (error.code === "P0001" || error.code === "42501") return { ok: false, error: error.message };
-    return { ok: false, error: `No se pudieron generar las clases: ${error.message}` };
-  }
-  const r = data[0];
-  revalidarAgenda();
-  return { ok: true, creadas: r.creadas, yaEstaban: r.ya_estaban, sinInstructora: r.sin_instructora };
 }
 
 /* ======================================================================

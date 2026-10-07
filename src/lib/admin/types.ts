@@ -212,6 +212,28 @@ export type ReservaEnClase = {
   asistencia: Asistencia | null;
 };
 
+/** Una clase próxima que se le puede ofrecer a un cliente desde su ficha. */
+export type ClaseParaReservar = {
+  id: string;
+  tipo: TipoClase;
+  sala: SalaId;
+  fecha: string;
+  horaInicio: string;
+  horaFin: string;
+  instructora: string;
+  libres: number;
+  /** Ese cliente ya está apuntado. */
+  yaReservada: boolean;
+};
+
+/** Una membresía con lo que le queda: para saber si alcanza para una fecha. */
+export type MembresiaConSaldo = {
+  inicio: string;
+  vencimiento: string;
+  reformer: number;
+  mat: number;
+};
+
 /** Una clase en el historial de la ficha de un cliente. */
 export type ClaseDelCliente = {
   reservaId: string;

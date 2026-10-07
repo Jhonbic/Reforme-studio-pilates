@@ -8,11 +8,14 @@ import AsignarPlan from "@/components/admin/usuarios/AsignarPlan";
 import Avatar from "@/components/admin/usuarios/Avatar";
 import EstadoBadge from "@/components/admin/usuarios/EstadoBadge";
 import HistorialClases from "@/components/admin/usuarios/HistorialClases";
+import ReservarClaseCliente from "@/components/admin/usuarios/ReservarClaseCliente";
 import { documento, fecha, moneda } from "@/lib/admin/format";
 import { horaEnBogota, hoyEnBogota } from "@/lib/admin/horario";
 import {
   getCliente,
+  getClasesParaReservar,
   getHistorialClases,
+  getMembresiasConSaldo,
   getPlanesALaVenta,
   getSaldoCliente,
   getUsuarioActual,
@@ -86,9 +89,14 @@ export default async function FichaClientePage({
   // se le enseña un botón que acabaría en «no tienes permiso».
   const puedeCobrar =
     usuario?.rol === "Administración" || usuario?.rol === "Recepción";
-  const [planes, accesoWeb] = puedeCobrar
-    ? await Promise.all([getPlanesALaVenta(), tieneAccesoWeb(id)])
-    : [[], false];
+  const [planes, accesoWeb, clasesParaReservar, membresias] = puedeCobrar
+    ? await Promise.all([
+        getPlanesALaVenta(),
+        tieneAccesoWeb(id),
+        cliente ? getClasesParaReservar(cliente.id, hoyEnBogota(), horaEnBogota()) : [],
+        cliente ? getMembresiasConSaldo(cliente.id) : [],
+      ])
+    : [[], false, [], []];
 
   /* Un id que no existe es un 404 de verdad, no una tarjeta vacía: la ficha de
      alguien que no está no es «sin datos», es otra dirección. */
@@ -124,6 +132,16 @@ export default async function FichaClientePage({
                 nombre={cliente.nombre}
                 vencimiento={cliente.vencimiento}
                 planes={planes}
+                hoy={hoyEnBogota()}
+              />
+            )}
+            {/* Reservar parte de la PERSONA: «resérvame el jueves a las 7». */}
+            {puedeCobrar && (
+              <ReservarClaseCliente
+                clienteId={cliente.id}
+                nombre={cliente.nombre}
+                clases={clasesParaReservar}
+                membresias={membresias}
                 hoy={hoyEnBogota()}
               />
             )}

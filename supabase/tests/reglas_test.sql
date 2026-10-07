@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(50);
+select plan(51);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -319,41 +319,68 @@ select lives_ok(
   'recepción o administración corrigen una marca');
 reset role;
 
--- Horario semanal y «Generar clases» -------------------------------------------
--- En local la semilla enciende franjas: se apagan todas y se encienden solo
--- las del test. Lunes 07:00 en las dos salas con LA MISMA instructora (la
--- segunda choca con la primera) y lunes 08:00 de Mat sin instructora.
+-- Agenda automática: el horario manda ------------------------------------------
+-- Se despeja lo de hoy en adelante (en local la semilla tiene agenda) y la
+-- agenda se fija hasta dentro de 13 días. La franja de prueba: mañana, 07:00,
+-- sala de Reformer → dentro de la ventana caen mañana y dentro de 8 días.
+set local request.jwt.claims to '{}';
 update horario_semanal set activa = false, instructora_id = null;
-update horario_semanal set activa = true, instructora_id = '00000000-0000-0000-0000-0000000000e1'
-  where dia = 1 and hora_inicio = '07:00';
-update horario_semanal set activa = true where dia = 1 and hora_inicio = '08:00' and sala = 'Mat';
+delete from reservas where clase_id in (select id from clases where fecha >= current_date);
+delete from clases where fecha >= current_date;
+update ajustes set agenda_generada_hasta = current_date + 13;
 
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select results_eq(
-  $$select creadas, ya_estaban, sin_instructora from generar_clases('2031-04-07', '2031-04-13')$$,
-  $$values (1, 1, 1)$$,
-  'genera la franja con instructora; la que choca con ella no y la que no tiene instructora tampoco');
-select results_eq(
-  $$select creadas, ya_estaban, sin_instructora from generar_clases('2031-04-07', '2031-04-13')$$,
-  $$values (0, 2, 1)$$,
-  'generar otra vez no duplica nada');
+update horario_semanal set activa = true, instructora_id = '00000000-0000-0000-0000-0000000000e1'
+  where dia = extract(isodow from current_date + 1) and hora_inicio = '07:00' and sala = 'Reformer';
 select is(
-  (select sala || ' · ' || tipo || ' · ' || cupos from clases where fecha = '2031-04-07' and hora_inicio = '07:00'),
-  'Reformer · Reformer · 8',
-  'la clase generada toma la modalidad de su sala y su aforo');
-select throws_ok(
-  $$select * from generar_clases('2031-04-07', '2031-08-01')$$,
-  'P0001', 'Como mucho, tres meses de una vez.',
-  'no se generan más de tres meses de una vez');
+  (select count(*)::int from clases c join horario_semanal h on h.id = c.franja_id
+    where h.dia = extract(isodow from current_date + 1) and h.hora_inicio = '07:00' and h.sala = 'Reformer'),
+  2, 'encender una franja crea sus clases hasta donde llega la agenda');
+
+update horario_semanal set instructora_id = '00000000-0000-0000-0000-0000000000e2'
+  where dia = extract(isodow from current_date + 1) and hora_inicio = '07:00' and sala = 'Reformer';
+select is(
+  (select count(*)::int from clases where franja_id is not null and instructora_id = '00000000-0000-0000-0000-0000000000e2'),
+  2, 'cambiar la instructora de la franja la cambia en sus próximas clases');
+reset role;
+
+-- Alguien reserva la de mañana; luego se apaga la franja.
+set local request.jwt.claims to '{}';
+insert into reservas (clase_id, cliente_id)
+  select id, '00000000-0000-0000-0000-0000000000d2' from clases
+  where franja_id is not null and fecha = current_date + 1;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+update horario_semanal set activa = false
+  where dia = extract(isodow from current_date + 1) and hora_inicio = '07:00' and sala = 'Reformer';
+select results_eq(
+  $$select fecha from clases where franja_id is not null$$,
+  $$values (current_date + 1)$$,
+  'apagar la franja borra las clases que nadie reservó y deja la reservada');
+
+update horario_semanal set activa = true
+  where dia = extract(isodow from current_date + 1) and hora_inicio = '07:00' and sala = 'Reformer';
+select is(
+  (select count(*)::int from clases where franja_id is not null), 2,
+  'volver a encenderla no duplica la que se quedó');
+
+delete from clases where franja_id is not null and fecha = current_date + 8;
+select extender_agenda();
+-- Rellenar solo añade lo NUEVO (de 14 días en adelante): lo ya generado no se
+-- toca, y por eso la del día 8, borrada a mano, no vuelve.
+select is(
+  (select count(*)::int from clases where franja_id is not null and fecha <= current_date + 13), 1,
+  'una clase borrada a mano no vuelve al rellenar la agenda');
 reset role;
 
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
 select throws_ok(
-  $$select * from generar_clases('2031-04-14', '2031-04-20')$$,
+  $$select extender_agenda()$$,
   '42501', null,
-  'un cliente no genera clases');
+  'un cliente no rellena la agenda');
 reset role;
 
 select * from finish();

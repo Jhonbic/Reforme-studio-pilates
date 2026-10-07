@@ -112,11 +112,6 @@ export const SECCIONES: Seccion[] = [
 export type Subseccion = { label: string; volverA: string; volverLabel: string };
 
 export const SUBSECCIONES: Record<string, Subseccion> = {
-  "/admin/clases/horario": {
-    label: "Horario semanal",
-    volverA: "/admin/clases",
-    volverLabel: "Clases",
-  },
   "/admin/usuarios/nuevo": {
     label: "Nuevo cliente",
     volverA: "/admin/usuarios",

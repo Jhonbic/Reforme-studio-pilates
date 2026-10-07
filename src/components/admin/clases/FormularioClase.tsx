@@ -56,6 +56,7 @@ export default function FormularioClase({
   abierto,
   clase,
   fechaPorDefecto,
+  propuesta,
   hoy,
   instructoras,
   salas,
@@ -68,6 +69,8 @@ export default function FormularioClase({
   clase?: ClaseEnAgenda;
   /** El día que se está mirando en la agenda: es el que se propone al crear. */
   fechaPorDefecto: string;
+  /** Hueco de la rejilla desde el que se abrió: hora y sala ya puestas. */
+  propuesta?: { horaInicio: string; sala: SalaId };
   hoy: string;
   instructoras: MiembroEquipo[];
   /** Las dos salas y su aforo (tabla `salas`). */
@@ -80,17 +83,18 @@ export default function FormularioClase({
   const esNueva = clase === undefined;
 
   function vacia(fecha: string): BorradorClase {
+    const sala = propuesta?.sala ?? "Reformer";
     return {
-      tipo: "Reformer",
-      sala: "Reformer",
+      tipo: sala,
+      sala,
       fecha,
-      horaInicio: "07:00",
+      horaInicio: propuesta?.horaInicio ?? "07:00",
       duracionMin: 50,
       /* Vacío a propósito y sin preseleccionar a la primera instructora: quién
          da la clase es una decisión, y un desplegable ya relleno se acepta sin
          mirarlo. */
       instructoraId: "",
-      cupos: CUPOS_SUGERIDOS.Reformer,
+      cupos: CUPOS_SUGERIDOS[sala],
     };
   }
 
@@ -122,7 +126,7 @@ export default function FormularioClase({
   /* Resincroniza al cambiar de clase (o al pasar de editar a crear). Sin esto,
      abrir «editar las 07:00», cerrar y pulsar «Nueva clase» enseñaría los datos
      de la primera. Mismo patrón que `FormularioPlan`. */
-  const claveActual = `${clase?.id ?? "nueva"}|${fechaPorDefecto}`;
+  const claveActual = `${clase?.id ?? "nueva"}|${fechaPorDefecto}|${propuesta?.horaInicio ?? ""}|${propuesta?.sala ?? ""}`;
   const [ultimaClave, setUltimaClave] = useState(claveActual);
   if (claveActual !== ultimaClave) {
     setUltimaClave(claveActual);

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import Card from "@/components/admin/Card";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
@@ -8,11 +7,15 @@ import { cancelarClase, eliminarClase } from "@/lib/admin/acciones";
 import { useToast } from "@/context/ToastContext";
 import { numero } from "@/lib/admin/format";
 import { diaLargo, diaRelativo } from "@/lib/admin/horario";
-import type { ClaseEnAgenda, MiembroEquipo, Sala } from "@/lib/admin/types";
-import FilaClase from "./FilaClase";
+import type { ClaseEnAgenda, MiembroEquipo, Sala, SalaId } from "@/lib/admin/types";
 import FormularioClase from "./FormularioClase";
+import PestanasClases from "./PestanasClases";
 import ReservasClase, { type ClienteParaReservar } from "./ReservasClase";
 import SelectorDia from "./SelectorDia";
+import TarjetaClase from "./TarjetaClase";
+
+/** La rejilla del día: hora + una columna por sala. Cabecera y filas la comparten. */
+const REJILLA = "md:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)]";
 
 const BOTON =
   "control-fx relative inline-flex min-h-[44px] items-center gap-2 overflow-hidden rounded-full border border-verde/40 px-5 text-sm text-verde-700 transition-colors duration-300 hover:border-dorado hover:text-verde";
@@ -23,7 +26,12 @@ const SELECT =
 const TODAS = "Todas";
 
 /**
- * Agenda del estudio: un día a la vez.
+ * Agenda del estudio: un día a la vez, en una rejilla hora × sala.
+ *
+ * ⚠️ **Rejilla y no lista** (oct 2026): con dos salas, la lista mezclaba las
+ * clases de Reformer y de Mat y no se veía qué sala quedaba libre a cada hora.
+ * Ahora tiene el mismo dibujo que el horario semanal, y un hueco libre se
+ * programa desde ahí mismo («+ Programar aquí», con hora y sala ya puestas).
  *
  * ⚠️ **Un día y no un mes.** Un calendario mensual enseña 30 casillas donde no
  * cabe ni la hora ni quién da la clase, que es justo lo que hay que ver; y con
@@ -65,6 +73,7 @@ export default function PanelClases({
   const [formAbierto, setFormAbierto] = useState(false);
   /* `undefined` = alta. La clase concreta = edición. */
   const [editando, setEditando] = useState<ClaseEnAgenda | undefined>();
+  const [propuesta, setPropuesta] = useState<{ horaInicio: string; sala: SalaId } | undefined>();
   const [quitando, setQuitando] = useState<ClaseEnAgenda | null>(null);
 
   const filtrada =
@@ -89,10 +98,18 @@ export default function PanelClases({
   const relativo = diaRelativo(dia, hoy);
   const largo = diaLargo(dia);
 
-  function abrirAlta() {
+  function abrirAlta(hueco?: { horaInicio: string; sala: SalaId }) {
     setEditando(undefined);
+    setPropuesta(hueco);
     setFormAbierto(true);
   }
+
+  /* Las horas del día: las de sus clases, en orden. Un hueco de una sala solo
+     existe donde la otra tiene clase a esa hora; para lo demás, «Nueva clase». */
+  const horas = [...new Set(delDia.map((c) => c.horaInicio))].sort();
+  /* Programar en un hueco solo tiene sentido viendo la agenda entera de un
+     día que no ha pasado: con un filtro puesto, el hueco puede no estarlo. */
+  const huecosProgramables = puedeEditar && instructora === TODAS && dia >= hoy;
 
   function abrirEdicion(c: ClaseEnAgenda) {
     setEditando(c);
@@ -104,20 +121,11 @@ export default function PanelClases({
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-verde-300">
-          {vivas.length === 0
-            ? "Sin clases programadas"
-            : `${numero(vivas.length)} ${vivas.length === 1 ? "clase" : "clases"} · ${numero(reservas)} de ${numero(cupos)} cupos reservados`}
-        </p>
+        <PestanasClases actual="/admin/clases" />
 
         <div className="flex flex-wrap gap-2">
-          {/* El horario que se repite: de ahí salen las clases de cada semana. */}
-          <Link href="/admin/clases/horario" className={BOTON}>
-            <span className="control-sheen control-sheen--lento" aria-hidden="true" />
-            Horario semanal
-          </Link>
           {puedeEditar && (
-            <button type="button" onClick={abrirAlta} className={BOTON}>
+            <button type="button" onClick={() => abrirAlta()} className={BOTON}>
               {/* `--lento` (1 s) porque es un botón de cabecera: en un control de
               ~150px, a 0,55 s el barrido termina antes de que el ojo lo
               registre. Va en el `<span>`, que es donde lo ponen «Exportar» y
@@ -148,6 +156,11 @@ export default function PanelClases({
               <p className="text-xs uppercase tracking-wider text-dorado-dark">{relativo}</p>
             )}
             <h2 className="font-display text-xl text-verde first-letter:uppercase">{largo}</h2>
+            <p className="text-sm text-verde-300">
+              {vivas.length === 0
+                ? "Sin clases programadas"
+                : `${numero(vivas.length)} ${vivas.length === 1 ? "clase" : "clases"} · ${numero(reservas)} de ${numero(cupos)} cupos reservados`}
+            </p>
           </div>
 
           <div>
@@ -189,7 +202,7 @@ export default function PanelClases({
               puedeEditar && (
                 <button
                   type="button"
-                  onClick={abrirAlta}
+                  onClick={() => abrirAlta()}
                   className="mt-5 inline-flex min-h-[44px] items-center rounded-full border border-verde/40 px-5 text-sm text-verde transition-colors duration-300 hover:border-verde hover:bg-verde hover:text-arena"
                 >
                   Programar una clase
@@ -206,19 +219,74 @@ export default function PanelClases({
             )}
           </div>
         ) : (
-          <ul>
-            {delDia.map((c) => (
-              <FilaClase
-                key={c.id}
-                clase={c}
-                puedeEditar={puedeEditar}
-                miEquipoId={miEquipoId}
-                onEditar={() => abrirEdicion(c)}
-                onQuitar={() => setQuitando(c)}
-                onReservas={() => setViendo(c.id)}
-              />
-            ))}
-          </ul>
+          <>
+            {/* Rótulos de columna, solo en escritorio: en móvil las salas se
+                apilan y cada tarjeta dice la suya. `aria-hidden` porque esto
+                no es una tabla: la sala va dentro de cada tarjeta para el
+                lector de pantalla. */}
+            <div
+              aria-hidden="true"
+              className={`hidden gap-4 px-5 pt-4 text-xs font-bold uppercase tracking-[0.14em] text-verde-300 md:grid ${REJILLA}`}
+            >
+              <span>Hora</span>
+              {salas.map((s) => (
+                <span key={s.id}>{s.nombre}</span>
+              ))}
+            </div>
+            <ul className="mt-2">
+              {horas.map((h) => (
+                <li
+                  key={h}
+                  className={`grid gap-3 border-t border-beige px-4 py-4 sm:px-5 md:gap-4 ${REJILLA}`}
+                >
+                  <p className="font-cifra text-lg text-verde md:pt-3">{h}</p>
+                  {salas.map((s) => {
+                    const aqui = delDia.filter((c) => c.horaInicio === h && c.sala === s.id);
+                    if (aqui.length > 0)
+                      return (
+                        <div key={s.id} className="flex flex-col gap-3">
+                          {aqui.map((c) => (
+                            <TarjetaClase
+                              key={c.id}
+                              clase={c}
+                              puedeEditar={puedeEditar}
+                              miEquipoId={miEquipoId}
+                              onEditar={() => abrirEdicion(c)}
+                              onQuitar={() => setQuitando(c)}
+                              onReservas={() => setViendo(c.id)}
+                            />
+                          ))}
+                        </div>
+                      );
+                    /* Hueco libre. En móvil solo se enseña si se puede
+                       programar: una tarjeta vacía apilada no dice nada. */
+                    return huecosProgramables ? (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => abrirAlta({ horaInicio: h, sala: s.id })}
+                        aria-label={`Programar una clase en la ${s.nombre.toLowerCase()} a las ${h}`}
+                        className="flex min-h-[64px] items-center justify-center gap-2 rounded-xl border border-dashed border-beige text-sm text-verde-300 transition-colors duration-300 hover:border-dorado hover:bg-arena/50 hover:text-verde"
+                      >
+                        <span aria-hidden="true">+</span>
+                        <span>
+                          Programar aquí<span className="md:hidden"> · {s.nombre}</span>
+                        </span>
+                      </button>
+                    ) : (
+                      <div
+                        key={s.id}
+                        aria-hidden="true"
+                        className="hidden min-h-[64px] items-center justify-center rounded-xl border border-dashed border-beige text-sm text-verde-300 md:flex"
+                      >
+                        Libre
+                      </div>
+                    );
+                  })}
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </Card>
 
@@ -228,6 +296,7 @@ export default function PanelClases({
         /* No se propone un día que ya pasó: mirando el lunes de la semana
            pasada, «Nueva clase» abre en hoy y no en un día imposible. */
         fechaPorDefecto={dia < hoy ? hoy : dia}
+        propuesta={propuesta}
         hoy={hoy}
         instructoras={instructoras}
         salas={salas}

@@ -70,7 +70,7 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
 | `npm test` | **Vitest**, 58 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 50 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm run test:db` | **pgTAP**, 51 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -1471,6 +1471,12 @@ del estudio).
 
 #### Horario semanal (`/admin/clases/horario`) — oct 2026, paso 4
 
+> ✅ **Desde la migración `20261010120000_agenda_automatica` ya no hay
+> «Generar clases»**: la agenda sigue al horario sola (ver «Clases más
+> intuitivas» justo debajo). Lo que se cuenta aquí de `generar_clases` y del
+> diálogo es historia; la tabla, la pantalla de franjas y «Copiar este día a…»
+> siguen igual.
+
 Migración `20261009120000_horario_semanal`. El horario del estudio (imágenes
 del 8 oct 2026): **lunes a viernes 07, 08, 09, 10 · pausa · 15, 16, 17, 18 y
 19 h; sábado de 08 a 15 h; clases de 50 min; domingo cerrado.**
@@ -1506,6 +1512,63 @@ del 8 oct 2026): **lunes a viernes 07, 08, 09, 10 · pausa · 15, 16, 17, 18 y
   `../respaldo-reforme-ngjy-2026-10-08-agenda/`. La agenda queda vacía hasta
   que el estudio encienda franjas, asigne instructoras y genere.
 - 5 tests nuevos en `reglas_test.sql` (50).
+
+#### Clases más intuitivas (oct 2026)
+
+Feedback del usuario: «lo de las clases aún no es muy intuitivo». Tres
+cambios, en la migración `20261010120000_agenda_automatica` y en la agenda:
+
+**1. La agenda sigue al horario sola** (sin «Generar»).
+- Tabla **`ajustes`** (una fila; aquí irán los de Configuración):
+  `semanas_por_delante` (4) y `agenda_generada_hasta`.
+- **`extender_agenda_interna()`** crea las clases del horario SOLO de los días
+  nuevos (de `agenda_generada_hasta + 1` a hoy + 4 semanas) y mueve la marca.
+  ⚠️ Por eso **una clase borrada a mano no vuelve**. La llaman un **cron
+  diario** (`pg_cron`, 08:00 UTC = 03:00 Bogotá) y la página de la agenda al
+  abrirse (`extender_agenda()`, solo equipo), por si el cron fallara.
+- Cada clase generada guarda su **`franja_id`**, con un único `(franja_id,
+  fecha)`: una cancelada sigue ocupando su franja ese día y no se duplica.
+- **Trigger `horario_sincroniza_clases`**: al cambiar una franja, sus clases
+  que no han empezado la siguen. Instructora nueva → se cambia, una a una (un
+  choque ese día deja la anterior). Apagada o sin instructora → se borran las
+  que nadie reservó; **las reservadas se quedan** y la pantalla avisa de
+  cuántas («cancélalas allí y avisa»). Encendida → se crean hasta donde llega
+  la agenda.
+- Funciones internas (`crear_clases_de_horario`, `extender_agenda_interna`)
+  con EXECUTE revocado a todos, `authenticated` incluido.
+- **Pestañas Agenda · Horario semanal** (`PestanasClases`, enlaces con
+  `aria-current`, no `role="tab"`: son rutas). El horario dejó de ser
+  subsección con «← Clases».
+
+**2. La agenda del día es una rejilla hora × sala** (`TarjetaClase`, sustituye
+a `FilaClase`). Columnas Sala de Reformer | Sala de Mat, el mismo dibujo que el
+horario. Un hueco libre de un día que no ha pasado es **«+ Programar aquí»**:
+abre el formulario con la hora y la sala puestas (prop `propuesta`). Con el
+filtro de instructora puesto no se ofrecen huecos (pueden no estarlo). El
+botón principal de cada tarjeta es **«Reservas» / «Asistencia»**, ya no un
+enlace diminuto. En móvil se apilan y los huecos vacíos no programables no
+se pintan.
+
+**3. Reservar por un cliente**, en los dos sentidos:
+- En la clase, **«Apuntar a alguien» es un buscador** por nombre o cédula
+  (`BuscadorApuntar`), no un desplegable con todos. Cada resultado dice **«Le
+  quedan 2 de Mat»**, «Sin clases de Mat» o «Sin plan ese día» (botón
+  apagado) ANTES de pulsar. Lo calcula la base: **`disponibles_para(fecha,
+  tipo)`**, la misma cuenta que el trigger de descuento.
+- En la ficha, **«Reservar clase»** (`ReservarClaseCliente`, solo mostrador):
+  días de las próximas 2 semanas con cuántas puede reservar, y las clases de
+  cada día con «Reservar» o el motivo («✓ Ya reservada», «Llena», «Sin clases
+  de Reformer», «Sin plan ese día»). Parte de la persona: «resérvame el jueves
+  a las 7». Las acciones de reservas revalidan también la ficha.
+
+Verificado en el navegador (escritorio y móvil, sin desplazamiento lateral) y
+con 6 tests nuevos de base que sustituyen a los de «Generar» (51).
+
+⚠️ **Producción (7 oct 2026)**: al aplicar la migración ya había 5 franjas
+encendidas (L–V 07:00, Reformer, con una instructora de ejemplo) y 59 clases
+generadas con el «Generar» antiguo hasta el 29 dic, **sin `franja_id`**. Se
+enlazaron a su franja a mano (mismo día, hora, sala y duración) para que los
+cambios del horario les lleguen. Queda suelta una clase manual del 6 oct.
 
 #### Planes (`/admin/planes`) — desde Supabase, oct 2026
 
@@ -1733,7 +1796,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **16 migraciones, todas aplicadas en local y en remoto** |
+| Esquema | `supabase/migrations/` — **17 migraciones, todas aplicadas en local y en remoto** |
 
 ### Variables de entorno
 
@@ -1885,8 +1948,8 @@ de repetir:
       `catalogos.ts`. Reformer y Mat están confirmadas por sus planes;
       «Privada» sigue siendo una suposición.
 - [ ] **Armar el horario real** en «Horario semanal»: encender las franjas
-      que se usan, asignar instructoras (antes, dar de alta al equipo real) y
-      «Generar clases». La agenda de ejemplo ya se borró.
+      que se usan y asignar instructoras (antes, dar de alta al equipo real).
+      La agenda se rellena sola. La agenda de ejemplo ya se borró.
 - [ ] **`public/terminos-y-condiciones.pdf`** no existe: el alta de cliente
       enlaza ahí → 404 en un documento legal. Lo aporta el estudio.
 
@@ -1936,8 +1999,11 @@ y el aviso de «pocas clases» del 7.
 
 - [x] ~~Agenda de clases en la base~~ — hecho en el paso 9 (ver §6, Clases).
 - [x] ~~Plantilla semanal del horario~~ — «Horario semanal» (ver §6).
-- [ ] **Días festivos**: «Generar» no los conoce; hoy se cancelan o eliminan
-      a mano las clases de ese día.
+- [ ] **Días festivos**: la agenda automática no los conoce; hoy se
+      eliminan a mano las clases de ese día (no vuelven).
+- [ ] **Vista «Hoy» para pasar lista** (las clases del día con su gente y
+      los botones de asistencia, en una pantalla) y, para la instructora,
+      «Mis clases» como entrada.
 - [ ] **Avisar a quien tenía reservada una clase cancelada**: hoy hay que
       llamar a mano (la lista está en «Quién reservó»).
 - [x] ~~Registro de asistencias~~ — hecho (ver §6, Asistencia).

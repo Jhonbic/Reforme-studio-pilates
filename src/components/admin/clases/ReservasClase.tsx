@@ -2,28 +2,23 @@
 
 import { useState, useTransition } from "react";
 import Modal from "@/components/admin/Modal";
-import CampoSelect from "@/components/admin/campos/CampoSelect";
 import { useToast } from "@/context/ToastContext";
 import { marcarAsistencia, quitarReserva, reservar } from "@/lib/admin/acciones";
 import { puedeMarcarAsistencia, resumenAsistencia } from "@/lib/admin/asistencia";
 import { numero } from "@/lib/admin/format";
 import type { Asistencia, ClaseEnAgenda, EstadoMembresia } from "@/lib/admin/types";
+import BuscadorApuntar from "./BuscadorApuntar";
 
-const BOTON_PRIMARIO =
-  "inline-flex min-h-[44px] items-center justify-center rounded-full bg-dorado px-5 text-sm font-medium text-verde-900 transition-colors duration-300 hover:bg-dorado-dark disabled:opacity-60";
 const QUITAR =
   "inline-flex min-h-[44px] items-center rounded-full px-4 text-sm text-[var(--color-estado-grave)] transition-colors duration-300 hover:bg-[color-mix(in_srgb,var(--color-estado-grave)_8%,transparent)] disabled:opacity-60";
 
 export type ClienteParaReservar = {
   id: string;
   nombre: string;
+  /** Solo dígitos: para buscar por cédula. */
+  identificacion: string;
   estado: EstadoMembresia;
 };
-
-/** Estados sin plan vigente HOY. Desde que cada reserva descuenta una clase
- *  del plan (oct 2026), la base no deja apuntarlos a Reformer ni a Mat: se
- *  avisa antes de pulsar para no estrellarse contra el error. */
-const SIN_PLAN_VIGENTE: EstadoMembresia[] = ["Vencida", "Sin plan"];
 
 /** El botón «Asistió» / «No vino». Encendido lleva símbolo + color: nunca
  *  solo color, como `EstadoBadge`. */
@@ -67,7 +62,6 @@ export default function ReservasClase({
   onCerrar: () => void;
 }) {
   const { mostrarAviso } = useToast();
-  const [elegido, setElegido] = useState("");
   const [error, setError] = useState("");
   const [enCurso, iniciar] = useTransition();
 
@@ -77,23 +71,20 @@ export default function ReservasClase({
   const editable = puedeEditar && (clase.estado === "Programada" || clase.estado === "Llena");
   const apuntados = new Set(clase.reservados.map((r) => r.clienteId));
   const disponibles = clientes.filter((c) => !apuntados.has(c.id));
-  const cliente = clientes.find((c) => c.id === elegido);
   const marcable = puedeMarcarAsistencia(clase, puedeEditar, miEquipoId);
   const resumen = resumenAsistencia(clase.reservados);
 
   function cerrar() {
-    setElegido("");
     setError("");
     onCerrar();
   }
 
-  function apuntar() {
-    if (!clase || !cliente) return;
+  function apuntar(cliente: ClienteParaReservar) {
+    if (!clase) return;
     setError("");
     iniciar(async () => {
       const r = await reservar(clase.id, cliente.id);
       if (!r.ok) return setError(r.error);
-      setElegido("");
       mostrarAviso(`${cliente.nombre} apuntada a ${clase.tipo} de las ${clase.horaInicio}.`, "success");
     });
   }
@@ -248,48 +239,8 @@ export default function ReservasClase({
               o sube el aforo desde «Editar».
             </p>
           ) : (
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <div className="min-w-0 flex-1">
-                <CampoSelect
-                  nombre="reservar-cliente"
-                  etiqueta="Apuntar a"
-                  value={elegido}
-                  onChange={(e) => {
-                    setElegido(e.target.value);
-                    setError("");
-                  }}
-                  ancho
-                >
-                  <option value="">Elige un cliente…</option>
-                  {disponibles.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre}
-                      {SIN_PLAN_VIGENTE.includes(c.estado) ? ` · ${c.estado}` : ""}
-                    </option>
-                  ))}
-                </CampoSelect>
-              </div>
-              <button
-                type="button"
-                disabled={!cliente || enCurso}
-                onClick={apuntar}
-                className={BOTON_PRIMARIO}
-              >
-                {enCurso ? "Guardando…" : "Apuntar"}
-              </button>
-            </div>
+            <BuscadorApuntar clase={clase} clientes={disponibles} enCurso={enCurso} onApuntar={apuntar} />
           ))}
-
-        {/* Cada reserva descuenta una clase del plan que cubre ese día: sin
-            plan, la base no la deja entrar. Las privadas no descuentan. */}
-        {editable && cliente && SIN_PLAN_VIGENTE.includes(cliente.estado) && (
-          <p className="text-xs text-[var(--color-estado-aviso)]">
-            ▲ {cliente.nombre} no tiene un plan vigente ({cliente.estado}).{" "}
-            {clase.tipo === "Privada"
-              ? "Las privadas no descuentan del plan: recuerda cobrarla."
-              : "Asígnale o renueva el plan desde su ficha antes de apuntarla."}
-          </p>
-        )}
 
         {error && (
           <p

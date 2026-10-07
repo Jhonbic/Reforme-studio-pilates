@@ -1,6 +1,7 @@
 import PanelClases from "@/components/admin/clases/PanelClases";
 import { hoyEnBogota, horaEnBogota } from "@/lib/admin/horario";
 import {
+  extenderAgenda,
   getClases,
   getClientes,
   getInstructoras,
@@ -30,6 +31,8 @@ export default async function ClasesPage() {
   const puedeEditar =
     usuario?.rol === "Administración" || usuario?.rol === "Recepción";
 
+  // Antes de leer: que la agenda llegue hasta donde toca según el horario.
+  await extenderAgenda();
   const [clases, instructoras, clientes, miEquipoId, salas] = await Promise.all([
     getClases(hoy, horaEnBogota()),
     getInstructoras(),
@@ -46,7 +49,7 @@ export default async function ClasesPage() {
       <PanelClases
         clases={clases}
         instructoras={instructoras}
-        clientes={clientes.map((c) => ({ id: c.id, nombre: c.nombre, estado: c.estado }))}
+        clientes={clientes.map((c) => ({ id: c.id, nombre: c.nombre, identificacion: c.identificacion, estado: c.estado }))}
         puedeEditar={puedeEditar}
         miEquipoId={miEquipoId}
         salas={salas}

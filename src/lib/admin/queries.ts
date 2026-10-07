@@ -16,6 +16,8 @@ type FilaClienteVigente =
 import type {
   Clase,
   ClaseDelCliente,
+  ClaseParaReservar,
+  MembresiaConSaldo,
   ClaseEnAgenda,
   FranjaHorario,
   Sala,
@@ -194,6 +196,27 @@ export async function getEquipo(esAdmin: boolean): Promise<MiembroEquipo[]> {
  * instructora dada de baja se siguen viendo —pasaron de verdad—, pero su nombre
  * desaparece del desplegable del formulario.
  */
+/** Cuántas semanas por delante mantiene la agenda (tabla `ajustes`). */
+export async function getSemanasAgenda(): Promise<number> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("ajustes").select("semanas_por_delante").single();
+  if (error) throw new Error(`No se pudieron leer los ajustes: ${error.message}`);
+  return data.semanas_por_delante;
+}
+
+/**
+ * Rellena la agenda con el horario hasta las semanas que toca (solo los días
+ * nuevos; la base lo decide). La llama la agenda antes de leer. Hay además un
+ * cron diario: esto es la red por si el cron fallara.
+ *
+ * ⚠️ No rompe la página si falla: la agenda se pinta igual con lo que haya.
+ */
+export async function extenderAgenda(): Promise<void> {
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("extender_agenda");
+  if (error) console.error(`No se pudo rellenar la agenda: ${error.message}`);
+}
+
 /** El horario semanal: todas las franjas, por día, hora y sala (Reformer primero). */
 export async function getHorarioSemanal(): Promise<FranjaHorario[]> {
   const supabase = await crearClienteServidor();
@@ -714,6 +737,56 @@ export async function getMiEquipoId(): Promise<string | null> {
   const { data, error } = await supabase.rpc("mi_equipo_id");
   if (error) throw new Error(`No se pudo leer tu ficha del equipo: ${error.message}`);
   return data ?? null;
+}
+
+/**
+ * Las clases de los próximos 14 días que todavía no han empezado ni se han
+ * cancelado, para «Reservar clase» en la ficha de un cliente.
+ */
+export async function getClasesParaReservar(
+  clienteId: string,
+  hoy: string,
+  ahora: string,
+): Promise<ClaseParaReservar[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase
+    .from("clases")
+    .select("id, tipo, sala, fecha, hora_inicio, duracion_min, cupos, equipo(nombre), reservas(cliente_id)")
+    .eq("cancelada", false)
+    .gte("fecha", hoy)
+    .lte("fecha", sumarDias(hoy, 13))
+    .order("fecha")
+    .order("hora_inicio");
+  if (error) throw new Error(`No se pudieron leer las próximas clases: ${error.message}`);
+  return data
+    .map((c) => {
+      const horaInicio = c.hora_inicio.slice(0, 5);
+      return {
+        id: c.id,
+        tipo: c.tipo,
+        sala: c.sala as SalaId,
+        fecha: c.fecha,
+        horaInicio,
+        horaFin: finDe(horaInicio, c.duracion_min),
+        instructora: c.equipo?.nombre ?? "Sin asignar",
+        libres: Math.max(0, c.cupos - c.reservas.length),
+        yaReservada: c.reservas.some((r) => r.cliente_id === clienteId),
+      };
+    })
+    .filter((c) => !yaEmpezo(c.fecha, c.horaInicio, hoy, ahora));
+}
+
+/** Las membresías de un cliente con lo que le queda de cada modalidad. */
+export async function getMembresiasConSaldo(clienteId: string): Promise<MembresiaConSaldo[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("saldo_clases", { p_cliente: clienteId });
+  if (error) throw new Error(`No se pudo leer el saldo de clases: ${error.message}`);
+  return data.map((m) => ({
+    inicio: m.inicio,
+    vencimiento: m.vencimiento,
+    reformer: m.clases_reformer - m.usadas_reformer,
+    mat: m.clases_mat - m.usadas_mat,
+  }));
 }
 
 /** Cuántas clases del historial viajan a la ficha: las más recientes. */
