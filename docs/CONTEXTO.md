@@ -1711,7 +1711,8 @@ de repetir:
 - [x] ~~Planes reales~~ — cargados en producción el 6 oct 2026 (imágenes del
       estudio), todos de **30 días**: Mat (Inicio 4 · Origen 8 · Armonía 12),
       Reformer (Esencia 4 · Equilibrio 8 · Evolución 12) y Fusión (Esencial
-      8+4 · Equilibrio 12+4 · Evolución 16+4; `clases_incluidas` = el total).
+      8+4 · Equilibrio 12+4; `clases_incluidas` = el total). Fusión Evolución
+      (16+4) se cargó y se borró el mismo día a petición del usuario.
       La modalidad va en la descripción hasta que exista el campo. Los 4 de
       ejemplo se borraron y sus 23 membresías pasaron a planes reales
       (Clase suelta → Inicio, Mensual → Origen, Pack 10 → Equilibrio,
