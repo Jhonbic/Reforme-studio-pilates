@@ -241,12 +241,19 @@ export type MiembroEquipo = {
  * enseña otro precio y otro recuento. Aquí solo vive lo que no se puede
  * deducir de ningún otro sitio: la vigencia y las clases incluidas.
  */
+/** Modalidad de un plan (enum `modalidad_plan`). Fusión = Reformer + Mat. */
+export type ModalidadPlan = "Mat" | "Reformer" | "Fusión";
+
 export type CondicionesPlan = {
   plan: TipoPlan;
   /** Días que dura la membresía desde que se paga. */
   vigenciaDias: number;
-  /** Clases incluidas, o `null` si son ilimitadas dentro de la vigencia. */
-  clasesIncluidas: number | null;
+  modalidad: ModalidadPlan;
+  /** Clases de cada tipo que trae el plan (oct 2026: ya no hay «ilimitadas»). */
+  clasesReformer: number;
+  clasesMat: number;
+  /** La suma de las dos. La calcula la base. */
+  clasesIncluidas: number;
   /** Si se puede vender hoy. Un plan retirado conserva sus clientes vigentes. */
   seVende: boolean;
   /** Para quién es, en una línea. */
@@ -277,8 +284,9 @@ export type BorradorPlan = {
   nombre: string;
   precio: number;
   vigenciaDias: number;
-  /** `null` = ilimitadas dentro de la vigencia. */
-  clasesIncluidas: number | null;
+  modalidad: ModalidadPlan;
+  clasesReformer: number;
+  clasesMat: number;
   seVende: boolean;
   descripcion: string;
   caracteristicas: string[];

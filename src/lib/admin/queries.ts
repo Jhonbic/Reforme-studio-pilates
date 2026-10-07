@@ -20,6 +20,7 @@ import type {
   EstadoClase,
   EstadoMembresia,
   MiembroEquipo,
+  ModalidadPlan,
   Notificacion,
   Movimiento,
   PlanConMetricas,
@@ -391,7 +392,10 @@ export async function getPlanes(
     nombreVisible: p.nombre,
     precio: p.precio,
     vigenciaDias: p.vigencia_dias,
-    clasesIncluidas: p.clases_incluidas,
+    modalidad: p.modalidad,
+    clasesReformer: p.clases_reformer,
+    clasesMat: p.clases_mat,
+    clasesIncluidas: p.clases_reformer + p.clases_mat,
     seVende: p.se_vende,
     descripcion: p.descripcion,
     caracteristicas: p.caracteristicas,
@@ -418,6 +422,9 @@ export type PlanALaVenta = {
   nombre: string;
   precio: number;
   vigenciaDias: number;
+  modalidad: ModalidadPlan;
+  clasesReformer: number;
+  clasesMat: number;
 };
 
 /**
@@ -429,7 +436,7 @@ export async function getPlanesALaVenta(): Promise<PlanALaVenta[]> {
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase
     .from("planes")
-    .select("id, nombre, precio, vigencia_dias")
+    .select("id, nombre, precio, vigencia_dias, modalidad, clases_reformer, clases_mat")
     .eq("se_vende", true)
     .order("precio");
   if (error) throw new Error(`No se pudieron leer los planes: ${error.message}`);
@@ -438,6 +445,9 @@ export async function getPlanesALaVenta(): Promise<PlanALaVenta[]> {
     nombre: p.nombre,
     precio: p.precio,
     vigenciaDias: p.vigencia_dias,
+    modalidad: p.modalidad,
+    clasesReformer: p.clases_reformer,
+    clasesMat: p.clases_mat,
   }));
 }
 
@@ -603,7 +613,7 @@ export async function getDatosEstadisticas(): Promise<DatosEstadisticas> {
     supabase.from("clientes").select("id, nombre, fecha_nacimiento"),
     supabase.from("membresias").select("cliente_id, plan_id, inicio, vencimiento"),
     supabase.from("pagos").select("cliente_id, importe"),
-    supabase.from("planes").select("id, nombre, clases_incluidas, vigencia_dias"),
+    supabase.from("planes").select("id, nombre, clases_reformer, clases_mat, vigencia_dias"),
   ]);
   for (const r of [clientes, membresias, pagos, planes]) {
     if (r.error) throw new Error(`No se pudieron leer las estadísticas: ${r.error.message}`);
@@ -624,8 +634,31 @@ export async function getDatosEstadisticas(): Promise<DatosEstadisticas> {
     planes: (planes.data ?? []).map((p) => ({
       id: p.id,
       nombre: p.nombre,
-      clasesIncluidas: p.clases_incluidas,
+      clasesIncluidas: p.clases_reformer + p.clases_mat,
       vigenciaDias: p.vigencia_dias,
     })),
   };
+}
+
+export type SaldoClases = { tipo: "Reformer" | "Mat"; usadas: number; total: number };
+
+/**
+ * Las clases que le quedan HOY a un cliente, de cada tipo que trae su plan
+ * (función `saldo_clases`, la misma que usa el área de cliente). Suma las
+ * membresías que cubren hoy: si renovó antes de tiempo, puede haber dos.
+ */
+export async function getSaldoCliente(clienteId: string, hoy: string): Promise<SaldoClases[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("saldo_clases", { p_cliente: clienteId });
+  if (error) throw new Error(`No se pudo leer el saldo de clases: ${error.message}`);
+  const deHoy = data.filter((m) => m.inicio <= hoy && hoy <= m.vencimiento);
+  const suma = (f: (m: (typeof deHoy)[number]) => number) => deHoy.reduce((t, m) => t + f(m), 0);
+  return (
+    [
+      { tipo: "Reformer", total: suma((m) => m.clases_reformer), usadas: suma((m) => m.usadas_reformer) },
+      { tipo: "Mat", total: suma((m) => m.clases_mat), usadas: suma((m) => m.usadas_mat) },
+    ] as const
+  )
+    .filter((s) => s.total > 0)
+    .map((s) => ({ ...s }));
 }

@@ -70,7 +70,7 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
 | `npm test` | **Vitest**, 37 tests de la lógica pura: periodos, fechas, validaciones, formato y cálculos del dashboard (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 20 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm run test:db` | **pgTAP**, 33 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -101,12 +101,12 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
   `/admin` da 500; sin `SUPABASE_SERVICE_ROLE_KEY` solo falla «Dar acceso».
 - Para ver en el móvil sin desplegar: `npx next dev -H 0.0.0.0` y abrir
   `http://<IP-del-PC>:3000`.
-- ⚠️ **Tras reiniciar Windows, Supabase local puede no arrancar** («ports are not
-  available… 54322») o arrancar sin publicar el puerto 54321: Windows reserva
-  rangos de puertos para Hyper-V/WSL y los de Supabase (543xx) caen dentro
-  (`netsh interface ipv4 show excludedportrange protocol=tcp`). Se arregla en
-  una terminal de **administrador** con `net stop winnat` y `net start winnat`,
-  y luego `npx supabase start`. Los datos se conservan.
+- ⚠️ **Supabase local usa los puertos 443xx, no los 543xx de fábrica** (oct
+  2026): tras un reinicio, Windows reservó todo el rango 54008–54807 para
+  Hyper-V/WSL (`netsh interface ipv4 show excludedportrange protocol=tcp`) y
+  Supabase no arrancaba o arrancaba sin publicar el puerto. Cambiado en
+  `supabase/config.toml` (API 44321, BD 44322, Studio 44323, correo 44324…).
+  ⚠️ Quien tenga `.env.local` con `127.0.0.1:54321` tiene que pasarlo a 44321.
 - **Supabase local con Docker** (WSL2 + Docker Desktop, instalados oct 2026):
   `npx supabase start`. Pasos y gotchas en `docs/BASE_DE_DATOS.md` → «Entorno
   local». Docker es **solo para desarrollo**: la web sigue en Vercel y la BD en
@@ -1348,6 +1348,43 @@ cliente.
 - Verificada con los datos de producción (solo lectura), en escritorio y móvil:
   sin errores ni desplazamiento lateral.
 
+#### Clases por plan (oct 2026, paso 1 de la lista del estudio)
+
+Migración `20261006120000_clases_por_plan`. Reglas del estudio (6 oct 2026):
+**se descuenta al reservar**, **cancelar con 2 h o más la devuelve** (faltar
+no), y **lo que no se usa en los 30 días se pierde**.
+
+- El plan tiene **`modalidad`** (Mat · Reformer · Fusión) y **`clases_reformer`
+  / `clases_mat`**. `clases_incluidas` pasó a columna **generada** (la suma) y
+  desapareció «ilimitadas». Un `check` (not valid, por los planes viejos)
+  exige que cada modalidad tenga solo sus bolsas.
+- La **membresía copia las bolsas** al venderse, como el precio
+  (`registrar_membresia`, y un trigger para quien inserte sin decirlas).
+- Cada **reserva lleva `membresia_id`**: la membresía de la que descuenta. La
+  elige el trigger `reservas_descuentan_clase` (la que cubre la fecha de la
+  clase, con saldo en esa modalidad y que **vence antes**), bloqueándola para
+  que dos reservas a la vez no gasten la misma última clase. Se llama así para
+  correr ANTES que `reservas_respetan_aforo` (orden alfabético).
+- ⚠️ **Sin saldo no reserva nadie, tampoco recepción** (si no, el saldo dejaría
+  de cuadrar). Solo las cargas del sistema sin sesión (semilla, migraciones)
+  pueden insertar sin ligar.
+- Cancelar = borrar la reserva → el saldo vuelve solo. Una clase **cancelada
+  por el estudio** no cuenta (`clases_usadas` la excluye).
+- **Privadas: no descuentan** y no se reservan desde la web («En recepción»).
+- **`saldo_clases(cliente)`**: una sola fuente para el panel y para el
+  cliente. Función y no vista: el cliente no puede leer `clases`, y una vista
+  con permisos del dueño saltaría RLS. La puede pedir el personal o el propio
+  cliente (sobre sí mismo).
+- `agenda_cliente` devuelve **`disponibles`** por clase: el botón dice «Sin
+  clases de Mat» antes de pulsar. `/mi-cuenta` enseña «3 de 4 · Mat» en la
+  tarjeta del plan; la ficha, «Clases que le quedan».
+- Planes se **agrupa por modalidad**; el formulario pide modalidad y solo las
+  clases de esa modalidad; «Asignar plan» agrupa con `<optgroup>`.
+- Las reservas que ya existían se ligaron por fecha hasta agotar el saldo:
+  en local, 159 de 750 (los datos de ejemplo reservaban mucho más de lo que
+  permiten sus planes). Las demás quedan sin ligar y no descuentan.
+- 13 tests nuevos en `reglas_test.sql` (33 en total).
+
 #### Planes (`/admin/planes`) — desde Supabase, oct 2026
 
 - El catálogo sale de la tabla `planes`, del más barato al más caro. La clave
@@ -1574,7 +1611,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **12 migraciones, todas aplicadas en local y en remoto** |
+| Esquema | `supabase/migrations/` — **13 migraciones, todas aplicadas en local y en remoto** |
 
 ### Variables de entorno
 
@@ -1753,10 +1790,10 @@ Configuración). Lo que falta, por módulo:
 3. **Valoración física** (sección de la ficha): todo — valoración inicial
    (peso, estatura, IMC, % grasa, masa muscular…), seguimientos, quién la
    hizo, evolución en tabla o gráfica. Solo usuarios autorizados.
-4. **Planes**: modalidad (Reformer / Mat / Fusión con dos bolsas), salas
-   permitidas y descuento automático de clase al reservar/asistir.
-5. **Reservas**: salas, reservar solo lo que permite el plan, lista de espera,
-   reprogramar.
+4. **Planes**: ~~modalidad y descuento al reservar~~ (hecho, «Clases por
+   plan»); faltan las salas permitidas.
+5. **Reservas**: ~~reservar solo lo que permite el plan~~ (hecho); faltan
+   salas, lista de espera y reprogramar.
 6. **Asistencia**: marcar asistió / no vino, descontar según asistencia,
    política de cancelación configurable, historial.
 7. **Notificaciones automáticas** (WhatsApp y/o correo): confirmación de

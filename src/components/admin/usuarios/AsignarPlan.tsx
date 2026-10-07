@@ -114,11 +114,24 @@ export default function AsignarPlan({ clienteId, nombre, vencimiento, planes, ho
                 ancho
               >
                 <option value="">Elige un plan…</option>
-                {planes.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre} · {moneda(p.precio)}
-                  </option>
-                ))}
+                {/* Por modalidad, como los presenta el estudio, y con lo que
+                    trae cada uno: el nombre solo («Origen») no dice si es Mat. */}
+                {(["Mat", "Reformer", "Fusión"] as const).map((m) => {
+                  const deEsta = planes.filter((p) => p.modalidad === m);
+                  return deEsta.length === 0 ? null : (
+                    <optgroup key={m} label={m}>
+                      {deEsta.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nombre} ·{" "}
+                          {p.modalidad === "Fusión"
+                            ? `${p.clasesReformer} Reformer + ${p.clasesMat} Mat`
+                            : `${p.clasesReformer + p.clasesMat} clases`}{" "}
+                          · {moneda(p.precio)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
               </CampoSelect>
 
               <CampoSelect

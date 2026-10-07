@@ -137,11 +137,10 @@ export default function TarjetaPlan({
           destacado ? "text-dorado-light" : "text-dorado-dark"
         }`}
       >
-        {plan.clasesIncluidas === null
-          ? "Clases ilimitadas"
-          : `${numero(plan.clasesIncluidas)} ${
-              plan.clasesIncluidas === 1 ? "clase" : "clases"
-            }`}
+        {/* Fusión dice las dos bolsas; Mat y Reformer, su número. */}
+        {plan.modalidad === "Fusión"
+          ? `${numero(plan.clasesReformer)} Reformer + ${numero(plan.clasesMat)} Mat`
+          : `${numero(plan.clasesIncluidas)} ${plan.clasesIncluidas === 1 ? "clase" : "clases"} de ${plan.modalidad}`}
       </p>
 
       {/* `flex-1` empuja las métricas al fondo, así las cuatro tarjetas alinean

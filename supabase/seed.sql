@@ -20,34 +20,18 @@ truncate table reservas, clases, pagos, membresias, clientes, gastos, presupuest
 
 
 -- Planes ---------------------------------------------------------------------
--- Los mismos precios y condiciones que `PRECIO_PLAN` y `CONDICIONES_PLANES`.
+-- Los planes REALES del estudio (oct 2026), todos de 30 días. Las clases de
+-- cada tipo son las que se descuentan al reservar.
 
-insert into planes (nombre, precio, vigencia_dias, clases_incluidas, descripcion, caracteristicas) values
-  ('Mensual', 190000, 30, null,
-   'Para quien entrena de forma constante todas las semanas.',
-   array['Reserva con 7 días de antelación',
-         'Grupos de máximo 6 personas',
-         'Valoración postural al empezar',
-         'Congela hasta 7 días por viaje o enfermedad']),
-
-  ('Trimestral', 510000, 90, null,
-   'Tres meses por adelantado, con descuento sobre el mensual.',
-   array['Todo lo del plan Mensual',
-         'Ahorro de $60.000 frente a pagar mes a mes',
-         'Reserva con 14 días de antelación',
-         'Congela hasta 15 días',
-         'Una clase de invitado al trimestre']),
-
-  ('Pack 10 clases', 320000, 60, 10,
-   'Diez clases para usar cuando se pueda, sin atarse al mes.',
-   array['Sin días fijos: se reserva según agenda',
-         'Grupos de máximo 6 personas',
-         'Transferible a otra persona una vez']),
-
-  ('Clase suelta', 35000, 1, 1,
-   'Una clase para probar el estudio o para quien está de paso.',
-   array['Sin compromiso ni matrícula',
-         'Se descuenta si se contrata un plan esa semana']);
+insert into planes (nombre, precio, vigencia_dias, modalidad, clases_reformer, clases_mat, descripcion, caracteristicas) values
+  ('Inicio',            140000, 30, 'Mat',       0,  4, 'Plan Mat',                    array['Clases de Mat']),
+  ('Origen',            260000, 30, 'Mat',       0,  8, 'Plan Mat',                    array['Clases de Mat']),
+  ('Armonía',           360000, 30, 'Mat',       0, 12, 'Plan Mat',                    array['Clases de Mat']),
+  ('Esencia',           220000, 30, 'Reformer',  4,  0, 'Plan Reformer',               array['Clases en Reformer']),
+  ('Equilibrio',        360000, 30, 'Reformer',  8,  0, 'Plan Reformer',               array['Clases en Reformer']),
+  ('Evolución',         480000, 30, 'Reformer', 12,  0, 'Plan Reformer',               array['Clases en Reformer']),
+  ('Fusión Esencial',   470000, 30, 'Fusión',    8,  4, 'Plan Fusión: Reformer y Mat', array['8 clases en Reformer', '4 clases de Mat']),
+  ('Fusión Equilibrio', 580000, 30, 'Fusión',   12,  4, 'Plan Fusión: Reformer y Mat', array['12 clases en Reformer', '4 clases de Mat']);
 
 
 -- Equipo ---------------------------------------------------------------------
@@ -87,10 +71,6 @@ insert into gastos (categoria, concepto, importe, fecha, metodo) values
 -- no funcionaba porque **la vigencia cambia según el plan**: 40 días desde el
 -- inicio deja vencido un Mensual (30 días) pero vigente un Trimestral (90).
 --
--- ⚠️ Y por eso «Clase suelta» solo aparece entre las vencidas: dura UN día, así
--- que su vencimiento nunca puede caer a más de 15 días vista y no puede estar
--- «Activa». No es un apaño, es lo que significa una clase suelta.
---
 -- Reparto: 11 activas · 3 por vencer · 4 vencidas · 2 inactivas = 20.
 -- Antes eran 118, copiando el mock; se bajó a 20 en oct 2026 (decisión del
 -- usuario) porque no aportaban nada que no aporten estos. Lo que SÍ importa
@@ -114,13 +94,8 @@ asignado as (
   select
     b.i,
     b.objetivo,
-    -- Solo las vencidas admiten «Clase suelta»; el resto rota entre los tres
-    -- planes que duran lo suficiente para estar vigentes.
-    case
-      when b.objetivo = 'Vencida'
-        then (array['Mensual','Trimestral','Pack 10 clases','Clase suelta'])[1 + (b.i % 4)]
-      else (array['Mensual','Trimestral','Pack 10 clases'])[1 + (b.i % 3)]
-    end as nombre_plan
+    -- Rota entre una de cada modalidad (todos duran 30 días).
+    (array['Origen','Equilibrio','Fusión Esencial'])[1 + (b.i % 3)] as nombre_plan
   from base b
 ),
 persona as (

@@ -35,6 +35,7 @@ export type Database = {
           instructora_id: string;
           tipo: Database["public"]["Enums"]["tipo_clase"];
         };
+        ComputedFields: never;
         Insert: {
           cancelada?: boolean;
           creado_en?: string;
@@ -88,6 +89,7 @@ export type Database = {
           tipo_identificacion: Database["public"]["Enums"]["tipo_identificacion"];
           ultima_asistencia: string | null;
         };
+        ComputedFields: never;
         Insert: {
           acepta_terminos?: boolean;
           acudiente_identificacion?: string | null;
@@ -142,6 +144,7 @@ export type Database = {
           rol: Database["public"]["Enums"]["rol_equipo"];
           telefono: string | null;
         };
+        ComputedFields: never;
         Insert: {
           activo?: boolean;
           alta?: string;
@@ -178,6 +181,7 @@ export type Database = {
           metodo: Database["public"]["Enums"]["metodo_pago"];
           registrado_por: string | null;
         };
+        ComputedFields: never;
         Insert: {
           categoria: Database["public"]["Enums"]["categoria_gasto"];
           comprobante_path?: string | null;
@@ -204,6 +208,8 @@ export type Database = {
       };
       membresias: {
         Row: {
+          clases_mat: number;
+          clases_reformer: number;
           cliente_id: string;
           creado_en: string;
           id: string;
@@ -212,7 +218,10 @@ export type Database = {
           plan_id: string;
           vencimiento: string;
         };
+        ComputedFields: never;
         Insert: {
+          clases_mat: number;
+          clases_reformer: number;
           cliente_id: string;
           creado_en?: string;
           id?: string;
@@ -222,6 +231,8 @@ export type Database = {
           vencimiento: string;
         };
         Update: {
+          clases_mat?: number;
+          clases_reformer?: number;
           cliente_id?: string;
           creado_en?: string;
           id?: string;
@@ -264,6 +275,7 @@ export type Database = {
           membresia_id: string | null;
           metodo: Database["public"]["Enums"]["metodo_pago"];
         };
+        ComputedFields: never;
         Insert: {
           cliente_id: string;
           creado_en?: string;
@@ -313,6 +325,7 @@ export type Database = {
           nombre: string;
           rol: Database["public"]["Enums"]["rol_equipo"];
         };
+        ComputedFields: never;
         Insert: {
           creado_en?: string;
           id: string;
@@ -332,21 +345,28 @@ export type Database = {
           actualizado_en: string;
           caracteristicas: string[];
           clases_incluidas: number | null;
+          clases_mat: number;
+          clases_reformer: number;
           creado_en: string;
           descripcion: string;
           id: string;
+          modalidad: Database["public"]["Enums"]["modalidad_plan"];
           nombre: string;
           precio: number;
           se_vende: boolean;
           vigencia_dias: number;
         };
+        ComputedFields: never;
         Insert: {
           actualizado_en?: string;
           caracteristicas?: string[];
-          clases_incluidas?: number | null;
+          clases_incluidas?: never;
+          clases_mat?: number;
+          clases_reformer?: number;
           creado_en?: string;
           descripcion?: string;
           id?: string;
+          modalidad?: Database["public"]["Enums"]["modalidad_plan"];
           nombre: string;
           precio: number;
           se_vende?: boolean;
@@ -355,10 +375,13 @@ export type Database = {
         Update: {
           actualizado_en?: string;
           caracteristicas?: string[];
-          clases_incluidas?: number | null;
+          clases_incluidas?: never;
+          clases_mat?: number;
+          clases_reformer?: number;
           creado_en?: string;
           descripcion?: string;
           id?: string;
+          modalidad?: Database["public"]["Enums"]["modalidad_plan"];
           nombre?: string;
           precio?: number;
           se_vende?: boolean;
@@ -372,6 +395,7 @@ export type Database = {
           importe: number;
           mes: string;
         };
+        ComputedFields: never;
         Insert: {
           categoria: Database["public"]["Enums"]["categoria_gasto"];
           importe: number;
@@ -390,18 +414,22 @@ export type Database = {
           cliente_id: string;
           creado_en: string;
           id: string;
+          membresia_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           clase_id: string;
           cliente_id: string;
           creado_en?: string;
           id?: string;
+          membresia_id?: string | null;
         };
         Update: {
           clase_id?: string;
           cliente_id?: string;
           creado_en?: string;
           id?: string;
+          membresia_id?: string | null;
         };
         Relationships: [
           {
@@ -425,6 +453,13 @@ export type Database = {
             referencedRelation: "clientes_vigentes";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "reservas_membresia_id_fkey";
+            columns: ["membresia_id"];
+            isOneToOne: false;
+            referencedRelation: "membresias";
+            referencedColumns: ["id"];
+          },
         ];
       };
     };
@@ -444,6 +479,7 @@ export type Database = {
           ultima_asistencia: string | null;
           vencimiento: string | null;
         };
+        ComputedFields: never;
         Relationships: [];
       };
     };
@@ -452,6 +488,7 @@ export type Database = {
         Args: { p_desde: string; p_hasta: string };
         Returns: {
           cupos: number;
+          disponibles: number;
           duracion_min: number;
           fecha: string;
           hora_inicio: string;
@@ -467,11 +504,23 @@ export type Database = {
         Returns: undefined;
       };
       cancelar_mi_reserva: { Args: { p_clase: string }; Returns: undefined };
+      clases_usadas: {
+        Args: { p_membresia: string; p_tipo: Database["public"]["Enums"]["tipo_clase"] };
+        Returns: number;
+      };
       es_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       es_mostrador: { Args: Record<PropertyKey, never>; Returns: boolean };
       estado_de_membresia: {
         Args: { p_hoy?: string; p_ultima_asistencia: string; p_vencimiento: string };
         Returns: Database["public"]["Enums"]["estado_membresia"];
+      };
+      membresia_para: {
+        Args: {
+          p_cliente: string;
+          p_fecha: string;
+          p_tipo: Database["public"]["Enums"]["tipo_clase"];
+        };
+        Returns: string;
       };
       mi_cliente_id: { Args: Record<PropertyKey, never>; Returns: string };
       mi_rol: {
@@ -487,12 +536,27 @@ export type Database = {
         Returns: string;
       };
       reservar_mi_clase: { Args: { p_clase: string }; Returns: undefined };
+      saldo_clases: {
+        Args: { p_cliente: string };
+        Returns: {
+          clases_mat: number;
+          clases_reformer: number;
+          inicio: string;
+          membresia_id: string;
+          modalidad: Database["public"]["Enums"]["modalidad_plan"];
+          plan: string;
+          usadas_mat: number;
+          usadas_reformer: number;
+          vencimiento: string;
+        }[];
+      };
       tiene_perfil: { Args: Record<PropertyKey, never>; Returns: boolean };
     };
     Enums: {
       categoria_gasto: "Arriendo" | "Nómina" | "Servicios" | "Mantenimiento" | "Marketing";
       estado_membresia: "Activa" | "Por vencer" | "Vencida" | "Inactiva" | "Sin plan";
       metodo_pago: "Efectivo" | "Nequi" | "Transferencia" | "Tarjeta";
+      modalidad_plan: "Mat" | "Reformer" | "Fusión";
       rol_equipo: "Instructora" | "Administración" | "Recepción";
       tipo_clase: "Reformer" | "Mat" | "Privada";
       tipo_identificacion: "C.C." | "T.I." | "C.E." | "Pasaporte" | "R.C.";
@@ -617,6 +681,7 @@ export const Constants = {
       categoria_gasto: ["Arriendo", "Nómina", "Servicios", "Mantenimiento", "Marketing"],
       estado_membresia: ["Activa", "Por vencer", "Vencida", "Inactiva", "Sin plan"],
       metodo_pago: ["Efectivo", "Nequi", "Transferencia", "Tarjeta"],
+      modalidad_plan: ["Mat", "Reformer", "Fusión"],
       rol_equipo: ["Instructora", "Administración", "Recepción"],
       tipo_clase: ["Reformer", "Mat", "Privada"],
       tipo_identificacion: ["C.C.", "T.I.", "C.E.", "Pasaporte", "R.C."],

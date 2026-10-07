@@ -263,7 +263,7 @@ export async function urlComprobante(gastoId: string): Promise<string | null> {
 
 export type ResultadoPlan =
   | { ok: true }
-  | { ok: false; error: string; campo?: "nombre" };
+  | { ok: false; error: string; campo?: "nombre" | "clases" };
 
 /** Las rutas que enseñan nombres o precios de planes. */
 function revalidarPlanes() {
@@ -297,14 +297,21 @@ export async function guardarPlan(
   if (nombre.length < 3) return { ok: false, campo: "nombre", error: "El nombre necesita al menos 3 caracteres." };
   if (!Number.isInteger(b.precio) || b.precio <= 0) return { ok: false, error: "Precio no válido." };
   if (!Number.isInteger(b.vigenciaDias) || b.vigenciaDias <= 0) return { ok: false, error: "Vigencia no válida." };
-  if (b.clasesIncluidas !== null && (!Number.isInteger(b.clasesIncluidas) || b.clasesIncluidas <= 0))
-    return { ok: false, error: "Número de clases no válido." };
+  if (!["Mat", "Reformer", "Fusión"].includes(b.modalidad)) return { ok: false, error: "Modalidad no válida." };
+  // Solo cuentan las bolsas de la modalidad: un plan Mat no trae Reformer.
+  const reformer = b.modalidad === "Mat" ? 0 : b.clasesReformer;
+  const mat = b.modalidad === "Reformer" ? 0 : b.clasesMat;
+  const valida = (n: number) => Number.isInteger(n) && n > 0 && n <= 100;
+  if ((b.modalidad !== "Mat" && !valida(reformer)) || (b.modalidad !== "Reformer" && !valida(mat)))
+    return { ok: false, campo: "clases", error: "Indica cuántas clases trae de cada tipo (de 1 a 100)." };
 
   const fila = {
     nombre,
     precio: b.precio,
     vigencia_dias: b.vigenciaDias,
-    clases_incluidas: b.clasesIncluidas,
+    modalidad: b.modalidad,
+    clases_reformer: reformer,
+    clases_mat: mat,
     se_vende: b.seVende,
     descripcion: b.descripcion.trim(),
     caracteristicas: b.caracteristicas.map((c) => c.trim()).filter(Boolean),

@@ -5,7 +5,7 @@ import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import { cambiarVentaPlan, eliminarPlan } from "@/lib/admin/acciones";
 import { useToast } from "@/context/ToastContext";
 import { numero } from "@/lib/admin/format";
-import type { PlanConMetricas } from "@/lib/admin/types";
+import type { ModalidadPlan, PlanConMetricas } from "@/lib/admin/types";
 import FormularioPlan from "./FormularioPlan";
 import TarjetaPlan from "./TarjetaPlan";
 
@@ -22,6 +22,8 @@ const BOTON =
  * necesita), así que con clientes el diálogo no ofrece «Eliminar», sino la
  * acción que sí sirve: «Marcar como no se vende».
  */
+const MODALIDADES: ModalidadPlan[] = ["Mat", "Reformer", "Fusión"];
+
 export default function PanelPlanes({ planes }: { planes: PlanConMetricas[] }) {
   const { mostrarAviso } = useToast();
   const [formAbierto, setFormAbierto] = useState(false);
@@ -55,7 +57,7 @@ export default function PanelPlanes({ planes }: { planes: PlanConMetricas[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-verde-300">
           {numero(planes.length)}{" "}
-          {planes.length === 1 ? "modalidad" : "modalidades"} ·{" "}
+          {planes.length === 1 ? "plan" : "planes"} ·{" "}
           {numero(planes.filter((p) => p.seVende).length)} a la venta
         </p>
 
@@ -66,20 +68,33 @@ export default function PanelPlanes({ planes }: { planes: PlanConMetricas[] }) {
         </button>
       </div>
 
-      {/* Cuatro columnas solo en `xl`: en `lg` la barra lateral deja ~700px al
+      {/* Agrupados por modalidad, como los presenta el estudio (Mat, Reformer,
+          Fusión), y dentro de cada una del más barato al más caro. Cuatro
+          columnas solo en `xl`: en `lg` la barra lateral deja ~700px al
           contenido y cuatro tarjetas de precio ahí serían ilegibles. */}
-      <ul className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
-        {planes.map((p) => (
-          <li key={p.id} className="flex">
-            <TarjetaPlan
-              plan={p}
-              destacado={p.id === masContratado?.id}
-              onEditar={() => abrirEdicion(p)}
-              onEliminar={() => setBorrando(p)}
-            />
-          </li>
-        ))}
-      </ul>
+      {MODALIDADES.map((m) => {
+        const deEsta = planes.filter((p) => p.modalidad === m);
+        if (deEsta.length === 0) return null;
+        return (
+          <section key={m} aria-labelledby={`modalidad-${m}`} className="mt-8 first-of-type:mt-4">
+            <h2 id={`modalidad-${m}`} className="eyebrow mb-3 text-dorado-dark">
+              {m === "Fusión" ? "Fusión · Reformer y Mat" : m}
+            </h2>
+            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
+              {deEsta.map((p) => (
+                <li key={p.id} className="flex">
+                  <TarjetaPlan
+                    plan={p}
+                    destacado={p.id === masContratado?.id}
+                    onEditar={() => abrirEdicion(p)}
+                    onEliminar={() => setBorrando(p)}
+                  />
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
 
       <FormularioPlan
         abierto={formAbierto}

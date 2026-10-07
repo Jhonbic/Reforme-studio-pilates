@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(33);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -32,8 +32,10 @@ insert into clientes (id, nombre, identificacion, cuenta_id, acepta_terminos) va
   ('00000000-0000-0000-0000-0000000000d2', 'Cliente sin plan', 'TEST002', '00000000-0000-0000-0000-0000000000c2', true);
 
 -- Plan propio: el test no depende de la semilla (en la CI la base está vacía).
-insert into planes (id, nombre, precio, vigencia_dias)
-  values ('00000000-0000-0000-0000-0000000000b1', 'Plan de test', 100000, 365);
+-- Fusión con 1 de Reformer y 2 de Mat: pocas, para poder agotarlas.
+insert into planes (id, nombre, precio, vigencia_dias, modalidad, clases_reformer, clases_mat)
+  values ('00000000-0000-0000-0000-0000000000b1', 'Plan de test', 100000, 365, 'Fusión', 1, 2);
+-- Sin decir las clases: el trigger las copia del plan.
 insert into membresias (cliente_id, plan_id, inicio, vencimiento, importe)
   values ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000b1',
           '2031-01-01', '2031-12-31', 100000);
@@ -95,6 +97,17 @@ insert into clases (id, tipo, fecha, hora_inicio, duracion_min, instructora_id, 
    (localtimestamp + interval '1 hour')::time, 30, '00000000-0000-0000-0000-0000000000e1', 10);
 insert into reservas (clase_id, cliente_id)
   values ('00000000-0000-0000-0000-00000000aa03', '00000000-0000-0000-0000-0000000000d1');
+-- Para agotar el saldo: más Mat, dos Reformer y una Privada, en días distintos.
+insert into clases (id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos) values
+  ('00000000-0000-0000-0000-00000000aa04', 'Mat',      '2031-03-05', '09:00', 55, '00000000-0000-0000-0000-0000000000e1', 10),
+  ('00000000-0000-0000-0000-00000000aa05', 'Mat',      '2031-03-06', '09:00', 55, '00000000-0000-0000-0000-0000000000e1', 10),
+  ('00000000-0000-0000-0000-00000000aa06', 'Reformer', '2031-03-07', '09:00', 50, '00000000-0000-0000-0000-0000000000e1', 8),
+  ('00000000-0000-0000-0000-00000000aa07', 'Reformer', '2031-03-08', '09:00', 50, '00000000-0000-0000-0000-0000000000e1', 8),
+  ('00000000-0000-0000-0000-00000000aa08', 'Privada',  '2031-03-09', '09:00', 50, '00000000-0000-0000-0000-0000000000e1', 1);
+
+select is(
+  (select clases_mat from membresias where cliente_id = '00000000-0000-0000-0000-0000000000d1'),
+  2, 'una membresía insertada sin clases copia las del plan');
 
 -- Permisos: sin sesión ------------------------------------------------------------
 set local role anon;
@@ -142,6 +155,44 @@ select throws_ok(
   $$select cancelar_mi_reserva('00000000-0000-0000-0000-00000000aa03')$$,
   'P0001', null,
   'no se cancela a menos de 2 horas');
+
+-- Clases por plan: reservar descuenta, sin saldo no se reserva.
+select is(
+  (select usadas_mat from saldo_clases('00000000-0000-0000-0000-0000000000d1')),
+  1, 'reservar descuenta una clase de su modalidad');
+select lives_ok(
+  $$select reservar_mi_clase('00000000-0000-0000-0000-00000000aa04')$$,
+  'segunda clase de Mat: quedaba una');
+select throws_ok(
+  $$select reservar_mi_clase('00000000-0000-0000-0000-00000000aa05')$$,
+  'P0001', 'No quedan clases de Mat en el plan para ese día.',
+  'sin saldo de esa modalidad no se reserva');
+select lives_ok(
+  $$select cancelar_mi_reserva('00000000-0000-0000-0000-00000000aa04')$$,
+  'cancelar con tiempo se puede');
+select lives_ok(
+  $$select reservar_mi_clase('00000000-0000-0000-0000-00000000aa05')$$,
+  'la clase cancelada a tiempo vuelve al saldo');
+select lives_ok(
+  $$select reservar_mi_clase('00000000-0000-0000-0000-00000000aa06')$$,
+  'un plan Fusión también reserva Reformer, de su otra bolsa');
+select throws_ok(
+  $$select reservar_mi_clase('00000000-0000-0000-0000-00000000aa08')$$,
+  'P0001', 'Las clases privadas se reservan en recepción.',
+  'las privadas no se reservan desde la web');
+select throws_ok(
+  $$select * from saldo_clases('00000000-0000-0000-0000-0000000000d2')$$,
+  '42501', null,
+  'un cliente no ve el saldo de otro');
+reset role;
+
+-- Si el ESTUDIO cancela la clase, la clase vuelve al saldo.
+update clases set cancelada = true where id = '00000000-0000-0000-0000-00000000aa06';
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select lives_ok(
+  $$select reservar_mi_clase('00000000-0000-0000-0000-00000000aa07')$$,
+  'una clase cancelada por el estudio no gasta la clase');
 reset role;
 
 set local role authenticated;
@@ -150,6 +201,24 @@ select throws_ok(
   $$select reservar_mi_clase('00000000-0000-0000-0000-00000000aa02')$$,
   'P0001', null,
   'sin plan que cubra el día de la clase, no reserva');
+reset role;
+
+-- Recepción tampoco reserva sin saldo; la venta copia las clases del plan.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$insert into reservas (clase_id, cliente_id)
+    values ('00000000-0000-0000-0000-00000000aa02', '00000000-0000-0000-0000-0000000000d2')$$,
+  'P0001', null,
+  'recepción tampoco reserva a quien no tiene plan');
+select lives_ok(
+  $$select registrar_membresia('00000000-0000-0000-0000-0000000000d2',
+                               '00000000-0000-0000-0000-0000000000b1', 'Efectivo')$$,
+  'se vende un plan');
+select is(
+  (select clases_reformer || '+' || clases_mat from membresias
+   where cliente_id = '00000000-0000-0000-0000-0000000000d2'),
+  '1+2', 'la venta copia las clases del plan a la membresía');
 reset role;
 
 select * from finish();

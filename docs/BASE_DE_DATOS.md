@@ -264,8 +264,8 @@ npx supabase db reset  # reaplica migraciones + seed.sql en LOCAL
 npx supabase stop      # apaga los contenedores y libera la RAM
 ```
 
-- API en `http://127.0.0.1:54321`, Studio en `http://127.0.0.1:54323`,
-  correos de prueba (Auth) en `http://127.0.0.1:54324`.
+- API en `http://127.0.0.1:44321`, Studio en `http://127.0.0.1:44323`,
+  correos de prueba (Auth) en `http://127.0.0.1:44324`.
 - ⚠️ **Probar migraciones aquí antes del `db push`**: `db reset` local se puede
   repetir sin miedo; el proyecto remoto es el único que hay.
 - **Cuentas de prueba (solo local).** No están en `seed.sql` a propósito:

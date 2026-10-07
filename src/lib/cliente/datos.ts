@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { finDe, sumarDias } from "@/lib/admin/horario";
+import { finDe, hoyEnBogota, sumarDias } from "@/lib/admin/horario";
 import type { EstadoMembresia, TipoClase } from "@/lib/admin/types";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -24,6 +24,10 @@ export type MiCuenta = {
   /** Tramos que cubren sus membresías: para saber, antes de pulsar, qué
    *  días puede reservar (la regla de verdad está en la base). */
   cobertura: { inicio: string; vencimiento: string }[];
+  /** Clases que le quedan HOY de cada tipo, sumando las membresías que cubren
+   *  hoy. Solo los tipos que su plan trae (un plan Mat no dice «0 Reformer»).
+   *  Vacío si hoy no tiene plan. */
+  saldo: { tipo: "Reformer" | "Mat"; quedan: number; total: number }[];
 };
 
 /**
@@ -45,10 +49,25 @@ export const getMiCuenta = cache(async (): Promise<MiCuenta | null> => {
     .maybeSingle();
   if (!ficha) return null;
 
-  const [vigente, membresias] = await Promise.all([
+  const [vigente, membresias, saldos] = await Promise.all([
     supabase.from("clientes_vigentes").select("plan, vencimiento, estado").eq("id", ficha.id).maybeSingle(),
     supabase.from("membresias").select("inicio, vencimiento").eq("cliente_id", ficha.id),
+    supabase.rpc("saldo_clases", { p_cliente: ficha.id }),
   ]);
+
+  // La cuenta de hoy: las membresías que cubren hoy (puede haber dos si
+  // renovó antes de tiempo y la nueva ya empezó).
+  const hoy = hoyEnBogota();
+  const deHoy = (saldos.data ?? []).filter((m) => m.inicio <= hoy && hoy <= m.vencimiento);
+  const suma = (f: (m: (typeof deHoy)[number]) => number) => deHoy.reduce((t, m) => t + f(m), 0);
+  const saldo = (
+    [
+      { tipo: "Reformer", total: suma((m) => m.clases_reformer), usadas: suma((m) => m.usadas_reformer) },
+      { tipo: "Mat", total: suma((m) => m.clases_mat), usadas: suma((m) => m.usadas_mat) },
+    ] as const
+  )
+    .filter((s) => s.total > 0)
+    .map((s) => ({ tipo: s.tipo, total: s.total, quedan: Math.max(0, s.total - s.usadas) }));
 
   return {
     id: ficha.id,
@@ -58,6 +77,7 @@ export const getMiCuenta = cache(async (): Promise<MiCuenta | null> => {
     vencimiento: vigente.data?.vencimiento ?? null,
     estado: vigente.data?.estado ?? "Sin plan",
     cobertura: membresias.data ?? [],
+    saldo,
   };
 });
 
@@ -70,6 +90,9 @@ export type ClaseParaCliente = {
   instructora: string;
   libres: number;
   reservada: boolean;
+  /** Clases de ese tipo que le quedan para la fecha de la clase. `null` en
+   *  las Privadas, que no descuentan de ningún plan. */
+  disponibles: number | null;
 };
 
 /** Días de agenda que se enseñan: dos semanas. La función de la base corta en
@@ -96,6 +119,7 @@ export async function getAgendaCliente(hoy: string): Promise<ClaseParaCliente[]>
       instructora: c.instructora,
       libres: Math.max(0, c.cupos - c.reservas),
       reservada: c.reservada,
+      disponibles: c.tipo === "Privada" ? null : c.disponibles,
     };
   });
 }

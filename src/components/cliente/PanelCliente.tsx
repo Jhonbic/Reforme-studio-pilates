@@ -116,6 +116,22 @@ export default function PanelCliente({
               {cuenta.estado === "Por vencer" ? "▲ Vence pronto · " : ""}
               Vigente hasta el {cuenta.vencimiento ? fechaCorta(cuenta.vencimiento, true) : "—"}
             </p>
+            {/* Cuántas le quedan de cada tipo: cada reserva descuenta una, y
+                cancelar con 2 h o más la devuelve. */}
+            {cuenta.saldo.length > 0 && (
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {cuenta.saldo.map((s) => (
+                  <li
+                    key={s.tipo}
+                    className={`rounded-full px-3 py-1 text-sm ${
+                      s.quedan === 0 ? "bg-beige/60 text-verde-300" : "bg-dorado/15 text-verde"
+                    }`}
+                  >
+                    <span className="font-cifra font-bold">{s.quedan}</span> de {s.total} · {s.tipo}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         ) : (
           /* Sin plan no se puede reservar (decisión del usuario). Se dice aquí,
@@ -260,6 +276,19 @@ export default function PanelCliente({
               {delDia.map((c) => {
                 const llena = c.libres === 0;
                 const sinPlan = !cubre(cuenta, c.fecha);
+                // Las privadas se piden en recepción; si no le quedan de ese
+                // tipo para ese día, se dice antes de pulsar.
+                const privada = c.disponibles === null;
+                const sinClases = !sinPlan && !privada && (c.disponibles ?? 0) <= 0;
+                const motivo = privada
+                  ? "En recepción"
+                  : llena
+                    ? "Llena"
+                    : sinPlan
+                      ? "Sin plan ese día"
+                      : sinClases
+                        ? `Sin clases de ${c.tipo}`
+                        : null;
                 return (
                   <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-beige bg-white p-4">
                     <div className="min-w-0">
@@ -280,15 +309,25 @@ export default function PanelCliente({
                     ) : (
                       <button
                         type="button"
-                        disabled={llena || sinPlan || enCurso === c.id}
+                        disabled={motivo !== null || enCurso === c.id}
                         onClick={() => ejecutar(c.id, () => reservarClase(c.id), `¡Listo! Reservaste ${c.tipo} el ${diaRelativo(c.fecha, hoy).toLowerCase()} a las ${c.horaInicio}.`)}
                         className={`${BOTON} w-full bg-dorado text-verde-900 hover:bg-dorado-dark sm:w-auto`}
                         aria-label={`Reservar ${c.tipo}, ${diaRelativo(c.fecha, hoy).toLowerCase()} a las ${c.horaInicio}`}
                         /* El porqué de un botón apagado, para quien pasa el
                            ratón y para quien usa lector de pantalla. */
-                        title={llena ? "La clase está llena" : sinPlan ? "Tu plan no cubre ese día" : undefined}
+                        title={
+                          privada
+                            ? "Las clases privadas se reservan en recepción"
+                            : llena
+                              ? "La clase está llena"
+                              : sinPlan
+                                ? "Tu plan no cubre ese día"
+                                : sinClases
+                                  ? `Ya usaste todas tus clases de ${c.tipo} de este plan`
+                                  : undefined
+                        }
                       >
-                        {enCurso === c.id ? "Reservando…" : llena ? "Llena" : sinPlan ? "Sin plan ese día" : "Reservar"}
+                        {enCurso === c.id ? "Reservando…" : (motivo ?? "Reservar")}
                       </button>
                     )}
                   </li>

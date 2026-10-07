@@ -6,7 +6,7 @@ import CampoTexto from "@/components/admin/campos/CampoTexto";
 import { CASILLA, FILA_CHECK } from "@/components/admin/campos/estilos";
 import { guardarPlan } from "@/lib/admin/acciones";
 import { moneda } from "@/lib/admin/format";
-import type { BorradorPlan, PlanConMetricas } from "@/lib/admin/types";
+import type { BorradorPlan, ModalidadPlan, PlanConMetricas } from "@/lib/admin/types";
 import { soloDigitos } from "@/lib/validacion";
 
 const BOTON_PRIMARIO =
@@ -15,11 +15,15 @@ const BOTON_PRIMARIO =
 const BOTON =
   "control-fx relative inline-flex min-h-[44px] items-center justify-center gap-2 overflow-hidden rounded-full border border-verde/40 px-5 text-sm text-verde-700 transition-colors duration-300 hover:border-dorado hover:text-verde";
 
+const MODALIDADES: ModalidadPlan[] = ["Mat", "Reformer", "Fusión"];
+
 const VACIO: BorradorPlan = {
   nombre: "",
   precio: 0,
   vigenciaDias: 30,
-  clasesIncluidas: null,
+  modalidad: "Reformer",
+  clasesReformer: 8,
+  clasesMat: 4,
   seVende: true,
   descripcion: "",
   caracteristicas: [],
@@ -49,7 +53,10 @@ function aBorrador(p: PlanConMetricas): BorradorPlan {
     nombre: p.nombreVisible,
     precio: p.precio,
     vigenciaDias: p.vigenciaDias,
-    clasesIncluidas: p.clasesIncluidas,
+    modalidad: p.modalidad,
+    // Al cambiar de modalidad se ofrece un valor razonable en vez de 0.
+    clasesReformer: p.clasesReformer || 8,
+    clasesMat: p.clasesMat || 4,
     seVende: p.seVende,
     descripcion: p.descripcion,
     caracteristicas: [...p.caracteristicas],
@@ -186,7 +193,7 @@ export default function FormularioPlan({
           value={v.nombre}
           onChange={(e) => set("nombre", e.target.value)}
           error={errores.nombre}
-          placeholder="Mensual, Pack 10 clases…"
+          placeholder="Esencia, Origen, Fusión Esencial…"
           autoComplete="off"
           ref={(el) => {
             refs.current.nombre = el;
@@ -199,7 +206,7 @@ export default function FormularioPlan({
           etiqueta="Para quién es"
           value={v.descripcion}
           onChange={(e) => set("descripcion", e.target.value)}
-          placeholder="Para quien entrena de forma constante todas las semanas."
+          placeholder="Plan Reformer"
           ayuda="Una línea. Es lo que se lee bajo el precio en la tarjeta."
           autoComplete="off"
           ancho
@@ -241,7 +248,7 @@ export default function FormularioPlan({
               set("vigenciaDias", Number(soloDigitos(e.target.value)))
             }
             error={errores.vigenciaDias}
-            ayuda="30 = un mes. 1 = se consume el mismo día."
+            ayuda="30 = un mes. Las clases que no se usen en ese plazo se pierden."
             autoComplete="off"
             ref={(el) => {
               refs.current.vigenciaDias = el;
@@ -249,44 +256,67 @@ export default function FormularioPlan({
           />
         </div>
 
-        {/* ⚠️ «Ilimitadas» es una casilla y no un valor especial que haya que
-            teclear (¿0? ¿vacío? ¿-1?). Al marcarla, el campo de número
-            desaparece: no se puede dejar puesto un número que ya no significa
-            nada. */}
+        {/* Modalidad y clases (oct 2026). Las clases de cada tipo son las que
+            se descuentan al reservar: un plan Mat no reserva Reformer, y uno
+            Fusión trae las dos bolsas. Solo se piden los campos de la
+            modalidad elegida: un número que no significa nada no se puede
+            dejar puesto. */}
         <fieldset className="rounded-xl border border-beige p-4">
           <legend className="px-1.5 text-sm font-medium text-verde">
-            Clases incluidas
+            Modalidad y clases
           </legend>
 
-          <label className={FILA_CHECK}>
-            <input
-              type="checkbox"
-              checked={v.clasesIncluidas === null}
-              onChange={(e) =>
-                set("clasesIncluidas", e.target.checked ? null : 10)
-              }
-              className={CASILLA}
-            />
-            <span className="text-sm text-verde-700">
-              Ilimitadas dentro de la vigencia
-            </span>
-          </label>
+          <div role="radiogroup" aria-label="Modalidad" className="flex flex-wrap gap-2">
+            {MODALIDADES.map((m) => (
+              <label
+                key={m}
+                className={`inline-flex min-h-[44px] cursor-pointer items-center rounded-full border px-5 text-sm transition-colors duration-300 ${
+                  v.modalidad === m
+                    ? "border-dorado bg-dorado font-bold text-verde-900"
+                    : "border-beige text-verde-700 hover:border-dorado"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="modalidad"
+                  value={m}
+                  checked={v.modalidad === m}
+                  onChange={() => set("modalidad", m)}
+                  className="sr-only"
+                />
+                {m}
+              </label>
+            ))}
+          </div>
 
-          {v.clasesIncluidas !== null && (
-            <div className="mt-3">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {v.modalidad !== "Mat" && (
               <CampoTexto
-                nombre="clasesIncluidas"
-                etiqueta="Cuántas clases"
+                nombre="clasesReformer"
+                etiqueta="Clases en Reformer"
                 inputMode="numeric"
                 pattern="\d*"
-                value={String(v.clasesIncluidas)}
-                onChange={(e) =>
-                  set("clasesIncluidas", Number(soloDigitos(e.target.value)))
-                }
+                value={v.clasesReformer ? String(v.clasesReformer) : ""}
+                onChange={(e) => set("clasesReformer", Number(soloDigitos(e.target.value)))}
                 autoComplete="off"
               />
-            </div>
-          )}
+            )}
+            {v.modalidad !== "Reformer" && (
+              <CampoTexto
+                nombre="clasesMat"
+                etiqueta="Clases de Mat"
+                inputMode="numeric"
+                pattern="\d*"
+                value={v.clasesMat ? String(v.clasesMat) : ""}
+                onChange={(e) => set("clasesMat", Number(soloDigitos(e.target.value)))}
+                autoComplete="off"
+              />
+            )}
+          </div>
+          <p className="mt-2 text-xs text-verde-300">
+            Cada reserva descuenta una clase de su tipo. Cambiar estos números no
+            cambia lo que ya compraron: cada membresía guarda las suyas.
+          </p>
         </fieldset>
 
         {/* Lista editable de características */}

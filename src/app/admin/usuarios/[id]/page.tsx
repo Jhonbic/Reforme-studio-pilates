@@ -12,6 +12,7 @@ import { hoyEnBogota } from "@/lib/admin/horario";
 import {
   getCliente,
   getPlanesALaVenta,
+  getSaldoCliente,
   getUsuarioActual,
   tieneAccesoWeb,
 } from "@/lib/admin/queries";
@@ -73,9 +74,10 @@ export default async function FichaClientePage({
   params,
 }: PageProps<"/admin/usuarios/[id]">) {
   const { id } = await params;
-  const [cliente, usuario] = await Promise.all([
+  const [cliente, usuario, saldo] = await Promise.all([
     getCliente(id),
     getUsuarioActual(),
+    getCliente(id).then((c) => (c ? getSaldoCliente(c.id, hoyEnBogota()) : [])),
   ]);
   // Cobrar es del mostrador, igual que en la base (RLS). A una instructora no
   // se le enseña un botón que acabaría en «no tienes permiso».
@@ -188,6 +190,13 @@ export default async function FichaClientePage({
             <Dato etiqueta="Cliente desde" numerico>
               {fecha(cliente.alta, true)}
             </Dato>
+            {/* Lo que le queda hoy de cada tipo. Cada reserva descuenta una;
+                quitarla o cancelar a tiempo la devuelve. */}
+            {saldo.length > 0 && (
+              <Dato etiqueta="Clases que le quedan" numerico>
+                {saldo.map((s) => `${s.total - s.usadas} de ${s.total} ${s.tipo}`).join(" · ")}
+              </Dato>
+            )}
           </dl>
         </Card>
 
