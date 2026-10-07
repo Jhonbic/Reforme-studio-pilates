@@ -30,8 +30,9 @@ insert into planes (nombre, precio, vigencia_dias, modalidad, clases_reformer, c
   ('Esencia',           220000, 30, 'Reformer',  4,  0),
   ('Equilibrio',        360000, 30, 'Reformer',  8,  0),
   ('Evolución',         480000, 30, 'Reformer', 12,  0),
-  ('Fusión Esencial',   470000, 30, 'Fusión',    8,  4),
-  ('Fusión Equilibrio', 580000, 30, 'Fusión',   12,  4);
+  ('Fusión Inicio',     470000, 30, 'Fusión',    4,  4),
+  ('Fusión Esencial',   580000, 30, 'Fusión',    8,  4),
+  ('Fusión Equilibrio', 680000, 30, 'Fusión',   12,  4);
 
 
 -- Equipo ---------------------------------------------------------------------
@@ -301,3 +302,33 @@ candidatos as (
 )
 insert into reservas (clase_id, cliente_id)
 select clase_id, cliente_id from candidatos where orden <= cuantas;
+
+-- Horario semanal: las franjas del estudio (las mismas que carga la migración
+-- `20261009120000_horario_semanal`, porque el `truncate … cascade` de arriba
+-- las vacía al vaciar `equipo`). En local se encienden unas cuantas con
+-- instructora para poder probar «Generar clases»; en producción las elige el
+-- estudio.
+insert into horario_semanal (dia, hora_inicio, sala)
+select d.dia, h.hora::time, s.sala
+from (values (1), (2), (3), (4), (5)) d (dia)
+cross join (values ('07:00'), ('08:00'), ('09:00'), ('10:00'),
+                   ('15:00'), ('16:00'), ('17:00'), ('18:00'), ('19:00')) h (hora)
+cross join (values ('Reformer'), ('Mat')) s (sala)
+union all
+select 6, h.hora::time, s.sala
+from (values ('08:00'), ('09:00'), ('10:00'), ('11:00'),
+             ('12:00'), ('13:00'), ('14:00'), ('15:00')) h (hora)
+cross join (values ('Reformer'), ('Mat')) s (sala)
+on conflict do nothing;
+
+with instructoras as (
+  select id, row_number() over (order by nombre) - 1 as n, count(*) over () as total
+  from equipo where rol = 'Instructora' and activo
+)
+update horario_semanal h
+set activa = true,
+    instructora_id = (select id from instructoras i
+                      where i.n = (h.dia + extract(hour from h.hora_inicio)::int
+                                   + case h.sala when 'Mat' then 1 else 0 end) % i.total)
+where (h.sala = 'Reformer' and extract(hour from h.hora_inicio) in (7, 8, 17, 18, 19))
+   or (h.sala = 'Mat' and extract(hour from h.hora_inicio) in (9, 18));

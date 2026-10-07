@@ -216,6 +216,52 @@ export type Database = {
         };
         Relationships: [];
       };
+      horario_semanal: {
+        Row: {
+          activa: boolean;
+          dia: number;
+          duracion_min: number;
+          hora_inicio: string;
+          id: string;
+          instructora_id: string | null;
+          sala: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          activa?: boolean;
+          dia: number;
+          duracion_min?: number;
+          hora_inicio: string;
+          id?: string;
+          instructora_id?: string | null;
+          sala: string;
+        };
+        Update: {
+          activa?: boolean;
+          dia?: number;
+          duracion_min?: number;
+          hora_inicio?: string;
+          id?: string;
+          instructora_id?: string | null;
+          sala?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "horario_semanal_instructora_id_fkey";
+            columns: ["instructora_id"];
+            isOneToOne: false;
+            referencedRelation: "equipo";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "horario_semanal_sala_fkey";
+            columns: ["sala"];
+            isOneToOne: false;
+            referencedRelation: "salas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       membresias: {
         Row: {
           clases_mat: number;
@@ -546,11 +592,20 @@ export type Database = {
         Args: { p_membresia: string; p_tipo: Database["public"]["Enums"]["tipo_clase"] };
         Returns: number;
       };
+      copiar_dia_horario: { Args: { p_desde: number; p_dias: number[] }; Returns: number };
       es_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       es_mostrador: { Args: Record<PropertyKey, never>; Returns: boolean };
       estado_de_membresia: {
         Args: { p_hoy?: string; p_ultima_asistencia: string; p_vencimiento: string };
         Returns: Database["public"]["Enums"]["estado_membresia"];
+      };
+      generar_clases: {
+        Args: { p_desde: string; p_hasta: string };
+        Returns: {
+          creadas: number;
+          sin_instructora: number;
+          ya_estaban: number;
+        }[];
       };
       marcar_asistencia: {
         Args: { p_asistencia: Database["public"]["Enums"]["asistencia"]; p_reserva: string };

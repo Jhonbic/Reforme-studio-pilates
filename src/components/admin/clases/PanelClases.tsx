@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import Card from "@/components/admin/Card";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
@@ -67,9 +68,7 @@ export default function PanelClases({
   const [quitando, setQuitando] = useState<ClaseEnAgenda | null>(null);
 
   const filtrada =
-    instructora === TODAS
-      ? clases
-      : clases.filter((c) => c.instructoraId === instructora);
+    instructora === TODAS ? clases : clases.filter((c) => c.instructoraId === instructora);
 
   /* Los números de la tira siguen al filtro a propósito: si el filtro dijera 7
      y el día abierto enseñara 2, el que estaría mintiendo sería el número.
@@ -111,17 +110,24 @@ export default function PanelClases({
             : `${numero(vivas.length)} ${vivas.length === 1 ? "clase" : "clases"} · ${numero(reservas)} de ${numero(cupos)} cupos reservados`}
         </p>
 
-        {puedeEditar && (
-        <button type="button" onClick={abrirAlta} className={BOTON}>
-          {/* `--lento` (1 s) porque es un botón de cabecera: en un control de
+        <div className="flex flex-wrap gap-2">
+          {/* El horario que se repite: de ahí salen las clases de cada semana. */}
+          <Link href="/admin/clases/horario" className={BOTON}>
+            <span className="control-sheen control-sheen--lento" aria-hidden="true" />
+            Horario semanal
+          </Link>
+          {puedeEditar && (
+            <button type="button" onClick={abrirAlta} className={BOTON}>
+              {/* `--lento` (1 s) porque es un botón de cabecera: en un control de
               ~150px, a 0,55 s el barrido termina antes de que el ojo lo
               registre. Va en el `<span>`, que es donde lo ponen «Exportar» y
               «Nuevo cliente». */}
-          <span className="control-sheen control-sheen--lento" aria-hidden="true" />
-          <span aria-hidden="true">+</span>
-          Nueva clase
-        </button>
-        )}
+              <span className="control-sheen control-sheen--lento" aria-hidden="true" />
+              <span aria-hidden="true">+</span>
+              Nueva clase
+            </button>
+          )}
+        </div>
       </div>
 
       {/* `resalte={false}` por lo mismo que el listado de Usuarios: la tarjeta
@@ -139,13 +145,9 @@ export default function PanelClases({
             {/* El «Hoy / Mañana / Ayer» solo aparece cuando dice algo que la
                 fecha larga no dice. Repetido siempre sería ruido. */}
             {relativo !== largo && (
-              <p className="text-xs uppercase tracking-wider text-dorado-dark">
-                {relativo}
-              </p>
+              <p className="text-xs uppercase tracking-wider text-dorado-dark">{relativo}</p>
             )}
-            <h2 className="font-display text-xl text-verde first-letter:uppercase">
-              {largo}
-            </h2>
+            <h2 className="font-display text-xl text-verde first-letter:uppercase">{largo}</h2>
           </div>
 
           <div>
@@ -184,13 +186,15 @@ export default function PanelClases({
             {/* Siempre una salida, como `EstadoVacio` del listado: quien no
                 encuentra nada suele tener un filtro puesto sin darse cuenta. */}
             {instructora === TODAS ? (
-              puedeEditar && <button
-                type="button"
-                onClick={abrirAlta}
-                className="mt-5 inline-flex min-h-[44px] items-center rounded-full border border-verde/40 px-5 text-sm text-verde transition-colors duration-300 hover:border-verde hover:bg-verde hover:text-arena"
-              >
-                Programar una clase
-              </button>
+              puedeEditar && (
+                <button
+                  type="button"
+                  onClick={abrirAlta}
+                  className="mt-5 inline-flex min-h-[44px] items-center rounded-full border border-verde/40 px-5 text-sm text-verde transition-colors duration-300 hover:border-verde hover:bg-verde hover:text-arena"
+                >
+                  Programar una clase
+                </button>
+              )
             ) : (
               <button
                 type="button"
@@ -253,9 +257,7 @@ export default function PanelClases({
         mensaje={
           quitando && hayReservas
             ? `${numero(quitando.reservas)} ${
-                quitando.reservas === 1
-                  ? "persona la tiene"
-                  : "personas la tienen"
+                quitando.reservas === 1 ? "persona la tiene" : "personas la tienen"
               } reservada. La clase se queda en la agenda marcada como «Cancelada» con sus reservas, para que quede constancia de a quién avisar: hay que hacerlo una por una (ver «Quién reservó»), el sistema todavía no manda ningún mensaje.`
             : "Nadie la ha reservado, así que no afecta a nadie. Desaparecerá del horario y esta acción no se puede deshacer."
         }

@@ -933,6 +933,83 @@ export async function marcarAsistencia(
 }
 
 /* ======================================================================
+   Horario semanal
+   ====================================================================== */
+
+function revalidarHorario() {
+  // `layout`: la agenda y su subpágina /horario.
+  revalidatePath("/admin/clases", "layout");
+}
+
+/** Enciende o apaga una franja y le pone (o quita) instructora. */
+export async function guardarFranja(
+  id: string,
+  activa: boolean,
+  instructoraId: string | null,
+): Promise<ResultadoClase> {
+  const prohibido = await soloMostrador();
+  if (prohibido) return { ok: false, error: prohibido };
+  if (!UUID_VALIDO.test(id) || (instructoraId !== null && !UUID_VALIDO.test(instructoraId)))
+    return { ok: false, error: "Franja o instructora no válida." };
+
+  const supabase = await crearClienteServidor();
+  const { error, count } = await supabase
+    .from("horario_semanal")
+    .update({ activa, instructora_id: instructoraId }, { count: "exact" })
+    .eq("id", id);
+  if (error) return { ok: false, error: `No se pudo guardar el horario: ${error.message}` };
+  if (count === 0) return { ok: false, error: "Esa franja ya no existe." };
+  revalidarHorario();
+  return { ok: true };
+}
+
+/** Copia lo encendido de un día (y quién lo da) a otros días. */
+export async function copiarDiaHorario(
+  desde: number,
+  dias: number[],
+): Promise<{ ok: true; cambiadas: number } | { ok: false; error: string }> {
+  const prohibido = await soloMostrador();
+  if (prohibido) return { ok: false, error: prohibido };
+  const valido = (d: number) => Number.isInteger(d) && d >= 1 && d <= 7;
+  if (!valido(desde) || dias.length === 0 || !dias.every(valido))
+    return { ok: false, error: "Días no válidos." };
+
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("copiar_dia_horario", { p_desde: desde, p_dias: dias });
+  if (error) return { ok: false, error: `No se pudo copiar el día: ${error.message}` };
+  revalidarHorario();
+  return { ok: true, cambiadas: data };
+}
+
+/**
+ * Crea las clases del horario entre dos fechas. La base decide todo
+ * (`generar_clases`): solo franjas encendidas con instructora, nada en el
+ * pasado y nada repetido, así que se puede lanzar otra vez sin miedo.
+ */
+export async function generarClases(
+  desde: string,
+  hasta: string,
+): Promise<
+  | { ok: true; creadas: number; yaEstaban: number; sinInstructora: number }
+  | { ok: false; error: string }
+> {
+  const prohibido = await soloMostrador();
+  if (prohibido) return { ok: false, error: prohibido };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))
+    return { ok: false, error: "Fechas no válidas." };
+
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("generar_clases", { p_desde: desde, p_hasta: hasta });
+  if (error) {
+    if (error.code === "P0001" || error.code === "42501") return { ok: false, error: error.message };
+    return { ok: false, error: `No se pudieron generar las clases: ${error.message}` };
+  }
+  const r = data[0];
+  revalidarAgenda();
+  return { ok: true, creadas: r.creadas, yaEstaban: r.ya_estaban, sinInstructora: r.sin_instructora };
+}
+
+/* ======================================================================
    Acceso a la web de un cliente que ya existe
    ====================================================================== */
 

@@ -127,6 +127,22 @@ export type Sala = {
   capacidad: number;
 };
 
+/**
+ * Una franja del horario semanal: un día, una hora y una sala. Si está
+ * encendida y tiene instructora, «Generar clases» la convierte en una clase
+ * cada semana. La modalidad la da la sala.
+ */
+export type FranjaHorario = {
+  id: string;
+  /** ISO: 1 = lunes … 7 = domingo. */
+  dia: number;
+  horaInicio: string;
+  duracionMin: number;
+  sala: SalaId;
+  activa: boolean;
+  instructoraId: string | null;
+};
+
 export type Clase = {
   id: string;
   tipo: TipoClase;

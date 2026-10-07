@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(45);
+select plan(50);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -317,6 +317,43 @@ select throws_ok(
 select lives_ok(
   $$select marcar_asistencia('00000000-0000-0000-0000-0000000000ab', 'No vino')$$,
   'recepción o administración corrigen una marca');
+reset role;
+
+-- Horario semanal y «Generar clases» -------------------------------------------
+-- En local la semilla enciende franjas: se apagan todas y se encienden solo
+-- las del test. Lunes 07:00 en las dos salas con LA MISMA instructora (la
+-- segunda choca con la primera) y lunes 08:00 de Mat sin instructora.
+update horario_semanal set activa = false, instructora_id = null;
+update horario_semanal set activa = true, instructora_id = '00000000-0000-0000-0000-0000000000e1'
+  where dia = 1 and hora_inicio = '07:00';
+update horario_semanal set activa = true where dia = 1 and hora_inicio = '08:00' and sala = 'Mat';
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select results_eq(
+  $$select creadas, ya_estaban, sin_instructora from generar_clases('2031-04-07', '2031-04-13')$$,
+  $$values (1, 1, 1)$$,
+  'genera la franja con instructora; la que choca con ella no y la que no tiene instructora tampoco');
+select results_eq(
+  $$select creadas, ya_estaban, sin_instructora from generar_clases('2031-04-07', '2031-04-13')$$,
+  $$values (0, 2, 1)$$,
+  'generar otra vez no duplica nada');
+select is(
+  (select sala || ' · ' || tipo || ' · ' || cupos from clases where fecha = '2031-04-07' and hora_inicio = '07:00'),
+  'Reformer · Reformer · 8',
+  'la clase generada toma la modalidad de su sala y su aforo');
+select throws_ok(
+  $$select * from generar_clases('2031-04-07', '2031-08-01')$$,
+  'P0001', 'Como mucho, tres meses de una vez.',
+  'no se generan más de tres meses de una vez');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select throws_ok(
+  $$select * from generar_clases('2031-04-14', '2031-04-20')$$,
+  '42501', null,
+  'un cliente no genera clases');
 reset role;
 
 select * from finish();

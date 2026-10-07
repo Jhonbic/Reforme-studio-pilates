@@ -17,6 +17,7 @@ import type {
   Clase,
   ClaseDelCliente,
   ClaseEnAgenda,
+  FranjaHorario,
   Sala,
   SalaId,
   Cliente,
@@ -193,6 +194,27 @@ export async function getEquipo(esAdmin: boolean): Promise<MiembroEquipo[]> {
  * instructora dada de baja se siguen viendo —pasaron de verdad—, pero su nombre
  * desaparece del desplegable del formulario.
  */
+/** El horario semanal: todas las franjas, por día, hora y sala (Reformer primero). */
+export async function getHorarioSemanal(): Promise<FranjaHorario[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase
+    .from("horario_semanal")
+    .select("id, dia, hora_inicio, duracion_min, sala, activa, instructora_id")
+    .order("dia")
+    .order("hora_inicio")
+    .order("sala", { ascending: false });
+  if (error) throw new Error(`No se pudo leer el horario: ${error.message}`);
+  return data.map((f) => ({
+    id: f.id,
+    dia: f.dia,
+    horaInicio: f.hora_inicio.slice(0, 5),
+    duracionMin: f.duracion_min,
+    sala: f.sala as SalaId,
+    activa: f.activa,
+    instructoraId: f.instructora_id,
+  }));
+}
+
 /** Las salas y su aforo (tabla `salas`): el formulario de clase no deja pasar de ahí. */
 export async function getSalas(): Promise<Sala[]> {
   const supabase = await crearClienteServidor();

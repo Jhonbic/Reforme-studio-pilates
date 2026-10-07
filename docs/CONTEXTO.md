@@ -70,7 +70,7 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
 | `npm test` | **Vitest**, 58 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 45 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm run test:db` | **pgTAP**, 50 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -1469,6 +1469,44 @@ del estudio).
   hoy y mañana dentro de su transacción: en local la semilla podía ocupar la
   sala de la clase de prueba «dentro de una hora».
 
+#### Horario semanal (`/admin/clases/horario`) — oct 2026, paso 4
+
+Migración `20261009120000_horario_semanal`. El horario del estudio (imágenes
+del 8 oct 2026): **lunes a viernes 07, 08, 09, 10 · pausa · 15, 16, 17, 18 y
+19 h; sábado de 08 a 15 h; clases de 50 min; domingo cerrado.**
+
+- Tabla **`horario_semanal`**: cada fila es una **franja** (día ISO, hora,
+  sala). Se cargan las 106 (9 × 2 salas × 5 días + 8 × 2 el sábado)
+  **apagadas y sin instructora**: qué se da en cada hora y quién lo da lo
+  decide el estudio (decisión del usuario). La modalidad la da la sala; las
+  privadas no van en el horario, se programan sueltas.
+- **Pantalla** (botón «Horario semanal» en la agenda): pestañas por día con
+  cuántas clases tiene cada uno, y por cada hora las dos salas con
+  «+ Añadir» / «Se da» y la instructora. Cada cambio se guarda al momento.
+  ⚠️ Una instructora que ya da en la otra sala a esa hora sale
+  **deshabilitada** («· en la otra sala»): si no, «Generar» se saltaría la
+  segunda clase sin decir por qué. «Copiar este día a…» (L–V marcados de
+  entrada) copia hora por hora; las horas que el otro día no tiene (el
+  sábado) se quedan como están. Las instructoras lo ven sin botones.
+- **«Generar clases»** (desde · 1, 2, 4, 8 o 12 semanas) llama a
+  `generar_clases(desde, hasta)`: solo franjas encendidas **con
+  instructora**, nada en el pasado (ni horas de hoy que ya empezaron), como
+  mucho 3 meses. ⚠️ `on conflict do nothing` sobre las restricciones de
+  **exclusión** (sala e instructora): lo que ya está en la agenda no se
+  repite, así que **se puede generar otra vez sin miedo**. Antes de pulsar
+  anuncia cuántas saldrán; después dice creadas · ya estaban · sin
+  instructora. Los cupos salen de la capacidad de la sala.
+- `copiar_dia_horario(desde, días)`. Las dos funciones, `security invoker`
+  con `coalesce(es_mostrador(), false)` y EXECUTE revocado a `anon`.
+- ⚠️ La semilla vacía `equipo` con `truncate … cascade`, que **también vacía
+  el horario**: por eso vuelve a sembrar las franjas al final (y en local
+  enciende unas cuantas con instructora para probar).
+- **Producción (8 oct 2026)**: se **borró toda la agenda de ejemplo** (207
+  clases y 749 reservas; decisión del usuario). Copia en
+  `../respaldo-reforme-ngjy-2026-10-08-agenda/`. La agenda queda vacía hasta
+  que el estudio encienda franjas, asigne instructoras y genere.
+- 5 tests nuevos en `reglas_test.sql` (50).
+
 #### Planes (`/admin/planes`) — desde Supabase, oct 2026
 
 - El catálogo sale de la tabla `planes`, del más barato al más caro. La clave
@@ -1695,7 +1733,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **15 migraciones, todas aplicadas en local y en remoto** |
+| Esquema | `supabase/migrations/` — **16 migraciones, todas aplicadas en local y en remoto** |
 
 ### Variables de entorno
 
@@ -1831,8 +1869,10 @@ de repetir:
       a lanzar contra el remoto con datos reales: empieza con un `truncate`.
 - [x] ~~Planes reales~~ — cargados en producción el 6 oct 2026 (imágenes del
       estudio), todos de **30 días**: Mat (Inicio 4 · Origen 8 · Armonía 12),
-      Reformer (Esencia 4 · Equilibrio 8 · Evolución 12) y Fusión (Esencial
-      8+4 · Equilibrio 12+4; `clases_incluidas` = el total). Fusión Evolución
+      Reformer (Esencia 4 · Equilibrio 8 · Evolución 12) y Fusión (Inicio
+      4+4 $470.000 · Esencial 8+4 $580.000 · Equilibrio 12+4 $680.000, precios
+      del 8 oct 2026; `clases_incluidas` = el total). Las membresías ya
+      vendidas conservan el precio con el que se vendieron. Fusión Evolución
       (16+4) se cargó y se borró el mismo día a petición del usuario.
       La modalidad va en la descripción hasta que exista el campo. Los 4 de
       ejemplo se borraron y sus 23 membresías pasaron a planes reales
@@ -1840,14 +1880,13 @@ de repetir:
       Trimestral → Fusión Esencial). Copia previa en
       `../respaldo-reforme-ngjy-2026-10-06-planes/`. ⚠️ `supabase/seed.sql`
       sigue sembrando los planes de ejemplo en LOCAL.
-- [ ] **Precio de Fusión Inicio (4 Reformer + 4 Mat)**: no salía en la imagen,
-      no está cargado.
 - [ ] **Confirmar con el estudio las modalidades de clase** (`tipo_clase`:
       Reformer · Mat · Privada, ahora un enum de la base) y los cupos de
       `catalogos.ts`. Reformer y Mat están confirmadas por sus planes;
       «Privada» sigue siendo una suposición.
-- [ ] **Programar el horario real** en producción: hoy tiene la agenda de
-      ejemplo (207 clases con las instructoras de ejemplo).
+- [ ] **Armar el horario real** en «Horario semanal»: encender las franjas
+      que se usan, asignar instructoras (antes, dar de alta al equipo real) y
+      «Generar clases». La agenda de ejemplo ya se borró.
 - [ ] **`public/terminos-y-condiciones.pdf`** no existe: el alta de cliente
       enlaza ahí → 404 en un documento legal. Lo aporta el estudio.
 
@@ -1886,7 +1925,7 @@ Configuración). Lo que falta, por módulo:
 8. **Financiero**: Daviplata y «otros» como método, pagos pendientes y
    cartera (hoy todo se cobra al asignar), ventas.
 9. **Instructores**: salas e historial completo de clases dictadas.
-10. **Configuración**: salas (la tabla existe; falta la pantalla), horario semanal, cupos, política de cancelación,
+10. **Configuración**: salas (la tabla existe; falta la pantalla), ~~horario semanal~~ (hecho), cupos, política de cancelación,
     días no laborables y otros parámetros, editables sin el desarrollador.
 
 ⚠️ **La base de casi todo es el sistema de clases por plan** (modalidad +
@@ -1896,9 +1935,9 @@ y el aviso de «pocas clases» del 7.
 ### Funcionalidad pendiente (pasos 9–11 y más)
 
 - [x] ~~Agenda de clases en la base~~ — hecho en el paso 9 (ver §6, Clases).
-- [ ] **Plantilla semanal del horario**: hoy cada clase se programa una a una
-      (la semilla las genera de una plantilla, pero el panel no). Cuando el
-      horario se repita, tabla de plantilla + «generar la semana».
+- [x] ~~Plantilla semanal del horario~~ — «Horario semanal» (ver §6).
+- [ ] **Días festivos**: «Generar» no los conoce; hoy se cancelan o eliminan
+      a mano las clases de ese día.
 - [ ] **Avisar a quien tenía reservada una clase cancelada**: hoy hay que
       llamar a mano (la lista está en «Quién reservó»).
 - [x] ~~Registro de asistencias~~ — hecho (ver §6, Asistencia).
