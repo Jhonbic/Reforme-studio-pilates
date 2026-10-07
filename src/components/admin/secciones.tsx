@@ -71,6 +71,17 @@ function IconoFinanzas() {
   );
 }
 
+/* Tendencia y no barras: las barras ya son el icono de Finanzas, la sección
+   vecina (la demo hace lo mismo con «Resumen»). */
+function IconoEstadisticas() {
+  return (
+    <svg {...svg}>
+      <path d="M3 17l5.5-5.5 4 4L21 7" />
+      <path d="M15 7h6v6" />
+    </svg>
+  );
+}
+
 export type Seccion = {
   href: string;
   label: string;
@@ -86,6 +97,8 @@ export const SECCIONES: Seccion[] = [
   { href: "/admin/clases", label: "Clases", icono: IconoClases },
   { href: "/admin/planes", label: "Planes", icono: IconoPlanes },
   { href: "/admin/finanzas", label: "Finanzas", icono: IconoFinanzas },
+  // Después de Finanzas, como en la demo: se mira de vez en cuando.
+  { href: "/admin/estadisticas", label: "Estadísticas", icono: IconoEstadisticas },
 ];
 
 /**

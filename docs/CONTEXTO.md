@@ -101,6 +101,12 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
   `/admin` da 500; sin `SUPABASE_SERVICE_ROLE_KEY` solo falla «Dar acceso».
 - Para ver en el móvil sin desplegar: `npx next dev -H 0.0.0.0` y abrir
   `http://<IP-del-PC>:3000`.
+- ⚠️ **Tras reiniciar Windows, Supabase local puede no arrancar** («ports are not
+  available… 54322») o arrancar sin publicar el puerto 54321: Windows reserva
+  rangos de puertos para Hyper-V/WSL y los de Supabase (543xx) caen dentro
+  (`netsh interface ipv4 show excludedportrange protocol=tcp`). Se arregla en
+  una terminal de **administrador** con `net stop winnat` y `net start winnat`,
+  y luego `npx supabase start`. Los datos se conservan.
 - **Supabase local con Docker** (WSL2 + Docker Desktop, instalados oct 2026):
   `npx supabase start`. Pasos y gotchas en `docs/BASE_DE_DATOS.md` → «Entorno
   local». Docker es **solo para desarrollo**: la web sigue en Vercel y la BD en
@@ -202,6 +208,11 @@ En `src/components/`:
   `AgendaReservas` (calendario del mes + clases del día). Se borraron
   `TarjetaIngresos`, `GraficaIngresos`, `GraficaContable`, `Donut` y `HBars`:
   solo los usaba la rejilla bento.
+- `admin/estadisticas/PanelEstadisticas.tsx` — la pantalla de Estadísticas
+  (copia de `admingymdemo`, oct 2026). Ver §6.
+- `admin/charts/BarrasApiladas.tsx` (oct 2026): barras apiladas por grupo, para
+  «Altas y bajas» (entran = nuevos + regresos, salen = bajas). Mismo sistema
+  de píxeles reales que `GroupedBars`.
 - `admin/charts/`: `LineChart.tsx`, `GroupedBars.tsx`, `Donut.tsx` (clientes) y
   `HBars.tsx` (servidor: sin interacción, los valores ya van escritos).
   ⚠️ **Gotcha resuelto:** `LineChart` y `GroupedBars` dibujan en **píxeles
@@ -1293,6 +1304,50 @@ muy gruesa son de un box de crossfit; aquí manda la marca.
   usuario, oct 2026: «gráficas feas sin sentido»). Estuvo un momento aquí al
   salir del Dashboard y se quitó.
 
+#### Estadísticas (`/admin/estadisticas`) — oct 2026
+
+**Copia de la pantalla de Estadísticas de `admingymdemo`**
+(`../admingymdemo/Demo-AdminGym/frontend/src/views/EstadisticasView.vue` +
+`demo/handlers/estadisticas.js`), con los colores de Reforme. Decisión del
+usuario. Sección del menú después de Finanzas, con icono de tendencia (las
+barras ya son de Finanzas). **Solo Administración**: muestra cuánto deja cada
+cliente.
+
+- Cálculos puros en `lib/admin/estadisticas.ts` (con tests), datos de
+  `getDatosEstadisticas()` + `getClases()`.
+- ⚠️ **A diferencia de la demo, NO se deduce nada de los pagos.** La demo no
+  guarda el historial de membresías y reconstruye a cada cliente desde sus
+  pagos; Reforme sí lo guarda (`membresias`), así que los **tramos** salen
+  exactos. Misma regla que la demo: renovar hasta **30 días** tarde
+  (`MARGEN`) es el mismo tramo; más allá, se fue y volver es un **regreso**.
+- **1. Altas y bajas por mes**: barras apiladas (nuevos y regresos en verde,
+  bajas en rojo), periodo 3 meses · 6 meses · 1 año · 2 años (la serie trae 24
+  y se recorta en el navegador), tres cifras y «Ver detalle por mes» con la
+  fila de promedio. La serie **arranca en la primera membresía**: rellenar
+  con ceros antes dibujaría un crecimiento que nunca ocurrió. El último
+  vencimiento de hace < 30 días es **«por confirmar»**, no baja (`*`), y no
+  entra en el promedio de bajas, igual que el mes en curso.
+- **2. Permanencia y planes**: mediana de meses que se queda un cliente y lo
+  que deja de media (sus pagos). Por plan: vendidos (cada membresía es una
+  venta), activos hoy y % que renueva (solo vencimientos de los últimos 12
+  meses con el margen ya cumplido).
+- **3. Quiénes son**: dona de **edad** de los activos. ⚠️ **Sin género**: Reforme
+  no lo pregunta en el alta ni en el registro (la demo sí). Los clientes de
+  ejemplo no tienen fecha de nacimiento y salen «Sin dato».
+- **4. Clases** (propio de Reforme, la demo no tiene agenda), últimas 4 semanas
+  sin canceladas, contando **reservas, no asistencias**:
+  - **Mapa de horarios** día × hora con la ocupación media escrita en cada
+    celda (el color acompaña). Texto claro desde el 45 %: con menos no se
+    leía sobre el verde medio.
+  - Ocupación **por instructora** y **por modalidad**.
+  - **Uso del plan**: reservas por semana de cada cliente activo frente a lo
+    que incluye su plan (`clases_incluidas` ÷ semanas de vigencia).
+  - **«Con plan y sin reservar»** (dormidos): plan vigente, sin reservas en
+    los últimos 14 días ni en los próximos 14. La señal más temprana de que
+    alguien no va a renovar.
+- Verificada con los datos de producción (solo lectura), en escritorio y móvil:
+  sin errores ni desplazamiento lateral.
+
 #### Planes (`/admin/planes`) — desde Supabase, oct 2026
 
 - El catálogo sale de la tabla `planes`, del más barato al más caro. La clave
@@ -1550,6 +1605,7 @@ prefijo `NEXT_PUBLIC_`. Solo la lee `src/lib/supabase/admin.ts` (`server-only`).
 | `/admin/clases` | Supabase | ✅ programar, editar, cancelar, eliminar; apuntar y quitar reservas | Cambios: Administración y Recepción |
 | `/admin/planes` | Supabase | ✅ crear, editar, retirar, borrar | Cambios: solo Administración |
 | `/admin/finanzas` | Supabase | ✅ registrar gasto con comprobante | Solo Administración |
+| `/admin/estadisticas` | Supabase | — | Solo Administración. Copia de `admingymdemo` + bloque de clases |
 | Menú de cuenta | Sesión | ✅ cambiar contraseña, cerrar sesión | Todo el equipo |
 
 Todas las escrituras son **server actions** en `src/lib/admin/acciones.ts` (y
@@ -1701,6 +1757,8 @@ de repetir:
 - [ ] **Copiar JainSportBox en el resto del panel** (el dashboard ya está,
       oct 2026): ficha del cliente completa, acciones en la fila de
       Usuarios, menú agrupado y títulos con descripción.
+- [ ] **Género del cliente** en el alta y el registro, si se quiere el bloque
+      «Género» de Estadísticas como en la demo.
 - [ ] **Notificaciones de la campana**: el primer aviso es real (membresías por
       vencer); los otros dos son de ejemplo (`mock.ts`).
 

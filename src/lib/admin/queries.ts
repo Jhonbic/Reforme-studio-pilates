@@ -7,6 +7,7 @@ import {
   avisoPorVencer,
   type DatosDashboard,
 } from "./dashboard";
+import type { DatosEstadisticas } from "./estadisticas";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/tipos";
 
@@ -586,4 +587,45 @@ export async function getNotificaciones(hoy: string): Promise<Notificacion[]> {
     },
     ...NOTIFICACIONES,
   ];
+}
+
+/**
+ * Lo que necesita `/admin/estadisticas`, en una ida. Los cálculos los hace
+ * `lib/admin/estadisticas.ts` (funciones puras).
+ *
+ * ⚠️ Solo para Administración: incluye los pagos (para «cuánto deja cada
+ * cliente»), y RLS no se los da a las instructoras. La página lo comprueba
+ * antes de llamar.
+ */
+export async function getDatosEstadisticas(): Promise<DatosEstadisticas> {
+  const supabase = await crearClienteServidor();
+  const [clientes, membresias, pagos, planes] = await Promise.all([
+    supabase.from("clientes").select("id, nombre, fecha_nacimiento"),
+    supabase.from("membresias").select("cliente_id, plan_id, inicio, vencimiento"),
+    supabase.from("pagos").select("cliente_id, importe"),
+    supabase.from("planes").select("id, nombre, clases_incluidas, vigencia_dias"),
+  ]);
+  for (const r of [clientes, membresias, pagos, planes]) {
+    if (r.error) throw new Error(`No se pudieron leer las estadísticas: ${r.error.message}`);
+  }
+  return {
+    clientes: (clientes.data ?? []).map((c) => ({
+      id: c.id,
+      nombre: c.nombre,
+      nacimiento: c.fecha_nacimiento,
+    })),
+    membresias: (membresias.data ?? []).map((m) => ({
+      clienteId: m.cliente_id,
+      planId: m.plan_id,
+      inicio: m.inicio,
+      vencimiento: m.vencimiento,
+    })),
+    pagos: (pagos.data ?? []).map((p) => ({ clienteId: p.cliente_id, importe: p.importe })),
+    planes: (planes.data ?? []).map((p) => ({
+      id: p.id,
+      nombre: p.nombre,
+      clasesIncluidas: p.clases_incluidas,
+      vigenciaDias: p.vigencia_dias,
+    })),
+  };
 }
