@@ -26,17 +26,20 @@ export type Database = {
       ajustes: {
         Row: {
           agenda_generada_hasta: string | null;
+          horas_para_cancelar: number;
           id: boolean;
           semanas_por_delante: number;
         };
         ComputedFields: never;
         Insert: {
           agenda_generada_hasta?: string | null;
+          horas_para_cancelar?: number;
           id?: boolean;
           semanas_por_delante?: number;
         };
         Update: {
           agenda_generada_hasta?: string | null;
+          horas_para_cancelar?: number;
           id?: boolean;
           semanas_por_delante?: number;
         };
@@ -168,6 +171,22 @@ export type Database = {
           telefono?: string | null;
           tipo_identificacion?: Database["public"]["Enums"]["tipo_identificacion"];
           ultima_asistencia?: string | null;
+        };
+        Relationships: [];
+      };
+      dias_cerrados: {
+        Row: {
+          fecha: string;
+          motivo: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          fecha: string;
+          motivo: string;
+        };
+        Update: {
+          fecha?: string;
+          motivo?: string;
         };
         Relationships: [];
       };
@@ -688,7 +707,7 @@ export type Database = {
       asistencia: "Asistió" | "No vino";
       categoria_gasto: "Arriendo" | "Nómina" | "Servicios" | "Mantenimiento" | "Marketing";
       estado_membresia: "Activa" | "Por vencer" | "Vencida" | "Inactiva" | "Sin plan";
-      metodo_pago: "Efectivo" | "Nequi" | "Transferencia" | "Tarjeta";
+      metodo_pago: "Efectivo" | "Nequi" | "Transferencia" | "Tarjeta" | "Daviplata" | "Otro";
       modalidad_plan: "Mat" | "Reformer" | "Fusión";
       rol_equipo: "Instructora" | "Administración" | "Recepción";
       tipo_clase: "Reformer" | "Mat" | "Privada";
@@ -814,7 +833,7 @@ export const Constants = {
       asistencia: ["Asistió", "No vino"],
       categoria_gasto: ["Arriendo", "Nómina", "Servicios", "Mantenimiento", "Marketing"],
       estado_membresia: ["Activa", "Por vencer", "Vencida", "Inactiva", "Sin plan"],
-      metodo_pago: ["Efectivo", "Nequi", "Transferencia", "Tarjeta"],
+      metodo_pago: ["Efectivo", "Nequi", "Transferencia", "Tarjeta", "Daviplata", "Otro"],
       modalidad_plan: ["Mat", "Reformer", "Fusión"],
       rol_equipo: ["Instructora", "Administración", "Recepción"],
       tipo_clase: ["Reformer", "Mat", "Privada"],

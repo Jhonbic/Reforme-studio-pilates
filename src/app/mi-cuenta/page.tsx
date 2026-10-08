@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import PanelCliente from "@/components/cliente/PanelCliente";
 import { horaEnBogota, hoyEnBogota } from "@/lib/admin/horario";
-import { getAgendaCliente, getMiCuenta } from "@/lib/cliente/datos";
+import { getAgendaCliente, getHorasParaCancelar, getMiCuenta } from "@/lib/cliente/datos";
 
 /**
  * Área de cliente: su plan, sus próximas clases y la agenda para reservar.
@@ -16,7 +16,15 @@ export default async function MiCuentaPage() {
   if (!cuenta) redirect("/login");
 
   const hoy = hoyEnBogota();
-  const agenda = await getAgendaCliente(hoy);
+  const [agenda, horasParaCancelar] = await Promise.all([getAgendaCliente(hoy), getHorasParaCancelar()]);
 
-  return <PanelCliente cuenta={cuenta} agenda={agenda} hoy={hoy} ahora={horaEnBogota()} />;
+  return (
+    <PanelCliente
+      cuenta={cuenta}
+      agenda={agenda}
+      hoy={hoy}
+      ahora={horaEnBogota()}
+      horasParaCancelar={horasParaCancelar}
+    />
+  );
 }

@@ -10,7 +10,7 @@ import { sumarDias } from "@/lib/admin/horario";
 import type { PlanALaVenta } from "@/lib/admin/queries";
 import type { MetodoPago } from "@/lib/admin/types";
 
-const METODOS: MetodoPago[] = ["Nequi", "Transferencia", "Efectivo", "Tarjeta"];
+const METODOS: MetodoPago[] = ["Nequi", "Daviplata", "Transferencia", "Efectivo", "Tarjeta", "Otro"];
 
 const BOTON_PRIMARIO =
   "inline-flex min-h-[44px] items-center justify-center rounded-full bg-dorado px-5 text-sm font-medium text-verde-900 transition-colors duration-300 hover:bg-dorado-dark disabled:opacity-60";

@@ -958,6 +958,121 @@ export async function marcarAsistencia(
 }
 
 /* ======================================================================
+   Configuración (solo Administración; RLS lo vuelve a impedir)
+   ====================================================================== */
+
+async function soloAdminConfig(): Promise<string | null> {
+  const usuario = await getUsuarioActual();
+  return usuario?.rol === "Administración" ? null : "Solo Administración cambia la configuración.";
+}
+
+function revalidarConfiguracion() {
+  revalidatePath("/admin/configuracion");
+  revalidatePath("/admin/clases", "layout");
+  revalidatePath("/mi-cuenta");
+}
+
+type ResultadoConfig = { ok: true; aviso?: string } | { ok: false; error: string };
+
+/** Semanas de agenda por delante y horas mínimas para cancelar. */
+export async function guardarAjustes(semanas: number, horas: number): Promise<ResultadoConfig> {
+  const prohibido = await soloAdminConfig();
+  if (prohibido) return { ok: false, error: prohibido };
+  if (!Number.isInteger(semanas) || semanas < 1 || semanas > 12)
+    return { ok: false, error: "Las semanas van de 1 a 12." };
+  if (!Number.isInteger(horas) || horas < 0 || horas > 72)
+    return { ok: false, error: "Las horas van de 0 a 72." };
+
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase
+    .from("ajustes")
+    .update({ semanas_por_delante: semanas, horas_para_cancelar: horas })
+    .eq("id", true);
+  if (error) return { ok: false, error: `No se pudo guardar: ${error.message}` };
+  // Si se alargó la agenda, que se rellene ya y no mañana.
+  const { error: errorAgenda } = await supabase.rpc("extender_agenda");
+  revalidarConfiguracion();
+  return errorAgenda
+    ? { ok: true, aviso: `La agenda se rellenará esta noche (ahora no se pudo: ${errorAgenda.message}).` }
+    : { ok: true };
+}
+
+/** Aforo de una sala. Sus próximas clases con el aforo de la sala lo siguen. */
+export async function guardarAforoSala(sala: string, capacidad: number): Promise<ResultadoConfig> {
+  const prohibido = await soloAdminConfig();
+  if (prohibido) return { ok: false, error: prohibido };
+  if (sala !== "Reformer" && sala !== "Mat") return { ok: false, error: "Sala no válida." };
+  if (!Number.isInteger(capacidad) || capacidad < 1 || capacidad > 50)
+    return { ok: false, error: "El aforo va de 1 a 50." };
+
+  const supabase = await crearClienteServidor();
+  const { error, count } = await supabase
+    .from("salas")
+    .update({ capacidad }, { count: "exact" })
+    .eq("id", sala);
+  if (error) return { ok: false, error: `No se pudo guardar el aforo: ${error.message}` };
+  if (count === 0) return { ok: false, error: "Esa sala no existe." };
+
+  // Al bajarlo, las clases con más gente apuntada se quedan como estaban.
+  const { count: grandes } = await supabase
+    .from("clases")
+    .select("id", { count: "exact", head: true })
+    .eq("sala", sala)
+    .eq("cancelada", false)
+    .gte("fecha", hoyEnBogota())
+    .gt("cupos", capacidad);
+  revalidarConfiguracion();
+  return grandes
+    ? {
+        ok: true,
+        aviso: `${grandes} ${grandes === 1 ? "clase próxima tiene" : "clases próximas tienen"} más cupos que el aforo nuevo (por la gente ya apuntada o porque se pusieron a mano): revísalas en la agenda.`,
+      }
+    : { ok: true };
+}
+
+/** Cierra un día: la agenda quita sus clases sin reservas y no crea más. */
+export async function cerrarDia(fecha: string, motivo: string): Promise<ResultadoConfig> {
+  const prohibido = await soloAdminConfig();
+  if (prohibido) return { ok: false, error: prohibido };
+  const texto = motivo.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return { ok: false, error: "Elige el día." };
+  if (fecha < hoyEnBogota()) return { ok: false, error: "Ese día ya pasó." };
+  if (!texto || texto.length > 80) return { ok: false, error: "Escribe el motivo (hasta 80 letras)." };
+
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("dias_cerrados").insert({ fecha, motivo: texto });
+  if (error) {
+    if (error.code === "23505") return { ok: false, error: "Ese día ya está cerrado." };
+    return { ok: false, error: `No se pudo cerrar el día: ${error.message}` };
+  }
+  const { count } = await supabase
+    .from("clases")
+    .select("id", { count: "exact", head: true })
+    .eq("fecha", fecha)
+    .eq("cancelada", false);
+  revalidarConfiguracion();
+  return count
+    ? {
+        ok: true,
+        aviso: `${count} ${count === 1 ? "clase de ese día tenía" : "clases de ese día tenían"} reservas y se ${count === 1 ? "queda" : "quedan"}: cancélalas en la agenda y avisa a quienes reservaron.`,
+      }
+    : { ok: true };
+}
+
+/** Vuelve a abrir un día cerrado: la agenda recupera sus clases del horario. */
+export async function abrirDia(fecha: string): Promise<ResultadoConfig> {
+  const prohibido = await soloAdminConfig();
+  if (prohibido) return { ok: false, error: prohibido };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return { ok: false, error: "Día no válido." };
+
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("dias_cerrados").delete().eq("fecha", fecha);
+  if (error) return { ok: false, error: `No se pudo abrir el día: ${error.message}` };
+  revalidarConfiguracion();
+  return { ok: true };
+}
+
+/* ======================================================================
    Horario semanal
    ====================================================================== */
 

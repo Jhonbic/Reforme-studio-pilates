@@ -2,17 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { fecha as fechaCorta } from "@/lib/admin/format";
-import { diaCorto, diaRelativo, numeroDia } from "@/lib/admin/horario";
+import { diaCorto, diaRelativo, diasEntre, numeroDia } from "@/lib/admin/horario";
 import { cancelarReserva, reservarClase } from "@/lib/cliente/acciones";
 import type { ClaseParaCliente, MiCuenta } from "@/lib/cliente/datos";
 
 /** Recepción, para lo que no se puede hacer desde aquí. Mismo número que el
  *  footer de la web. */
 const WHATSAPP = "https://wa.me/573209078814";
-
-/** Cuánto antes se puede cancelar: el mismo plazo que aplica la base
- *  (`cancelar_mi_reserva`). Si cambia allí, cambia aquí. */
-const HORAS_PARA_CANCELAR = 2;
 
 /** Cuántas próximas clases se enseñan antes de «Ver todas». En el móvil cada
  *  una ocupa ~90px: con 15 reservas, «Reservar una clase» quedaba a cuatro
@@ -28,23 +24,16 @@ function cubre(cuenta: MiCuenta, dia: string): boolean {
   return cuenta.cobertura.some((m) => m.inicio <= dia && dia <= m.vencimiento);
 }
 
-/** ¿Faltan más de 2 horas? `ahora` en minutos desde las 00:00 de hoy. */
-function cancelable(c: ClaseParaCliente, hoy: string, ahoraMin: number): boolean {
-  if (c.fecha > hoy) {
-    // Mañana a las 00:30 también está a menos de 2 h si ahora son las 23:00.
-    const [h, m] = c.horaInicio.split(":").map(Number);
-    return c.fecha > sumarUnDia(hoy) || h * 60 + m + 24 * 60 - ahoraMin > HORAS_PARA_CANCELAR * 60;
-  }
+/**
+ * ¿Falta más que el plazo de cancelación? `ahora` en minutos desde las 00:00
+ * de hoy. Cuenta los días de diferencia: con un plazo de 24 h, una clase de
+ * mañana a las 07:00 ya no se cancela a las 08:00 de hoy.
+ */
+function cancelable(c: ClaseParaCliente, hoy: string, ahoraMin: number, horas: number): boolean {
   const [h, m] = c.horaInicio.split(":").map(Number);
-  return h * 60 + m - ahoraMin > HORAS_PARA_CANCELAR * 60;
+  const faltan = diasEntre(hoy, c.fecha) * 24 * 60 + h * 60 + m - ahoraMin;
+  return faltan > horas * 60;
 }
-
-function sumarUnDia(iso: string): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
-
 
 /**
  * El área de cliente: plan, próximas clases y reservar.
@@ -59,6 +48,7 @@ export default function PanelCliente({
   agenda,
   hoy,
   ahora: ahoraHHMM,
+  horasParaCancelar,
 }: {
   cuenta: MiCuenta;
   agenda: ClaseParaCliente[];
@@ -68,6 +58,9 @@ export default function PanelCliente({
    *  2 horas (error de hidratación). Solo decide si se ENSEÑA «Cancelar»; la
    *  regla de verdad está en la base. */
   ahora: string;
+  /** El plazo para cancelar, de Configuración (`ajustes`): el mismo que
+   *  aplica la base en `cancelar_mi_reserva`. */
+  horasParaCancelar: number;
 }) {
   const dias = [...new Set(agenda.map((c) => c.fecha))];
   const [dia, setDia] = useState(dias[0] ?? hoy);
@@ -117,7 +110,7 @@ export default function PanelCliente({
               Vigente hasta el {cuenta.vencimiento ? fechaCorta(cuenta.vencimiento, true) : "—"}
             </p>
             {/* Cuántas le quedan de cada tipo: cada reserva descuenta una, y
-                cancelar con 2 h o más la devuelve. */}
+                cancelar dentro del plazo la devuelve. */}
             {cuenta.saldo.length > 0 && (
               <ul className="mt-3 flex flex-wrap gap-2">
                 {cuenta.saldo.map((s) => (
@@ -179,7 +172,7 @@ export default function PanelCliente({
           <h2 className="font-display text-2xl text-verde">Tus próximas clases</h2>
           <ul className="mt-4 grid gap-3 sm:grid-cols-2">
             {(todas ? mias : mias.slice(0, PROXIMAS_A_LA_VISTA)).map((c) => {
-              const puede = cancelable(c, hoy, ahora);
+              const puede = cancelable(c, hoy, ahora, horasParaCancelar);
               return (
                 <li key={c.id} className="flex items-center justify-between gap-3 rounded-2xl border border-beige bg-white p-4">
                   <div className="min-w-0">
@@ -209,7 +202,7 @@ export default function PanelCliente({
                     /* Pasado el plazo no se esconde sin más: se dice por qué
                        y a quién acudir. */
                     <p className="max-w-[9rem] shrink-0 text-right text-xs text-verde-300">
-                      Faltan menos de {HORAS_PARA_CANCELAR} h: para cancelar,{" "}
+                      Faltan menos de {horasParaCancelar} h: para cancelar,{" "}
                       <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="text-dorado-dark underline">
                         escríbenos
                       </a>

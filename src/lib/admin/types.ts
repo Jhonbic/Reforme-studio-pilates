@@ -11,7 +11,7 @@
 
 /** Métodos de cobro reales del estudio. Nequi y las transferencias bancarias
  *  pesan mucho en Colombia, por eso van separadas de "tarjeta". */
-export type MetodoPago = "Efectivo" | "Nequi" | "Transferencia" | "Tarjeta";
+export type MetodoPago = "Efectivo" | "Nequi" | "Daviplata" | "Transferencia" | "Tarjeta" | "Otro";
 
 /** Modalidades que vende el estudio. Máximo 4: es también el límite de series
  *  que admite la paleta de gráficos. */
@@ -117,6 +117,22 @@ export type TipoClase = "Reformer" | "Mat" | "Privada";
  * dejaría atrás todas sus clases pasadas diciendo el nombre viejo. Es la misma
  * regla por la que `Pago` guarda `clienteId`.
  */
+/** Un día sin clases (festivo, vacaciones…). */
+export type DiaCerrado = {
+  fecha: string;
+  motivo: string;
+  /** Clases de ese día que se quedaron porque alguien las había reservado. */
+  conReservas: number;
+};
+
+/** Lo que se cambia en Configuración. */
+export type Configuracion = {
+  semanasPorDelante: number;
+  horasParaCancelar: number;
+  salas: Sala[];
+  diasCerrados: DiaCerrado[];
+};
+
 /** Las salas del estudio. Reformer y Mat van en la suya; la privada, en la que se elija. */
 export type SalaId = "Reformer" | "Mat";
 

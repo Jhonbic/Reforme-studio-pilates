@@ -95,6 +95,14 @@ export type ClaseParaCliente = {
   disponibles: number | null;
 };
 
+/** El plazo para cancelar (Configuración). `ajustes` lo lee cualquier sesión. */
+export async function getHorasParaCancelar(): Promise<number> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("ajustes").select("horas_para_cancelar").single();
+  if (error) throw new Error(`No se pudieron leer los ajustes: ${error.message}`);
+  return data.horas_para_cancelar;
+}
+
 /** Días de agenda que se enseñan: dos semanas. La función de la base corta en
  *  cuatro, por si un día se amplía. */
 export const DIAS_AGENDA_CLIENTE = 14;

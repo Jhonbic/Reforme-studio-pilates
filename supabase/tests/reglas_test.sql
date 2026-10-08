@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(51);
+select plan(56);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -381,6 +381,47 @@ select throws_ok(
   $$select extender_agenda()$$,
   '42501', null,
   'un cliente no rellena la agenda');
+reset role;
+
+-- Configuración ------------------------------------------------------------
+-- Sigue con la franja de mañana a las 07:00 (Reformer) del bloque anterior:
+-- hay clase mañana (reservada), y en los días 15 y 22.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+insert into dias_cerrados (fecha, motivo) values (current_date + 15, 'Festivo de prueba');
+select is(
+  (select count(*)::int from clases where franja_id is not null and fecha = current_date + 15), 0,
+  'cerrar un día quita sus clases que nadie reservó');
+insert into dias_cerrados (fecha, motivo) values (current_date + 1, 'Cerrado de prueba');
+select is(
+  (select count(*)::int from clases where franja_id is not null and fecha = current_date + 1), 1,
+  'cerrar un día deja las clases que ya tenían reservas');
+delete from dias_cerrados where fecha = current_date + 15;
+select is(
+  (select count(*)::int from clases where franja_id is not null and fecha = current_date + 15), 1,
+  'abrir otra vez el día devuelve la clase del horario');
+update salas set capacidad = 6 where id = 'Reformer';
+select is(
+  (select cupos from clases where franja_id is not null and fecha = current_date + 22), 6,
+  'bajar el aforo de la sala lo baja en sus próximas clases');
+update ajustes set horas_para_cancelar = 0;
+reset role;
+
+-- Una clase que empieza dentro de 30 min, con la cliente apuntada (el bloque
+-- de agenda borró las de hoy en adelante).
+set local request.jwt.claims to '{}';
+insert into clases (id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos) values
+  ('00000000-0000-0000-0000-00000000aa11', 'Mat',
+   (localtimestamp + interval '30 minutes')::date,
+   (localtimestamp + interval '30 minutes')::time, 30, '00000000-0000-0000-0000-0000000000e2', 8);
+insert into reservas (clase_id, cliente_id)
+  values ('00000000-0000-0000-0000-00000000aa11', '00000000-0000-0000-0000-0000000000d1');
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select lives_ok(
+  $$select cancelar_mi_reserva('00000000-0000-0000-0000-00000000aa11')$$,
+  'con el plazo de cancelación en 0 horas se cancela hasta que empiece');
 reset role;
 
 select * from finish();

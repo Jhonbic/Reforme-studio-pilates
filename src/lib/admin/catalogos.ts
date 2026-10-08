@@ -25,7 +25,7 @@ export const CATEGORIAS_GASTO: CategoriaGasto[] = [
 ];
 
 /** Los métodos de pago (enum `metodo_pago`). */
-export const METODOS_PAGO: MetodoPago[] = ["Efectivo", "Nequi", "Transferencia", "Tarjeta"];
+export const METODOS_PAGO: MetodoPago[] = ["Efectivo", "Nequi", "Daviplata", "Transferencia", "Tarjeta", "Otro"];
 
 /**
  * Los estados de membresía, en el orden de las pastillas de filtro de

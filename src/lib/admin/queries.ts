@@ -19,6 +19,7 @@ import type {
   ClaseParaReservar,
   MembresiaConSaldo,
   ClaseEnAgenda,
+  Configuracion,
   FranjaHorario,
   Sala,
   SalaId,
@@ -196,6 +197,37 @@ export async function getEquipo(esAdmin: boolean): Promise<MiembroEquipo[]> {
  * instructora dada de baja se siguen viendo —pasaron de verdad—, pero su nombre
  * desaparece del desplegable del formulario.
  */
+/** Todo lo de Configuración: ajustes, salas y los días cerrados que vienen. */
+export async function getConfiguracion(hoy: string): Promise<Configuracion> {
+  const supabase = await crearClienteServidor();
+  const [ajustes, salas, dias] = await Promise.all([
+    supabase.from("ajustes").select("semanas_por_delante, horas_para_cancelar").single(),
+    getSalas(),
+    supabase.from("dias_cerrados").select("fecha, motivo").gte("fecha", hoy).order("fecha"),
+  ]);
+  if (ajustes.error) throw new Error(`No se pudieron leer los ajustes: ${ajustes.error.message}`);
+  if (dias.error) throw new Error(`No se pudieron leer los días cerrados: ${dias.error.message}`);
+
+  // Clases que siguen en días cerrados: las que tenían reservas. (Sin relación
+  // entre las dos tablas, no se puede embeber: se piden por fecha.)
+  const porDia = new Map<string, number>();
+  if (dias.data.length > 0) {
+    const { data: quedan, error } = await supabase
+      .from("clases")
+      .select("fecha")
+      .eq("cancelada", false)
+      .in("fecha", dias.data.map((d) => d.fecha));
+    if (error) throw new Error(`No se pudieron leer las clases de los días cerrados: ${error.message}`);
+    for (const c of quedan) porDia.set(c.fecha, (porDia.get(c.fecha) ?? 0) + 1);
+  }
+  return {
+    semanasPorDelante: ajustes.data.semanas_por_delante,
+    horasParaCancelar: ajustes.data.horas_para_cancelar,
+    salas,
+    diasCerrados: dias.data.map((d) => ({ fecha: d.fecha, motivo: d.motivo, conReservas: porDia.get(d.fecha) ?? 0 })),
+  };
+}
+
 /** Cuántas semanas por delante mantiene la agenda (tabla `ajustes`). */
 export async function getSemanasAgenda(): Promise<number> {
   const supabase = await crearClienteServidor();

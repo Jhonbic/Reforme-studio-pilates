@@ -70,7 +70,7 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
 | `npm test` | **Vitest**, 58 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 51 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm run test:db` | **pgTAP**, 56 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -1583,6 +1583,37 @@ generadas con el «Generar» antiguo hasta el 29 dic, **sin `franja_id`**. Se
 enlazaron a su franja a mano (mismo día, hora, sala y duración) para que los
 cambios del horario les lleguen. Queda suelta una clase manual del 6 oct.
 
+#### Configuración (`/admin/configuracion`) — oct 2026, paso 4
+
+Migración `20261011120000_configuracion`. Solo Administración (RLS y la
+página, que a los demás les dice que es de Administración). Última entrada
+del menú, con engranaje. Cada bloque guarda por separado y avisa de lo que
+pasó en la agenda.
+
+- **Agenda y reservas** (`ajustes`): semanas de agenda por delante (1–12; al
+  subirlas se rellena en el momento) y **horas para cancelar desde la web**
+  (0–48; antes eran 2 h escritas en `cancelar_mi_reserva` y en
+  `PanelCliente`). Ahora las dos leen `ajustes.horas_para_cancelar`; por eso
+  `ajustes` lo lee cualquier sesión (no tiene nada privado).
+- **Salas**: aforo de cada una. Trigger `salas_sincronizan_aforo`: sus
+  próximas clases que tenían el aforo de la sala lo siguen (las puestas a
+  mano con otro número, no); al bajarlo, solo donde la gente apuntada cabe, y
+  el aviso dice cuántas quedan por encima.
+- **Días cerrados** (tabla `dias_cerrados`, fecha + motivo): la agenda
+  automática no crea clases en ellos; cerrar quita las de ese día que nadie
+  reservó (las reservadas se quedan y la lista lo dice con ▲) y volver a
+  abrir devuelve las del horario (trigger `dias_cerrados_sincronizan_agenda`).
+- **Formas de pago**: **Daviplata** y **Otro** añadidas al enum
+  `metodo_pago` y a `METODOS_PAGO` (y a la lista de «Asignar plan»).
+- ⚠️ **Arreglo importante que salió aquí**: Supabase tiene **`pg_safeupdate`**,
+  que por la API rechaza todo `UPDATE`/`DELETE` sin `WHERE`, **también dentro
+  de una función**. `extender_agenda_interna` hacía `update ajustes set …` a
+  secas: desde la app daba «UPDATE requires a WHERE clause» y la agenda NO se
+  rellenaba al abrirse (solo el cron, que no pasa por la API). Los tests de
+  base no pasan por la API y no lo vieron. **Toda función llamable desde la
+  app necesita `WHERE` en sus UPDATE/DELETE** (en `ajustes`, `where id`).
+- 5 tests nuevos en `reglas_test.sql` (56).
+
 #### Planes (`/admin/planes`) — desde Supabase, oct 2026
 
 - El catálogo sale de la tabla `planes`, del más barato al más caro. La clave
@@ -1809,7 +1840,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **17 migraciones, todas aplicadas en local y en remoto** |
+| Esquema | `supabase/migrations/` — **18 migraciones, todas aplicadas en local y en remoto** |
 
 ### Variables de entorno
 
@@ -2001,8 +2032,8 @@ Configuración). Lo que falta, por módulo:
 8. **Financiero**: Daviplata y «otros» como método, pagos pendientes y
    cartera (hoy todo se cobra al asignar), ventas.
 9. **Instructores**: salas e historial completo de clases dictadas.
-10. **Configuración**: salas (la tabla existe; falta la pantalla), ~~horario semanal~~ (hecho), cupos, política de cancelación,
-    días no laborables y otros parámetros, editables sin el desarrollador.
+10. **Configuración**: ~~salas, horario semanal, cupos, política de
+    cancelación y días no laborables~~ (hecho, «Configuración»).
 
 ⚠️ **La base de casi todo es el sistema de clases por plan** (modalidad +
 bolsas de clases + descuento al reservar/asistir): de él dependen 2, 4, 5 y 6
@@ -2012,8 +2043,7 @@ y el aviso de «pocas clases» del 7.
 
 - [x] ~~Agenda de clases en la base~~ — hecho en el paso 9 (ver §6, Clases).
 - [x] ~~Plantilla semanal del horario~~ — «Horario semanal» (ver §6).
-- [ ] **Días festivos**: la agenda automática no los conoce; hoy se
-      eliminan a mano las clases de ese día (no vuelven).
+- [x] ~~Días festivos~~ — «Días cerrados» en Configuración.
 - [ ] **Vista «Hoy» para pasar lista** (las clases del día con su gente y
       los botones de asistencia, en una pantalla) y, para la instructora,
       «Mis clases» como entrada.
