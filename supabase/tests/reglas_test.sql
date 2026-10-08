@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(65);
+select plan(71);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -506,6 +506,42 @@ select lives_ok(
                                  and cliente_id = '00000000-0000-0000-0000-0000000000d3'),
       '00000000-0000-0000-0000-0000000000f5')$$,
   'recepción mueve a alguien de una clase a otra');
+reset role;
+
+-- Pagos pendientes (paso 6) ----------------------------------------------------------
+-- «Cliente sin plan» (d2) ya tiene un plan pagado entero (arriba). Se le vende
+-- otro con un abono de 30.000 sobre 100.000.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok(
+  $$select registrar_membresia('00000000-0000-0000-0000-0000000000d2',
+                               '00000000-0000-0000-0000-0000000000b1', 'Nequi', 30000)$$,
+  'se vende un plan con un abono');
+select is(
+  (select pendiente from membresias_pendientes where cliente_id = '00000000-0000-0000-0000-0000000000d2'),
+  70000, 'lo que falta sale en membresias_pendientes');
+select throws_ok(
+  $$insert into pagos (cliente_id, membresia_id, metodo, fecha, importe)
+    select cliente_id, membresia_id, 'Nequi', current_date, 80000
+    from membresias_pendientes where cliente_id = '00000000-0000-0000-0000-0000000000d2'$$,
+  'P0001', null,
+  'no se cobra más de lo que se debe');
+select lives_ok(
+  $$insert into pagos (cliente_id, membresia_id, metodo, fecha, importe)
+    select cliente_id, membresia_id, 'Nequi', current_date, 70000
+    from membresias_pendientes where cliente_id = '00000000-0000-0000-0000-0000000000d2'$$,
+  'cobrar el resto salda la membresía');
+select throws_ok(
+  $$select registrar_membresia('00000000-0000-0000-0000-0000000000d2',
+                               '00000000-0000-0000-0000-0000000000b1', 'Nequi', 200000)$$,
+  'P0001', null,
+  'el abono no pasa del precio del plan');
+reset role;
+
+-- Un cliente no ve deudas (tampoco la suya: no lee los pagos).
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select is((select count(*)::int from membresias_pendientes), 0, 'un cliente no ve los pagos pendientes');
 reset role;
 
 select * from finish();

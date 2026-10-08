@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   activosPorMes,
+  avanceMeta,
+  ingresosDelMes,
   cumpleanosDeHoy,
   porVencer,
   resumenClases,
@@ -206,5 +208,32 @@ describe("clases", () => {
     expect(r.personasSemana).toBe(2);
     expect(r.participacion).toBe(50);
     expect(resumenClases([], hoy, new Set()).participacion).toBeNull();
+  });
+});
+
+describe("meta e ingresos (paso 6)", () => {
+  it("la meta dice cuántos faltan y la barra no pasa de 100 al superarla", () => {
+    expect(avanceMeta(45, 60)).toEqual({ activos: 45, meta: 60, faltan: 15, porcentaje: 75 });
+    expect(avanceMeta(63, 60)).toMatchObject({ faltan: 0, porcentaje: 100 });
+  });
+
+  it("los ingresos del mes se comparan con el MISMO tramo del anterior", () => {
+    const pagos = [
+      { fecha: "2026-10-01", importe: 100 },
+      { fecha: "2026-10-08", importe: 200 },
+      { fecha: "2026-09-05", importe: 150 },
+      // Después del 8 de septiembre: fuera de la comparación.
+      { fecha: "2026-09-20", importe: 1000 },
+    ];
+    const r = ingresosDelMes(pagos, "2026-10-08");
+    expect(r.total).toBe(300);
+    expect(r.cobros).toBe(2);
+    expect(r.anterior).toBe(150);
+    expect(r.variacion).toBe(100);
+    expect(r.etiquetaAnterior).toBe("1 – 8 sep 2026");
+  });
+
+  it("sin cobros el mes anterior no hay variación (no «+∞ %»)", () => {
+    expect(ingresosDelMes([{ fecha: "2026-10-02", importe: 50 }], "2026-10-08").variacion).toBeNull();
   });
 });

@@ -57,3 +57,12 @@ export function mensajeCumpleanos(nombre: string): string {
     `movimiento con propósito.`
   );
 }
+
+/** Recordar lo que falta por pagar de un plan, sin sonar a cobro de banco. */
+export function mensajePendiente(nombre: string, plan: string, pendiente: string): string {
+  return (
+    `Hola, ${primerNombre(nombre)}. Te escribimos de Reforme Studio Pilates: ` +
+    `de tu plan ${plan} quedan pendientes ${pendiente}. ` +
+    `Cuando quieras, lo puedes pagar en recepción o por Nequi o Daviplata. ¡Gracias!`
+  );
+}

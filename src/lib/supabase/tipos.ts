@@ -28,6 +28,7 @@ export type Database = {
           agenda_generada_hasta: string | null;
           horas_para_cancelar: number;
           id: boolean;
+          meta_clientes: number;
           semanas_por_delante: number;
         };
         ComputedFields: never;
@@ -35,12 +36,14 @@ export type Database = {
           agenda_generada_hasta?: string | null;
           horas_para_cancelar?: number;
           id?: boolean;
+          meta_clientes?: number;
           semanas_por_delante?: number;
         };
         Update: {
           agenda_generada_hasta?: string | null;
           horas_para_cancelar?: number;
           id?: boolean;
+          meta_clientes?: number;
           semanas_por_delante?: number;
         };
         Relationships: [];
@@ -464,6 +467,13 @@ export type Database = {
             referencedRelation: "membresias";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "pagos_membresia_id_fkey";
+            columns: ["membresia_id"];
+            isOneToOne: false;
+            referencedRelation: "membresias_pendientes";
+            referencedColumns: ["membresia_id"];
+          },
         ];
       };
       perfiles: {
@@ -617,6 +627,13 @@ export type Database = {
             referencedRelation: "membresias";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "reservas_membresia_id_fkey";
+            columns: ["membresia_id"];
+            isOneToOne: false;
+            referencedRelation: "membresias_pendientes";
+            referencedColumns: ["membresia_id"];
+          },
         ];
       };
       salas: {
@@ -657,6 +674,37 @@ export type Database = {
         };
         ComputedFields: never;
         Relationships: [];
+      };
+      membresias_pendientes: {
+        Row: {
+          cliente_id: string | null;
+          importe: number | null;
+          inicio: string | null;
+          membresia_id: string | null;
+          nombre: string | null;
+          pagado: number | null;
+          pendiente: number | null;
+          plan: string | null;
+          telefono: string | null;
+          vencimiento: string | null;
+        };
+        ComputedFields: never;
+        Relationships: [
+          {
+            foreignKeyName: "membresias_cliente_id_fkey";
+            columns: ["cliente_id"];
+            isOneToOne: false;
+            referencedRelation: "clientes";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "membresias_cliente_id_fkey";
+            columns: ["cliente_id"];
+            isOneToOne: false;
+            referencedRelation: "clientes_vigentes";
+            referencedColumns: ["id"];
+          },
+        ];
       };
     };
     Functions: {
@@ -727,6 +775,7 @@ export type Database = {
       promover_lista_espera: { Args: { p_clase: string }; Returns: number };
       registrar_membresia: {
         Args: {
+          p_abono?: number;
           p_cliente: string;
           p_metodo: Database["public"]["Enums"]["metodo_pago"];
           p_plan: string;

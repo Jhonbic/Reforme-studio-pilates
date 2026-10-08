@@ -194,6 +194,19 @@ join (
   from membresias
 ) n on n.id = m.id;
 
+-- Dos membresías vigentes que quedan debiendo (paso 6, pagos pendientes): una
+-- con abono de la mitad y otra sin pagar nada todavía.
+update pagos set importe = importe / 2
+where id = (
+  select g.id from pagos g join membresias m on m.id = g.membresia_id
+  where m.vencimiento >= current_date order by m.inicio desc, m.id limit 1
+);
+delete from pagos
+where id = (
+  select g.id from pagos g join membresias m on m.id = g.membresia_id
+  where m.vencimiento >= current_date order by m.inicio desc, m.id offset 1 limit 1
+);
+
 
 -- Equipo ↔ cuentas -----------------------------------------------------------
 -- ⚠️ El `truncate` del principio vacía `equipo`, incluidas las filas de las

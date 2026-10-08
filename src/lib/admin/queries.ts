@@ -33,6 +33,7 @@ import type {
   PlanConMetricas,
   TipoPlan,
   UsuarioActual,
+  PagoPendiente,
 } from "./types";
 
 /**
@@ -201,7 +202,7 @@ export async function getEquipo(esAdmin: boolean): Promise<MiembroEquipo[]> {
 export async function getConfiguracion(hoy: string): Promise<Configuracion> {
   const supabase = await crearClienteServidor();
   const [ajustes, salas, dias] = await Promise.all([
-    supabase.from("ajustes").select("semanas_por_delante, horas_para_cancelar").single(),
+    supabase.from("ajustes").select("semanas_por_delante, horas_para_cancelar, meta_clientes").single(),
     getSalas(),
     supabase.from("dias_cerrados").select("fecha, motivo").gte("fecha", hoy).order("fecha"),
   ]);
@@ -222,10 +223,55 @@ export async function getConfiguracion(hoy: string): Promise<Configuracion> {
   }
   return {
     semanasPorDelante: ajustes.data.semanas_por_delante,
+    metaClientes: ajustes.data.meta_clientes,
     horasParaCancelar: ajustes.data.horas_para_cancelar,
     salas,
     diasCerrados: dias.data.map((d) => ({ fecha: d.fecha, motivo: d.motivo, conReservas: porDia.get(d.fecha) ?? 0 })),
   };
+}
+
+/** La meta de clientes activos del estudio (tabla `ajustes`). */
+export async function getMetaClientes(): Promise<number> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("ajustes").select("meta_clientes").single();
+  if (error) throw new Error(`No se pudo leer la meta: ${error.message}`);
+  return data.meta_clientes;
+}
+
+/**
+ * Membresías que no están pagadas enteras, de la que vence antes a la que
+ * vence después. Solo el mostrador las ve (la vista lo filtra): a los demás
+ * les llega vacía, no todo como deuda.
+ */
+export async function getPagosPendientes(clienteId?: string): Promise<PagoPendiente[]> {
+  const supabase = await crearClienteServidor();
+  let consulta = supabase
+    .from("membresias_pendientes")
+    .select("membresia_id, cliente_id, nombre, telefono, plan, inicio, vencimiento, importe, pagado, pendiente")
+    .order("vencimiento");
+  if (clienteId) consulta = consulta.eq("cliente_id", clienteId);
+  const { data, error } = await consulta;
+  if (error) throw new Error(`No se pudieron leer los pagos pendientes: ${error.message}`);
+  return data.map((p) => ({
+    membresiaId: p.membresia_id ?? "",
+    clienteId: p.cliente_id ?? "",
+    nombre: p.nombre ?? "",
+    telefono: p.telefono,
+    plan: p.plan ?? "",
+    inicio: p.inicio ?? "",
+    vencimiento: p.vencimiento ?? "",
+    importe: p.importe ?? 0,
+    pagado: p.pagado ?? 0,
+    pendiente: p.pendiente ?? 0,
+  }));
+}
+
+/** Los cobros desde una fecha: para los ingresos del mes del dashboard. */
+export async function getPagosDesde(desde: string): Promise<{ fecha: string; importe: number }[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("pagos").select("fecha, importe").gte("fecha", desde);
+  if (error) throw new Error(`No se pudieron leer los pagos: ${error.message}`);
+  return data;
 }
 
 /** Cuántas semanas por delante mantiene la agenda (tabla `ajustes`). */

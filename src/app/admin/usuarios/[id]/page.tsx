@@ -5,6 +5,7 @@ import CardHeader from "@/components/admin/CardHeader";
 import AccionesCliente from "@/components/admin/usuarios/AccionesCliente";
 import AccesoWebCliente from "@/components/admin/usuarios/AccesoWebCliente";
 import AsignarPlan from "@/components/admin/usuarios/AsignarPlan";
+import CobrarPendiente from "@/components/admin/usuarios/CobrarPendiente";
 import Avatar from "@/components/admin/usuarios/Avatar";
 import EstadoBadge from "@/components/admin/usuarios/EstadoBadge";
 import HistorialClases from "@/components/admin/usuarios/HistorialClases";
@@ -16,6 +17,7 @@ import {
   getClasesParaReservar,
   getHistorialClases,
   getMembresiasConSaldo,
+  getPagosPendientes,
   getPlanesALaVenta,
   getSaldoCliente,
   getUsuarioActual,
@@ -89,14 +91,15 @@ export default async function FichaClientePage({
   // se le enseña un botón que acabaría en «no tienes permiso».
   const puedeCobrar =
     usuario?.rol === "Administración" || usuario?.rol === "Recepción";
-  const [planes, accesoWeb, clasesParaReservar, membresias] = puedeCobrar
+  const [planes, accesoWeb, clasesParaReservar, membresias, deudas] = puedeCobrar
     ? await Promise.all([
         getPlanesALaVenta(),
         tieneAccesoWeb(id),
         cliente ? getClasesParaReservar(cliente.id, hoyEnBogota(), horaEnBogota()) : [],
         cliente ? getMembresiasConSaldo(cliente.id) : [],
+        cliente ? getPagosPendientes(cliente.id) : [],
       ])
-    : [[], false, [], []];
+    : [[], false, [], [], []];
 
   /* Un id que no existe es un 404 de verdad, no una tarjeta vacía: la ficha de
      alguien que no está no es «sin datos», es otra dirección. */
@@ -219,6 +222,15 @@ export default async function FichaClientePage({
               </Dato>
             )}
           </dl>
+          {/* Lo que debe (plan asignado con abono o sin cobrar), con el
+              botón para cobrarlo. Solo lo ve el mostrador. */}
+          {deudas.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {deudas.map((d) => (
+                <CobrarPendiente key={d.membresiaId} deuda={d} />
+              ))}
+            </div>
+          )}
         </Card>
 
         {/* `min-w-0`: el historial lleva `truncate`, y un hijo de rejilla no

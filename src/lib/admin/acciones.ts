@@ -8,6 +8,7 @@ import {
   TIPOS_COMPROBANTE,
   TIPOS_IDENTIFICACION,
 } from "./catalogos";
+import { moneda } from "./format";
 import { hoyEnBogota } from "./horario";
 import { getUsuarioActual } from "./queries";
 import type {
@@ -412,6 +413,8 @@ export async function asignarPlan(
   clienteId: string,
   planId: string,
   metodo: string,
+  /** Lo que paga hoy. `null` = el plan entero; 0 = nada todavía. */
+  abono: number | null = null,
 ): Promise<ResultadoAsignacion> {
   const usuario = await getUsuarioActual();
   if (usuario?.rol !== "Administración" && usuario?.rol !== "Recepción") {
@@ -421,12 +424,16 @@ export async function asignarPlan(
     return { ok: false, error: "Cliente o plan no válido." };
   }
   if (!esMetodo(metodo)) return { ok: false, error: "Método de pago no válido." };
+  if (abono !== null && (!Number.isInteger(abono) || abono < 0))
+    return { ok: false, error: "Lo que paga hoy no es un importe válido." };
 
   const supabase = await crearClienteServidor();
+  // El tope (no más que el precio) lo pone la función de la base.
   const { error } = await supabase.rpc("registrar_membresia", {
     p_cliente: clienteId,
     p_plan: planId,
     p_metodo: metodo,
+    ...(abono === null ? {} : { p_abono: abono }),
   });
 
   if (error) {
@@ -442,6 +449,56 @@ export async function asignarPlan(
   revalidatePath("/admin/usuarios");
   revalidatePath("/admin/finanzas");
   revalidatePath("/admin/planes");
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+/**
+ * Cobra (todo o una parte) lo que falta de una membresía. La base no deja
+ * cobrar más de lo que se debe (`pagos_no_superan_membresia`), tampoco si dos
+ * personas cobran a la vez.
+ */
+export async function registrarPago(
+  membresiaId: string,
+  importe: number,
+  metodo: string,
+): Promise<ResultadoAsignacion> {
+  const usuario = await getUsuarioActual();
+  if (usuario?.rol !== "Administración" && usuario?.rol !== "Recepción") {
+    return { ok: false, error: "Tu rol no puede registrar cobros." };
+  }
+  if (!UUID_VALIDO.test(membresiaId)) return { ok: false, error: "Membresía no válida." };
+  if (!esMetodo(metodo)) return { ok: false, error: "Método de pago no válido." };
+  if (!Number.isInteger(importe) || importe <= 0)
+    return { ok: false, error: "Escribe cuánto paga." };
+
+  const supabase = await crearClienteServidor();
+  const { data: debe, error: errorDebe } = await supabase
+    .from("membresias_pendientes")
+    .select("cliente_id, pendiente")
+    .eq("membresia_id", membresiaId)
+    .maybeSingle();
+  if (errorDebe) return { ok: false, error: `No se pudo comprobar la deuda: ${errorDebe.message}` };
+  if (!debe?.cliente_id || !debe.pendiente) return { ok: false, error: "Esa membresía ya está pagada." };
+  if (importe > debe.pendiente)
+    return { ok: false, error: `Solo falta por cobrar ${moneda(debe.pendiente)}.` };
+
+  const { error } = await supabase.from("pagos").insert({
+    cliente_id: debe.cliente_id,
+    membresia_id: membresiaId,
+    metodo,
+    fecha: hoyEnBogota(),
+    importe,
+  });
+  if (error) {
+    // Otra persona cobró entre medias: la base lo frena.
+    if (error.code === "P0001")
+      return { ok: false, error: "Alguien cobró a la vez: vuelve a abrir la ficha y mira lo que falta." };
+    return { ok: false, error: `No se pudo registrar el pago: ${error.message}` };
+  }
+  revalidatePath(`/admin/usuarios/${debe.cliente_id}`);
+  revalidatePath("/admin/usuarios");
+  revalidatePath("/admin/finanzas");
   revalidatePath("/admin");
   return { ok: true };
 }
@@ -1041,6 +1098,20 @@ export async function guardarAjustes(semanas: number, horas: number): Promise<Re
   return errorAgenda
     ? { ok: true, aviso: `La agenda se rellenará esta noche (ahora no se pudo: ${errorAgenda.message}).` }
     : { ok: true };
+}
+
+/** La meta de clientes activos que enseña el dashboard. */
+export async function guardarMeta(meta: number): Promise<ResultadoConfig> {
+  const prohibido = await soloAdminConfig();
+  if (prohibido) return { ok: false, error: prohibido };
+  if (!Number.isInteger(meta) || meta < 1 || meta > 10000)
+    return { ok: false, error: "La meta va de 1 a 10.000 clientes." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("ajustes").update({ meta_clientes: meta }).eq("id", true);
+  if (error) return { ok: false, error: `No se pudo guardar la meta: ${error.message}` };
+  revalidatePath("/admin/configuracion");
+  revalidatePath("/admin");
+  return { ok: true };
 }
 
 /** Aforo de una sala. Sus próximas clases con el aforo de la sala lo siguen. */

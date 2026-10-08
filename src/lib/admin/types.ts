@@ -128,6 +128,8 @@ export type DiaCerrado = {
 /** Lo que se cambia en Configuración. */
 export type Configuracion = {
   semanasPorDelante: number;
+  /** Clientes activos a los que aspira el estudio (dashboard). */
+  metaClientes: number;
   horasParaCancelar: number;
   salas: Sala[];
   diasCerrados: DiaCerrado[];
@@ -524,4 +526,21 @@ export type Notificacion = {
   leida: boolean;
   /** A dónde lleva al pulsarla. */
   href: string;
+};
+
+/**
+ * Una membresía que no está pagada entera (vista `membresias_pendientes`).
+ * Lo pendiente no se guarda: es el importe menos la suma de sus pagos.
+ */
+export type PagoPendiente = {
+  membresiaId: string;
+  clienteId: string;
+  nombre: string;
+  telefono: string | null;
+  plan: string;
+  inicio: string;
+  vencimiento: string;
+  importe: number;
+  pagado: number;
+  pendiente: number;
 };

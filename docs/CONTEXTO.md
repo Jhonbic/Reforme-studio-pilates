@@ -69,8 +69,8 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 |---|---|
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
-| `npm test` | **Vitest**, 59 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 65 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm test` | **Vitest**, 62 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
+| `npm run test:db` | **pgTAP**, 71 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -1653,6 +1653,48 @@ Migración `20261012120000_lista_espera`.
   navegador: se apunta → recepción libera un cupo → entra sola → cambia su
   reserva → recepción mueve a alguien.
 
+#### Meta, ingresos y pagos pendientes — oct 2026, paso 6
+
+Migración `20261013120000_pagos_pendientes`. El estudio quería en el
+dashboard la **meta de 60 clientes**, los **ingresos del mes** y los **pagos
+pendientes**; hasta aquí todo plan se cobraba entero al asignarlo, así que
+«pendiente» no existía.
+
+- **Abonos**: «Asignar plan / Renovar» pregunta **Paga hoy: Todo · Una parte ·
+  Nada todavía**. El plan se activa igual; el resumen dice «Se cobra hoy» y
+  «Queda debiendo». `registrar_membresia` tiene un 4º argumento `p_abono`
+  (NULL = todo, 0 = sin pago). Se borró la versión de 3 argumentos: con el
+  valor por defecto, una llamada con 3 sería ambigua.
+- ⚠️ **Lo pendiente NO se guarda**: es `membresias.importe` − la suma de sus
+  `pagos` (vista `membresias_pendientes`, `security_invoker`, y además
+  filtrada por `es_mostrador()`: a quien no lee los pagos le llegaría todo
+  como deuda).
+- ⚠️ **Un pago no pasa de lo que se debe** (trigger
+  `pagos_no_superan_membresia`, que bloquea la membresía mientras suma: dos
+  recepcionistas cobrando a la vez no cobran dos veces). Es `security
+  definer` porque `for update` pide permiso de UPDATE en `membresias`, que
+  Recepción no tiene.
+- **Ficha**: en «Membresía», «▲ Debe $X · pagó $Y de $Z» con **«Registrar
+  pago»** (arranca en todo lo que falta; se puede bajar para otro abono).
+  Solo el mostrador. Server action `registrarPago`.
+- **Dashboard**: fila nueva encima de las pestañas con tres cifras y
+  ninguna gráfica:
+  - **Meta de clientes** (todo el equipo): activos (membresía vigente, la
+    misma cifra que «Activos») de la meta, barra, «Faltan N» o «Meta
+    cumplida». La meta se cambia en **Configuración → Meta de clientes**
+    (`ajustes.meta_clientes`, 60 por defecto).
+  - **Ingresos del mes** (solo Administración): cobros del 1 a hoy frente al
+    mismo tramo del mes anterior, como Finanzas.
+  - **Por cobrar** (Administración y Recepción): total pendiente y cuántos
+    clientes deben. En la pestaña Clientes, lista **«Pagos pendientes»** con
+    «Recordar» (WhatsApp con el mensaje escrito) y «Cobrar» (a la ficha).
+  - La tarjeta «Pendientes» (clientes sin plan) pasó a **«Sin plan»**: con
+    «Pagos pendientes» al lado, el nombre confundía.
+- Producción: al aplicarla no había ninguna membresía con pagos de menos.
+- Semilla: dos membresías vigentes quedan debiendo (una con la mitad, otra
+  sin pagar) para probar en local.
+- 3 tests Vitest (62 en total) y 6 de base (71).
+
 #### Planes (`/admin/planes`) — desde Supabase, oct 2026
 
 - El catálogo sale de la tabla `planes`, del más barato al más caro. La clave
@@ -1879,7 +1921,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **19 migraciones, todas aplicadas en local y en remoto** |
+| Esquema | `supabase/migrations/` — **20 migraciones, todas aplicadas en local y en remoto** |
 
 ### Variables de entorno
 
@@ -2051,9 +2093,8 @@ El estudio mandó una tabla de módulos (Dashboard, Clientes, Valoración físic
 Planes, Reservas, Asistencia, Notificaciones, Financiero, Instructores,
 Configuración). Lo que falta, por módulo:
 
-1. **Dashboard**: meta de 60 clientes (actuales y faltantes), ingresos del mes
-   y pagos pendientes (⚠️ el estudio SÍ quiere ver ingresos aquí; se quitaron
-   al copiar Jain).
+1. ~~**Dashboard**: meta de 60 clientes, ingresos del mes y pagos
+   pendientes~~ (hecho, «Meta, ingresos y pagos pendientes»).
 2. **Clientes**: historial de planes, reservas, asistencias y pagos en la
    ficha; clases compradas / usadas / disponibles.
 3. **Valoración física** (sección de la ficha): todo — valoración inicial
@@ -2068,8 +2109,8 @@ Configuración). Lo que falta, por módulo:
 7. **Notificaciones automáticas** (WhatsApp y/o correo): confirmación de
    reserva, recordatorio de clase, cancelaciones, plan por vencer o vencido,
    pocas clases. Personalizables.
-8. **Financiero**: Daviplata y «otros» como método, pagos pendientes y
-   cartera (hoy todo se cobra al asignar), ventas.
+8. **Financiero**: ~~Daviplata y «otros»~~, ~~pagos pendientes y abonos~~
+   (hechos); falta ventas y la cartera vencida en Finanzas.
 9. **Instructores**: salas e historial completo de clases dictadas.
 10. **Configuración**: ~~salas, horario semanal, cupos, política de
     cancelación y días no laborables~~ (hecho, «Configuración»).

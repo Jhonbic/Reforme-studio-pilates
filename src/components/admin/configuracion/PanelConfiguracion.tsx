@@ -6,11 +6,12 @@ import CardHeader from "@/components/admin/CardHeader";
 import CampoSelect from "@/components/admin/campos/CampoSelect";
 import CampoTexto from "@/components/admin/campos/CampoTexto";
 import { useToast } from "@/context/ToastContext";
-import { abrirDia, cerrarDia, guardarAforoSala, guardarAjustes } from "@/lib/admin/acciones";
+import { abrirDia, cerrarDia, guardarAforoSala, guardarAjustes, guardarMeta } from "@/lib/admin/acciones";
 import { METODOS_PAGO } from "@/lib/admin/catalogos";
 import { numero } from "@/lib/admin/format";
 import { diaLargo, diaRelativo } from "@/lib/admin/horario";
 import type { Configuracion, Sala } from "@/lib/admin/types";
+import { soloDigitos } from "@/lib/validacion";
 
 const BOTON_PRIMARIO =
   "inline-flex min-h-[44px] items-center justify-center rounded-full bg-dorado px-5 text-sm font-medium text-verde-900 transition-colors duration-300 hover:bg-dorado-dark disabled:cursor-not-allowed disabled:opacity-50";
@@ -35,6 +36,7 @@ export default function PanelConfiguracion({ config, hoy }: { config: Configurac
     <div className="grid gap-4 lg:grid-cols-2">
       <AgendaYReservas config={config} />
       <Salas salas={config.salas} />
+      <MetaClientes meta={config.metaClientes} />
       <DiasCerrados config={config} hoy={hoy} />
       <Card>
         <CardHeader titulo="Formas de pago" />
@@ -115,6 +117,45 @@ function AgendaYReservas({ config }: { config: Configuracion }) {
           disabled={!cambiado || enCurso}
           onClick={() => guardar(() => guardarAjustes(semanas, horas), "Ajustes guardados.")}
           className={BOTON_PRIMARIO}
+        >
+          {enCurso ? "Guardando…" : "Guardar"}
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+/** La meta de clientes activos que enseña el dashboard. */
+function MetaClientes({ meta }: { meta: number }) {
+  const [texto, setTexto] = useState(String(meta));
+  const { enCurso, guardar } = useGuardar();
+  const valor = Number(texto || 0);
+  const valida = valor >= 1 && valor <= 10000;
+
+  return (
+    <Card>
+      <CardHeader titulo="Meta de clientes" />
+      <p className="mt-2 text-sm text-verde-700">
+        Cuántos clientes con plan vigente quiere tener el estudio. El dashboard enseña cuántos hay
+        y cuántos faltan.
+      </p>
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <div className="w-40">
+          <CampoTexto
+            nombre="meta-clientes"
+            etiqueta="Clientes activos"
+            inputMode="numeric"
+            autoComplete="off"
+            value={texto}
+            onChange={(e) => setTexto(soloDigitos(e.target.value).slice(0, 5))}
+            error={texto !== "" && !valida ? "De 1 a 10.000." : undefined}
+          />
+        </div>
+        <button
+          type="button"
+          disabled={!valida || valor === meta || enCurso}
+          onClick={() => guardar(() => guardarMeta(valor), `Meta: ${numero(valor)} clientes.`)}
+          className={`${BOTON_PRIMARIO} mb-[1px]`}
         >
           {enCurso ? "Guardando…" : "Guardar"}
         </button>

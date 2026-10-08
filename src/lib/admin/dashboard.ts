@@ -1,6 +1,6 @@
-import { moneda } from "./format";
+import { calcularVariacion, moneda } from "./format";
 import { diasEntre, lunesDe, sumarDias } from "./horario";
-import { MESES_LARGOS, enPeriodo, type Periodo } from "./periodo";
+import { MESES_LARGOS, enPeriodo, esteMes, etiquetaPeriodo, periodoAnterior, type Periodo } from "./periodo";
 import type {
   ClaseEnAgenda,
   EstadoMembresia,
@@ -17,8 +17,13 @@ import { edad } from "../validacion";
  * ⚠️ **Desde oct 2026 el dashboard no tiene dinero** (estructura tomada de
  * JainSportBox, decisión del usuario): responde a «¿a quién atiendo hoy?» y
  * «¿cómo van las clases?». Lo financiero vive entero en Finanzas, que tiene
- * su propio selector de periodo. De paso, el dashboard es el mismo para todo
- * el equipo: ya no hay tarjetas que esconder a quien RLS no le da los pagos.
+ * su propio selector de periodo.
+ *
+ * ⚠️ **Excepción del paso 6 (lista del estudio, oct 2026)**: el estudio SÍ
+ * quiere ver aquí la meta de clientes, los ingresos del mes y lo que falta
+ * por cobrar. Son tres cifras, sin gráficas (nada de ingresos frente a
+ * gastos). Los ingresos, solo Administración; lo pendiente, el mostrador, que
+ * es quien cobra.
  */
 
 /** Una fila de `clientes_vigentes` más la fecha de nacimiento de `clientes`. */
@@ -299,5 +304,40 @@ export function avisoPorVencer(
   return {
     cuantos: lista.length,
     importe: moneda(suma(lista, (v) => v.importeRenovacion)),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Meta, ingresos y pendientes (paso 6)
+// ---------------------------------------------------------------------------
+
+/** Cuántos clientes activos hay frente a la meta del estudio. */
+export function avanceMeta(activos: number, meta: number) {
+  return {
+    activos,
+    meta,
+    faltan: Math.max(0, meta - activos),
+    /** Para la barra: nunca pasa de 100 aunque se supere la meta. */
+    porcentaje: meta > 0 ? Math.min(100, Math.round((activos / meta) * 100)) : 0,
+  };
+}
+
+/**
+ * Lo cobrado este mes (del 1 a hoy) frente al MISMO TRAMO del anterior, como
+ * Finanzas: el día 3 se compara con el 1–3 del mes pasado, no con el mes
+ * entero (daría siempre un desplome).
+ */
+export function ingresosDelMes(pagos: { fecha: string; importe: number }[], hoy: string) {
+  const actual = esteMes(hoy);
+  const anterior = periodoAnterior(actual);
+  const delMes = pagos.filter((p) => enPeriodo(p.fecha, actual));
+  const total = suma(delMes, (p) => p.importe);
+  const antes = suma(pagos.filter((p) => enPeriodo(p.fecha, anterior)), (p) => p.importe);
+  return {
+    total,
+    cobros: delMes.length,
+    anterior: antes,
+    variacion: calcularVariacion(total, antes),
+    etiquetaAnterior: etiquetaPeriodo(anterior, hoy),
   };
 }

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import LineChart from "../charts/LineChart";
+import Variacion from "../Variacion";
 import AgendaReservas, { type ClaseDelMes } from "./AgendaReservas";
-import { numero } from "@/lib/admin/format";
+import { moneda, numero } from "@/lib/admin/format";
 
 export type FilaPorVencer = {
   id: string;
@@ -17,10 +18,31 @@ export type FilaPorVencer = {
 
 export type FilaCumpleanos = { id: string; nombre: string; whatsapp: string | null };
 
+export type FilaPendiente = {
+  /** La membresía (un cliente puede deber de dos). */
+  id: string;
+  clienteId: string;
+  nombre: string;
+  /** «Debe $290.000 · Fusión Esencial». */
+  detalle: string;
+  whatsapp: string | null;
+};
+
 type Props = {
   /** «Viernes, 2 de octubre de 2026». */
   fechaTexto: string;
   hoy: string;
+  /** Clientes activos frente a la meta del estudio (Configuración). */
+  meta: { activos: number; meta: number; faltan: number; porcentaje: number };
+  /** Solo Administración; `null` para el resto. */
+  ingresos: {
+    total: number;
+    cobros: number;
+    variacion: number | null;
+    etiquetaAnterior: string;
+  } | null;
+  /** Solo el mostrador; `null` para la instructora. */
+  porCobrar: { total: number; clientes: number; filas: FilaPendiente[] } | null;
   clientes: {
     activos: number;
     /** Activos de hoy menos los del cierre del mes pasado; `null` sin mes anterior. */
@@ -69,9 +91,18 @@ const BOTON_VER =
  *   al box y Reforme todavía no registra quién viene.
  * - Sin la pestaña «Enviados» de las listas: Jain guarda a quién ya se le
  *   escribió y Reforme no tiene tabla para eso (decisión del usuario).
- * - Lo financiero no aparece, igual que en Jain: vive en Finanzas.
+ * - Encima de las pestañas, la fila que pidió el estudio (paso 6): meta de
+ *   clientes, ingresos del mes y por cobrar. Tres cifras y ninguna gráfica.
  */
-export default function PanelDashboard({ fechaTexto, clientes, clases, hoy }: Props) {
+export default function PanelDashboard({
+  fechaTexto,
+  meta,
+  ingresos,
+  porCobrar,
+  clientes,
+  clases,
+  hoy,
+}: Props) {
   const [tab, setTab] = useState<Tab>("clientes");
   const ver = TABS.find((t) => t.key === tab)?.ver ?? "/admin/usuarios";
 
@@ -82,8 +113,10 @@ export default function PanelDashboard({ fechaTexto, clientes, clases, hoy }: Pr
         <p className="mt-1 text-verde-300">{fechaTexto}</p>
       </div>
 
-      {/* Dos pestañas y solo dos. Lo financiero no vuelve aquí: vive entero en
-          Finanzas, que tiene su propio selector de periodo. */}
+      <FilaMeta meta={meta} ingresos={ingresos} porCobrar={porCobrar} />
+
+      {/* Dos pestañas y solo dos. El detalle del dinero sigue en Finanzas,
+          que tiene su propio selector de periodo. */}
       <div
         role="tablist"
         aria-label="Resumen"
@@ -113,14 +146,89 @@ export default function PanelDashboard({ fechaTexto, clientes, clases, hoy }: Pr
         </Link>
       </div>
 
-      {tab === "clientes" ? <BloqueClientes d={clientes} /> : <BloqueClases d={clases} hoy={hoy} />}
+      {tab === "clientes" ? (
+        <BloqueClientes d={clientes} pendientes={porCobrar?.filas ?? null} />
+      ) : (
+        <BloqueClases d={clases} hoy={hoy} />
+      )}
+    </div>
+  );
+}
+
+// ═══════════ FILA: META, INGRESOS, POR COBRAR ═══════════
+
+function FilaMeta({
+  meta,
+  ingresos,
+  porCobrar,
+}: Pick<Props, "meta" | "ingresos" | "porCobrar">) {
+  const cuantas = 1 + (ingresos ? 1 : 0) + (porCobrar ? 1 : 0);
+  const columnas = cuantas === 3 ? "lg:grid-cols-3" : cuantas === 2 ? "sm:grid-cols-2" : "";
+  return (
+    <div className={`mb-8 grid grid-cols-1 gap-4 ${cuantas === 3 ? "sm:grid-cols-2" : ""} ${columnas}`}>
+      <div className={TARJETA}>
+        <p className={ROTULO}>Meta de clientes</p>
+        <p className="flex items-baseline gap-2">
+          <span className={CIFRA}>{numero(meta.activos)}</span>
+          <span className="font-cifra text-sm text-verde-300">de {numero(meta.meta)}</span>
+        </p>
+        {/* La barra acompaña; el dato está escrito al lado y debajo. */}
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-arena" aria-hidden="true">
+          <div
+            className="h-full rounded-full bg-dorado transition-[width] duration-700"
+            style={{ width: `${meta.porcentaje}%` }}
+          />
+        </div>
+        <p className={NOTA}>
+          {meta.faltan === 0
+            ? meta.activos > meta.meta
+              ? `Meta cumplida · ${numero(meta.activos - meta.meta)} por encima`
+              : "Meta cumplida"
+            : `Faltan ${numero(meta.faltan)} · ${meta.porcentaje} % de la meta`}
+        </p>
+      </div>
+
+      {ingresos && (
+        <div className={TARJETA}>
+          <p className={ROTULO}>Ingresos del mes</p>
+          <p className={CIFRA}>{moneda(ingresos.total)}</p>
+          <p className={NOTA}>
+            {ingresos.variacion !== null ? (
+              <>
+                <Variacion valor={ingresos.variacion} /> frente a {ingresos.etiquetaAnterior}
+              </>
+            ) : (
+              `${numero(ingresos.cobros)} ${ingresos.cobros === 1 ? "cobro" : "cobros"}`
+            )}
+          </p>
+        </div>
+      )}
+
+      {porCobrar && (
+        <div className={`${TARJETA} ${cuantas === 3 ? "sm:col-span-2 lg:col-span-1" : ""}`}>
+          <p className={ROTULO}>Por cobrar</p>
+          <p className={CIFRA}>{moneda(porCobrar.total)}</p>
+          <p className={NOTA}>
+            {porCobrar.clientes === 0
+              ? "Todo cobrado"
+              : `${numero(porCobrar.clientes)} ${porCobrar.clientes === 1 ? "cliente debe" : "clientes deben"} parte de su plan`}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
 
 // ═══════════ BLOQUE: CLIENTES ═══════════
 
-function BloqueClientes({ d }: { d: Props["clientes"] }) {
+function BloqueClientes({
+  d,
+  pendientes,
+}: {
+  d: Props["clientes"];
+  /** `null` = quien mira no cobra: la lista no se pinta. */
+  pendientes: FilaPendiente[] | null;
+}) {
   const { deltaActivos: delta, renovacion } = d;
   return (
     <section className="mb-10">
@@ -152,7 +260,7 @@ function BloqueClientes({ d }: { d: Props["clientes"] }) {
             trabajo normal del día, no una alarma. El número ya lo dice. */}
         <TarjetaEnlace
           href={`/admin/usuarios?estado=${encodeURIComponent("Sin plan")}`}
-          rotulo="Pendientes"
+          rotulo="Sin plan"
         >
           <p className={CIFRA}>{numero(d.pendientes)}</p>
           <p className={NOTA}>{d.pendientes === 1 ? "Cliente sin plan" : "Clientes sin plan"}</p>
@@ -175,7 +283,7 @@ function BloqueClientes({ d }: { d: Props["clientes"] }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className={`grid grid-cols-1 gap-4 lg:grid-cols-2 ${pendientes ? "2xl:grid-cols-3" : ""}`}>
         {/* Cumpleaños de hoy */}
         <Lista
           icono={<IconoPastel />}
@@ -230,6 +338,32 @@ function BloqueClientes({ d }: { d: Props["clientes"] }) {
             </Fila>
           ))}
         </Lista>
+
+        {/* Lo que deben (planes asignados con abono o sin cobrar). Se cobra
+            en la ficha: «Cobrar» lleva allí. */}
+        {pendientes && (
+          <Lista
+            titulo="Pagos pendientes"
+            cuantos={pendientes.length}
+            alto="14rem"
+            vacio={{ icono: <IconoCampana />, texto: "Nadie debe nada" }}
+          >
+            {pendientes.map((p) => (
+              <Fila
+                key={p.id}
+                nombre={p.nombre}
+                detalle={<p className="text-xs text-[var(--color-estado-aviso)]">{p.detalle}</p>}
+              >
+                {p.whatsapp && (
+                  <BotonWhatsApp href={p.whatsapp} texto="Recordar" quien={p.nombre} icono={false} />
+                )}
+                <Link href={`/admin/usuarios/${p.clienteId}`} className={BOTON_VER}>
+                  Cobrar
+                </Link>
+              </Fila>
+            ))}
+          </Lista>
+        )}
       </div>
 
       {/* Evolución de clientes activos, al pie del bloque: arriba van las
