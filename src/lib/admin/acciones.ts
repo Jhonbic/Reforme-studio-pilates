@@ -969,13 +969,14 @@ function revalidarHorario() {
 /**
  * Enciende o apaga una franja y le pone (o quita) instructora. La base
  * (trigger `horario_sincroniza_clases`) lleva el cambio a las próximas clases.
- * Devuelve cuántas próximas clases con reservas se quedaron sin poder quitar.
+ * Devuelve lo que quedó en la agenda (de hoy en adelante): cuántas clases y
+ * hasta cuándo. Apagada, las que quedan son las que tenían reservas.
  */
 export async function guardarFranja(
   id: string,
   activa: boolean,
   instructoraId: string | null,
-): Promise<{ ok: true; conReservas: number } | { ok: false; error: string }> {
+): Promise<{ ok: true; enAgenda: number; hasta: string | null } | { ok: false; error: string }> {
   const prohibido = await soloMostrador();
   if (prohibido) return { ok: false, error: prohibido };
   if (!UUID_VALIDO.test(id) || (instructoraId !== null && !UUID_VALIDO.test(instructoraId)))
@@ -989,19 +990,15 @@ export async function guardarFranja(
   if (error) return { ok: false, error: `No se pudo guardar el horario: ${error.message}` };
   if (count === 0) return { ok: false, error: "Esa franja ya no existe." };
 
-  // Apagada (o sin instructora), lo que sigue en la agenda es lo que tenía reservas.
-  let conReservas = 0;
-  if (!activa || !instructoraId) {
-    const { count: quedan } = await supabase
-      .from("clases")
-      .select("id", { count: "exact", head: true })
-      .eq("franja_id", id)
-      .eq("cancelada", false)
-      .gte("fecha", hoyEnBogota());
-    conReservas = quedan ?? 0;
-  }
+  const { data: quedan } = await supabase
+    .from("clases")
+    .select("fecha")
+    .eq("franja_id", id)
+    .eq("cancelada", false)
+    .gte("fecha", hoyEnBogota())
+    .order("fecha", { ascending: false });
   revalidarHorario();
-  return { ok: true, conReservas };
+  return { ok: true, enAgenda: quedan?.length ?? 0, hasta: quedan?.[0]?.fecha ?? null };
 }
 
 /** Copia lo encendido de un día (y quién lo da) a otros días. */

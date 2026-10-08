@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import PanelHorario from "@/components/admin/clases/PanelHorario";
+import { hoyEnBogota } from "@/lib/admin/horario";
 import {
   getHorarioSemanal,
   getInstructoras,
@@ -27,7 +28,7 @@ export default async function HorarioPage() {
   const puedeEditar =
     usuario?.rol === "Administración" || usuario?.rol === "Recepción";
   const [franjas, instructoras, salas, semanas] = await Promise.all([
-    getHorarioSemanal(),
+    getHorarioSemanal(hoyEnBogota()),
     getInstructoras(),
     getSalas(),
     getSemanasAgenda(),

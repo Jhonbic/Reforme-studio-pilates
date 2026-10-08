@@ -141,6 +141,9 @@ export type FranjaHorario = {
   sala: SalaId;
   activa: boolean;
   instructoraId: string | null;
+  /** Cuántas clases suyas hay en la agenda de hoy en adelante, y hasta cuándo. */
+  enAgenda: number;
+  hastaAgenda: string | null;
 };
 
 export type Clase = {

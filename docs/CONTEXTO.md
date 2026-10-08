@@ -1564,6 +1564,19 @@ se pintan.
 Verificado en el navegador (escritorio y móvil, sin desplazamiento lateral) y
 con 6 tests nuevos de base que sustituyen a los de «Generar» (51).
 
+**Seguimiento (7 oct 2026)**: el usuario seguía sin entender el horario («si
+le doy "se da", ¿qué debe pasar?»). La agenda SÍ se rellenaba (verificado:
+aparece sin recargar), pero la pantalla no decía nada. Ahora:
+- Arriba, tres pasos: marca las clases fijas · elige quién la da · sale sola
+  en la Agenda.
+- «+ Añadir clase» / «Quitar» en vez de «+ Añadir» / «Se da» (un interruptor
+  dorado no decía qué hacía al pulsarlo).
+- Cada hora encendida dice **«✓ En la agenda: 4 clases, hasta el 31 oct»** o
+  **«▲ Falta la instructora: todavía no sale en la agenda»** (el desplegable
+  arranca en «Elige instructora…»). `getHorarioSemanal(hoy)` trae el recuento.
+- Cada cambio confirma con un aviso lo que pasó en la agenda (`guardarFranja`
+  devuelve cuántas quedan y hasta cuándo).
+
 ⚠️ **Producción (7 oct 2026)**: al aplicar la migración ya había 5 franjas
 encendidas (L–V 07:00, Reformer, con una instructora de ejemplo) y 59 clases
 generadas con el «Generar» antiguo hasta el 29 dic, **sin `franja_id`**. Se

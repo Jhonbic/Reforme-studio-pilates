@@ -218,8 +218,23 @@ export async function extenderAgenda(): Promise<void> {
 }
 
 /** El horario semanal: todas las franjas, por día, hora y sala (Reformer primero). */
-export async function getHorarioSemanal(): Promise<FranjaHorario[]> {
+export async function getHorarioSemanal(hoy: string): Promise<FranjaHorario[]> {
   const supabase = await crearClienteServidor();
+  /* Lo que cada franja ya tiene en la agenda: es la respuesta a «¿y esto qué
+     hace?» que la pantalla da junto a cada hora encendida. */
+  const { data: enAgenda, error: errorAgenda } = await supabase
+    .from("clases")
+    .select("franja_id, fecha")
+    .not("franja_id", "is", null)
+    .eq("cancelada", false)
+    .gte("fecha", hoy);
+  if (errorAgenda) throw new Error(`No se pudo leer la agenda del horario: ${errorAgenda.message}`);
+  const porFranja = new Map<string, { n: number; hasta: string }>();
+  for (const c of enAgenda) {
+    const a = porFranja.get(c.franja_id!) ?? { n: 0, hasta: c.fecha };
+    porFranja.set(c.franja_id!, { n: a.n + 1, hasta: c.fecha > a.hasta ? c.fecha : a.hasta });
+  }
+
   const { data, error } = await supabase
     .from("horario_semanal")
     .select("id, dia, hora_inicio, duracion_min, sala, activa, instructora_id")
@@ -235,6 +250,8 @@ export async function getHorarioSemanal(): Promise<FranjaHorario[]> {
     sala: f.sala as SalaId,
     activa: f.activa,
     instructoraId: f.instructora_id,
+    enAgenda: porFranja.get(f.id)?.n ?? 0,
+    hastaAgenda: porFranja.get(f.id)?.hasta ?? null,
   }));
 }
 

@@ -5,7 +5,7 @@ import Card from "@/components/admin/Card";
 import Modal from "@/components/admin/Modal";
 import { useToast } from "@/context/ToastContext";
 import { copiarDiaHorario, guardarFranja } from "@/lib/admin/acciones";
-import { numero } from "@/lib/admin/format";
+import { fecha, numero } from "@/lib/admin/format";
 import { finDe } from "@/lib/admin/horario";
 import type { FranjaHorario, MiembroEquipo, Sala } from "@/lib/admin/types";
 import PestanasClases from "./PestanasClases";
@@ -76,13 +76,26 @@ export default function PanelHorario({
       const r = await guardarFranja(f.id, activa, instructoraId);
       setGuardando(null);
       if (!r.ok) return mostrarAviso(r.error, "error");
-      /* Apagar no borra las clases que alguien ya reservó: se dice, porque
-         esas personas cuentan con su clase y alguien tiene que decidir. */
-      if (r.conReservas > 0)
+      /* Cada cambio dice qué pasó en la AGENDA: sin esto no se entendía para
+         qué servía el horario (feedback del usuario). */
+      const que = `${NOMBRES_DIA[f.dia]} ${f.horaInicio} · ${f.sala}`;
+      if (activa && !instructoraId) {
+        mostrarAviso(`${que}: elige la instructora para que salga en la agenda.`, "info");
+      } else if (activa) {
         mostrarAviso(
-          `${numero(r.conReservas)} ${r.conReservas === 1 ? "clase ya tenía" : "clases ya tenían"} reservas y se ${r.conReservas === 1 ? "queda" : "quedan"} en la agenda. Si no se van a dar, cancélalas allí y avisa a quienes reservaron.`,
+          `${que} ya está en la agenda: ${numero(r.enAgenda)} ${r.enAgenda === 1 ? "clase" : "clases"}${r.hasta ? `, hasta el ${fecha(r.hasta)}` : ""}.`,
+          "success",
+        );
+      } else if (r.enAgenda > 0) {
+        /* Apagar no borra las clases que alguien ya reservó: esas personas
+           cuentan con su clase y alguien tiene que decidir. */
+        mostrarAviso(
+          `${que} quitada del horario. ${numero(r.enAgenda)} ${r.enAgenda === 1 ? "clase ya tenía" : "clases ya tenían"} reservas y se ${r.enAgenda === 1 ? "queda" : "quedan"} en la agenda: si no se van a dar, cancélalas allí y avisa a quienes reservaron.`,
           "warning",
         );
+      } else {
+        mostrarAviso(`${que} quitada del horario y de la agenda.`, "success");
+      }
     });
   }
 
@@ -90,8 +103,25 @@ export default function PanelHorario({
     <>
       <PestanasClases actual="/admin/clases/horario" />
 
-      {/* Lo que antes había que hacer a mano («Generar») ahora pasa solo: se
-          dice aquí, que es donde se toca el horario. */}
+      {/* Qué es esto y qué pasa al tocarlo. Sin esta explicación no se
+          entendía la diferencia entre el horario y la agenda (feedback del
+          usuario: «sigo sin entender qué es el horario semanal»). */}
+      <ol className="mt-4 grid gap-3 rounded-2xl border border-beige bg-white p-4 text-sm text-verde-700 sm:grid-cols-3 sm:p-5">
+        <li>
+          <span className="font-bold text-verde">1. Marca las clases fijas.</span> Las que se dan
+          todas las semanas: «+ Añadir clase» en el día, la hora y la sala.
+        </li>
+        <li>
+          <span className="font-bold text-verde">2. Elige quién la da.</span> Sin instructora, la
+          clase no sale en la agenda.
+        </li>
+        <li>
+          <span className="font-bold text-verde">3. Listo: sale sola en la Agenda.</span> Siempre{" "}
+          {numero(semanas)} semanas por delante, y ahí se reserva. Cambiar algo aquí cambia las
+          próximas clases.
+        </li>
+      </ol>
+
       <p className="mt-4 text-sm text-verde-700">
         {numero(total.length)} {total.length === 1 ? "clase" : "clases"} por semana
         {totalSin > 0 && (
@@ -100,11 +130,6 @@ export default function PanelHorario({
             · ▲ {numero(totalSin)} sin instructora (no salen en la agenda)
           </span>
         )}
-        <span className="text-verde-300">
-          {" "}
-          · La agenda sigue a este horario sola: siempre {numero(semanas)} semanas por delante, y
-          cada cambio pasa a las próximas clases.
-        </span>
       </p>
 
       <Card densidad="plana" resalte={false} className="mt-4">
@@ -180,18 +205,22 @@ export default function PanelHorario({
                             type="button"
                             disabled={enCurso}
                             aria-pressed={f.activa}
-                            aria-label={`${f.sala} el ${NOMBRES_DIA[dia].toLowerCase()} a las ${hora}: ${f.activa ? "se da" : "sin clase"}`}
+                            aria-label={
+                              f.activa
+                                ? `Quitar ${f.sala} del ${NOMBRES_DIA[dia].toLowerCase()} a las ${hora}`
+                                : `Añadir clase de ${f.sala} el ${NOMBRES_DIA[dia].toLowerCase()} a las ${hora}`
+                            }
                             onClick={() => guardar(f, !f.activa, f.instructoraId)}
                             className={`inline-flex min-h-[44px] items-center rounded-full border px-4 text-sm transition-colors duration-300 disabled:opacity-60 ${
                               f.activa
-                                ? "border-dorado bg-dorado text-verde-900"
-                                : "border-beige bg-white text-verde-700 hover:border-dorado"
+                                ? "border-beige bg-white text-[var(--color-estado-grave)] hover:border-[var(--color-estado-grave)]"
+                                : "border-dorado/70 bg-white text-verde hover:border-dorado hover:bg-arena"
                             }`}
                           >
-                            {f.activa ? "Se da" : "+ Añadir"}
+                            {enCurso ? "Guardando…" : f.activa ? "Quitar" : "+ Añadir clase"}
                           </button>
                         ) : (
-                          <span className="text-sm text-verde-300">{f.activa ? "Se da" : "Sin clase"}</span>
+                          <span className="text-sm text-verde-300">{f.activa ? "✓ Se da" : "Sin clase"}</span>
                         )}
                       </div>
 
@@ -208,7 +237,7 @@ export default function PanelHorario({
                               onChange={(e) => guardar(f, true, e.target.value || null)}
                               className="min-h-[44px] w-full rounded-full border border-beige bg-white px-4 text-sm text-verde transition-colors duration-300 hover:border-dorado focus-visible:outline-2 focus-visible:outline-dorado disabled:opacity-60"
                             >
-                              <option value="">Sin instructora</option>
+                              <option value="">Elige instructora…</option>
                               {instructoras.map((i) => (
                                 <option key={i.id} value={i.id} disabled={i.id === ocupadaEnOtra}>
                                   {i.nombre}
@@ -216,16 +245,15 @@ export default function PanelHorario({
                                 </option>
                               ))}
                             </select>
-                            {!f.instructoraId && (
-                              <p className="mt-1.5 text-xs text-[var(--color-estado-aviso)]">
-                                ▲ Sin instructora: no se generará hasta que tenga una.
-                              </p>
-                            )}
+                            <EstadoEnAgenda franja={f} />
                           </div>
                         ) : (
-                          <p className="mt-1 text-sm text-verde-700">
-                            {nombreDe(f.instructoraId) ?? "Sin instructora"}
-                          </p>
+                          <>
+                            <p className="mt-1 text-sm text-verde-700">
+                              {nombreDe(f.instructoraId) ?? "Sin instructora"}
+                            </p>
+                            <EstadoEnAgenda franja={f} />
+                          </>
                         ))}
                     </div>
                   );
@@ -322,5 +350,23 @@ function CopiarDia({
         </button>
       </div>
     </Modal>
+  );
+}
+
+/** Qué hay de esta franja en la agenda: la respuesta a «¿y esto qué hace?». */
+function EstadoEnAgenda({ franja }: { franja: FranjaHorario }) {
+  if (!franja.instructoraId)
+    return (
+      <p className="mt-1.5 text-xs text-[var(--color-estado-aviso)]">
+        ▲ Falta la instructora: todavía no sale en la agenda.
+      </p>
+    );
+  if (franja.enAgenda === 0)
+    return <p className="mt-1.5 text-xs text-verde-300">Saldrá en la agenda en cuanto se rellene.</p>;
+  return (
+    <p className="mt-1.5 text-xs text-[var(--color-estado-ok)]">
+      ✓ En la agenda: {numero(franja.enAgenda)} {franja.enAgenda === 1 ? "clase" : "clases"}
+      {franja.hastaAgenda ? `, hasta el ${fecha(franja.hastaAgenda)}` : ""}
+    </p>
   );
 }
