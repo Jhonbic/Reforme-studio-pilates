@@ -2032,6 +2032,17 @@ de repetir:
   diálogo ofrece «Marcar como no se vende».
 - **Server actions cortan en 1 MB** → `bodySizeLimit: "4mb"` para los
   comprobantes (Vercel corta en 4,5 MB).
+- **Next.js 16.2.11 con fallos críticos publicados** (oct 2026: ejecución
+  remota de código en `next/og` y en la optimización de imágenes, que esta
+  web usa) → 16.4.0. `npm audit --omit=dev`: 0 vulnerabilidades. Lo que queda
+  en `npm audit` a secas es del lint (`eslint-config-next`) y no llega a
+  producción.
+- **Cabeceras de seguridad** en `next.config.ts` para todas las rutas: CSP
+  mínimo (`frame-ancestors 'none'`, `object-src`, `base-uri`, `form-action`),
+  `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy` y `Permissions-Policy`
+  sin cámara, micrófono ni ubicación; sin `X-Powered-By`. ⚠️ El CSP **no
+  lleva `script-src`**: haría falta un nonce en cada página. Si se añade,
+  probar el mapa de la portada, las fuentes y la imagen para compartir.
 
 ## 8. Pendientes
 
