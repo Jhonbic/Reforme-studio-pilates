@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { SECCIONES, esSeccionActiva } from "./secciones";
 
@@ -37,6 +37,7 @@ export default function AdminNav({
                 >
                   <s.icono />
                   {s.label}
+                  <Pendiente />
                 </Link>
               </li>
             );
@@ -64,11 +65,30 @@ export default function AdminNav({
               >
                 <s.icono />
                 {s.label}
+                <Pendiente className="ml-auto" />
               </Link>
             </li>
           );
         })}
       </ul>
     </nav>
+  );
+}
+
+/**
+ * Punto que late en la sección pulsada mientras llega la página: respuesta
+ * INMEDIATA al clic aunque la ruta no estuviera precargada (la pantalla de
+ * carga del `loading.tsx` sale justo después). Siempre ocupa su sitio y solo
+ * cambia de opacidad: si apareciera y desapareciera, movería el texto.
+ */
+function Pendiente({ className = "" }: { className?: string }) {
+  const { pending } = useLinkStatus();
+  return (
+    <span
+      aria-hidden="true"
+      className={`h-1.5 w-1.5 shrink-0 rounded-full bg-current transition-opacity duration-200 ${
+        pending ? "opacity-100 motion-safe:animate-pulse" : "opacity-0"
+      } ${className}`}
+    />
   );
 }

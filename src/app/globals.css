@@ -333,6 +333,48 @@ body {
   animation: toast-in 0.28s var(--ease-smooth) both;
 }
 
+/* Pantalla de carga del panel (`loading.tsx`): barra dorada que avanza
+   arriba y esqueletos que respiran. Aparece con un pequeño retraso para que
+   una navegación rápida no parpadee. */
+@keyframes carga-aparece {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.carga-aparece {
+  animation: carga-aparece 0.25s var(--ease-smooth) 0.15s both;
+}
+@keyframes carga-barra {
+  0% {
+    transform: translateX(-100%) scaleX(0.3);
+  }
+  50% {
+    transform: translateX(10%) scaleX(0.6);
+  }
+  100% {
+    transform: translateX(100%) scaleX(0.3);
+  }
+}
+.carga-barra {
+  animation: carga-barra 1.2s ease-in-out infinite;
+  transform-origin: left;
+}
+@keyframes carga-respira {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+.carga-hueso {
+  animation: carga-respira 1.4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -355,6 +397,12 @@ body {
   /* El aviso NO se oculta, solo aparece sin desplazamiento: es información,
      no decoración. */
   .toast-in {
+    animation: none;
+  }
+  /* Sin movimiento: la pantalla de carga sigue saliendo, pero quieta. */
+  .carga-aparece,
+  .carga-barra,
+  .carga-hueso {
     animation: none;
   }
 }

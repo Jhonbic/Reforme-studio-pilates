@@ -313,6 +313,25 @@ export type Database = {
           },
         ];
       };
+      intentos_registro: {
+        Row: {
+          creado_en: string;
+          id: number;
+          ip_hash: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          creado_en?: string;
+          id?: never;
+          ip_hash: string;
+        };
+        Update: {
+          creado_en?: string;
+          id?: never;
+          ip_hash?: string;
+        };
+        Relationships: [];
+      };
       lista_espera: {
         Row: {
           clase_id: string;

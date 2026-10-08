@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AuthShell from "@/components/auth/AuthShell";
@@ -74,6 +74,14 @@ export default function RegistroPage() {
   const [errors, setErrors] = useState<Errors>({});
   const [errorGeneral, setErrorGeneral] = useState("");
   const [enviando, iniciar] = useTransition();
+  /* Contra robots: el campo trampa (nadie lo ve ni lo alcanza con el
+     teclado) y cuándo se abrió el formulario. Un robot lo rellena todo y
+     envía al instante. */
+  const [trampa, setTrampa] = useState("");
+  const abierto = useRef(0);
+  useEffect(() => {
+    abierto.current = Date.now();
+  }, []);
 
   function set<K extends keyof typeof values>(key: K, value: (typeof values)[K]) {
     setValues((v) => ({ ...v, [key]: value }));
@@ -111,6 +119,8 @@ export default function RegistroPage() {
         telefono: values.telefono,
         contrasena: values.password,
         aceptaTerminos: values.terms,
+        trampa,
+        msAbierto: Date.now() - abierto.current,
       });
       if (r.ok) {
         // La sesión ya está abierta: directo a su área.
@@ -146,6 +156,20 @@ export default function RegistroPage() {
       </div>
 
       <form onSubmit={onSubmit} className="space-y-5" noValidate>
+        {/* Campo trampa: fuera de la pantalla, sin tabulación y oculto a los
+            lectores de pantalla. Si llega con texto, el servidor no registra. */}
+        <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
+          <label htmlFor="sitio-web">No rellenes este campo</label>
+          <input
+            id="sitio-web"
+            name="sitio-web"
+            type="text"
+            tabIndex={-1}
+            autoComplete="off"
+            value={trampa}
+            onChange={(e) => setTrampa(e.target.value)}
+          />
+        </div>
         <TextField
           id="nombre"
           label="Nombre completo"

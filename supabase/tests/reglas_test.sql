@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(71);
+select plan(72);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -542,6 +542,13 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
 select is((select count(*)::int from membresias_pendientes), 0, 'un cliente no ve los pagos pendientes');
+reset role;
+
+-- Registro: la tabla de intentos solo la usa el servidor (service_role).
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$select count(*) from intentos_registro$$, '42501', null,
+  'ni Administración lee los intentos de registro (solo el servidor)');
 reset role;
 
 select * from finish();

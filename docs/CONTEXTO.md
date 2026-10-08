@@ -70,7 +70,7 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
 | `npm test` | **Vitest**, 62 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 71 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm run test:db` | **pgTAP**, 72 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -1921,7 +1921,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **20 migraciones, todas aplicadas en local y en remoto** |
+| Esquema | `supabase/migrations/` — **21 migraciones, todas aplicadas en local y en remoto** |
 
 ### Variables de entorno
 
@@ -2043,6 +2043,32 @@ de repetir:
   sin cámara, micrófono ni ubicación; sin `X-Powered-By`. ⚠️ El CSP **no
   lleva `script-src`**: haría falta un nonce en cada página. Si se añade,
   probar el mapa de la portada, las fuentes y la imagen para compartir.
+- **Registro protegido contra robots** (migración `20261014120000`), sin
+  servicios externos (un CAPTCHA pide cuenta y claves):
+  - **Campo trampa** invisible (fuera de pantalla, sin tabulación,
+    `aria-hidden`): si llega con texto, no se registra.
+  - **Tiempo mínimo**: enviado a menos de 3 s de abrir el formulario, no.
+  - **Límite por conexión**: 10 intentos por hora desde la misma IP y 60 en
+    total (tabla `intentos_registro`). Se guarda el **hash** de la IP, no la
+    IP, y las filas se borran al día. RLS sin políticas: solo el servidor
+    (`service_role`). Se cuenta ANTES de mirar si el documento existe, así
+    tampoco sirve para averiguar en bucle quién es cliente.
+  - El mensaje a un robot es genérico («No se pudo completar el
+    registro…»): no le dice qué lo delató. Si la tabla fallara, deja pasar
+    (y lo registra): la protección no puede cerrar el registro.
+  - Si algún día hay spam de verdad, el siguiente escalón es Cloudflare
+    Turnstile (gratis; necesita sus dos claves en Vercel).
+- **Pantalla de carga al cambiar de módulo** (feedback del usuario: «da la
+  sensación de que se queda pegado»). `loading.tsx` en cada ruta de `/admin`
+  y en `/mi-cuenta`, todos con `components/admin/CargandoPanel.tsx`: barra
+  dorada que avanza arriba + esqueleto de tarjetas + «Cargando…» para
+  lectores de pantalla. Sale con **150 ms de retraso** para no parpadear en
+  las cargas rápidas, y quieta con `prefers-reduced-motion`. El menú marca la
+  sección nueva al instante y el botón pulsado lleva un punto que late
+  (`useLinkStatus`) por si la ruta no estaba precargada. ⚠️ Un `loading.tsx`
+  por carpeta, no solo en `/admin`: sin él, entrar en una ruta anidada (la
+  ficha de un cliente) se quedaba esperando sin pantalla de carga.
+  Comprobado con la red ralentizada: la carga sale a los 50–230 ms.
 
 ## 8. Pendientes
 
@@ -2144,9 +2170,8 @@ y el aviso de «pocas clases» del 7.
 - [ ] **Asistencia en Estadísticas**: tasa de «reserva y no viene» por
       cliente y por horario. Esperar unas semanas de marcas reales.
 - [x] ~~`/registro` real y área de cliente~~ — hecho en el paso 10.
-- [ ] **Registro sin protección contra spam**: cualquiera puede crear cuentas
-      en bucle. Antes de anunciarlo: CAPTCHA (Turnstile/hCaptcha) o límite
-      por IP en la server action.
+- [x] ~~Registro sin protección contra spam~~ — campo trampa, tiempo mínimo
+      y límite por IP (ver §7, «Arreglos que salieron por el camino»).
 - [ ] **Verificar el correo** al registrarse: necesita SMTP propio en
       Supabase. Con él se podría enlazar sola una cédula existente.
 - [ ] **Quitar el acceso web** a un cliente (hoy solo se da o se cambia la

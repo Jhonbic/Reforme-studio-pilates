@@ -1,6 +1,8 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { TIPOS_IDENTIFICACION } from "@/lib/admin/catalogos";
 import type { TipoIdentificacion } from "@/lib/admin/types";
 import { crearClienteAdmin } from "@/lib/supabase/admin";
@@ -22,7 +24,60 @@ export type DatosRegistro = {
   telefono: string;
   contrasena: string;
   aceptaTerminos: boolean;
+  /** Campo trampa: invisible para personas. Si trae algo, es un robot. */
+  trampa: string;
+  /** Milisegundos que el formulario estuvo abierto antes de enviarse. */
+  msAbierto: number;
 };
+
+/* Protección contra robots. Sin servicios externos (un CAPTCHA pide cuenta y
+   claves): campo trampa, tiempo mínimo y límite de intentos por conexión. */
+const MS_MINIMO = 3000;
+const LIMITE_POR_IP = 10;
+const LIMITE_GLOBAL = 60;
+const VENTANA_MS = 60 * 60 * 1000;
+const NO_SE_PUDO = "No se pudo completar el registro. Inténtalo de nuevo en un momento.";
+
+type Admin = NonNullable<ReturnType<typeof crearClienteAdmin>>;
+
+/**
+ * Cuenta este intento y dice si hay que frenarlo: más de 10 por hora desde la
+ * misma conexión, o más de 60 en total (un ataque desde muchas IP).
+ *
+ * La IP la pone Vercel en `x-forwarded-for`. Se guarda solo su hash.
+ * ⚠️ Si la tabla falla, deja pasar (y lo registra): un fallo de esta
+ * protección no puede cerrar el registro a los clientes de verdad.
+ */
+async function frenoDeRegistro(admin: Admin): Promise<string | null> {
+  const h = await headers();
+  const ip = (h.get("x-forwarded-for")?.split(",")[0] ?? h.get("x-real-ip") ?? "sin-ip").trim();
+  const ipHash = createHash("sha256").update(`reforme-registro|${ip}`).digest("hex");
+  const desde = new Date(Date.now() - VENTANA_MS).toISOString();
+
+  const [porIp, total] = await Promise.all([
+    admin
+      .from("intentos_registro")
+      .select("id", { count: "exact", head: true })
+      .eq("ip_hash", ipHash)
+      .gte("creado_en", desde),
+    admin.from("intentos_registro").select("id", { count: "exact", head: true }).gte("creado_en", desde),
+  ]);
+  if (porIp.error || total.error) {
+    console.error("Límite de registro sin comprobar:", porIp.error?.message ?? total.error?.message);
+    return null;
+  }
+  if ((porIp.count ?? 0) >= LIMITE_POR_IP || (total.count ?? 0) >= LIMITE_GLOBAL) {
+    return "Hay demasiados intentos de registro. Espera un rato o escríbenos por WhatsApp y te ayudamos.";
+  }
+
+  await admin.from("intentos_registro").insert({ ip_hash: ipHash });
+  // Limpieza: lo de ayer ya no cuenta para nada. (Con WHERE: pg_safeupdate.)
+  await admin
+    .from("intentos_registro")
+    .delete()
+    .lt("creado_en", new Date(Date.now() - 24 * VENTANA_MS).toISOString());
+  return null;
+}
 
 /**
  * Crea la cuenta de un cliente nuevo y su ficha («Sin plan»), y deja la
@@ -40,6 +95,10 @@ export type DatosRegistro = {
  * ficha falla, se borra la cuenta, para no dejar una cuenta sin ficha.
  */
 export async function registrarCliente(d: DatosRegistro): Promise<Resultado> {
+  // Robots: el mensaje es genérico a propósito, no les dice qué los delató.
+  if (d.trampa) return { ok: false, error: NO_SE_PUDO };
+  if (!Number.isFinite(d.msAbierto) || d.msAbierto < MS_MINIMO) return { ok: false, error: NO_SE_PUDO };
+
   const nombre = d.nombre.trim();
   const correo = d.correo.trim().toLowerCase();
   const tipo = d.tipoIdentificacion as TipoIdentificacion;
@@ -57,6 +116,11 @@ export async function registrarCliente(d: DatosRegistro): Promise<Resultado> {
   if (!admin) {
     return { ok: false, error: "El registro no está disponible en este momento. Escríbenos por WhatsApp y te ayudamos." };
   }
+
+  // Antes de mirar si el documento existe: así tampoco se puede usar el
+  // registro para averiguar en bucle quién es cliente del estudio.
+  const freno = await frenoDeRegistro(admin);
+  if (freno) return { ok: false, error: freno };
 
   const { data: existente } = await admin
     .from("clientes")
