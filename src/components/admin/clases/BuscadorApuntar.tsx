@@ -31,12 +31,15 @@ export default function BuscadorApuntar({
   clientes,
   enCurso,
   onApuntar,
+  textoBoton = "Apuntar",
 }: {
   clase: ClaseEnAgenda;
   /** Los que todavía no están en la clase. */
   clientes: ClienteParaReservar[];
   enCurso: boolean;
   onApuntar: (c: ClienteParaReservar) => void;
+  /** «Apuntar», o «A la espera» cuando la clase está llena. */
+  textoBoton?: string;
 }) {
   const [texto, setTexto] = useState("");
   /* `undefined` = cargando · `null` = privada (no descuenta) · mapa = saldo. */
@@ -120,9 +123,9 @@ export default function BuscadorApuntar({
                   disabled={e.bloquea || enCurso}
                   onClick={() => onApuntar(c)}
                   className={APUNTAR}
-                  aria-label={`Apuntar a ${c.nombre}${e.bloquea ? ` (no se puede: ${e.texto.toLowerCase()})` : ""}`}
+                  aria-label={`${textoBoton} · ${c.nombre}${e.bloquea ? ` (no se puede: ${e.texto.toLowerCase()})` : ""}`}
                 >
-                  Apuntar
+                  {textoBoton}
                 </button>
               </li>
             );

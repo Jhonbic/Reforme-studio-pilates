@@ -5,7 +5,7 @@ import Modal from "@/components/admin/Modal";
 import { useToast } from "@/context/ToastContext";
 import { reservar } from "@/lib/admin/acciones";
 import { numero } from "@/lib/admin/format";
-import { diaCorto, diaRelativo, numeroDia } from "@/lib/admin/horario";
+import { cuandoEs, diaCorto, diaRelativo, numeroDia } from "@/lib/admin/horario";
 import type { ClaseParaReservar, MembresiaConSaldo } from "@/lib/admin/types";
 
 const BOTON =
@@ -72,7 +72,7 @@ export default function ReservarClaseCliente({
     iniciar(async () => {
       const r = await reservar(c.id, clienteId);
       if (!r.ok) return setError(r.error);
-      mostrarAviso(`${nombre}: ${c.tipo} el ${diaRelativo(c.fecha, hoy).toLowerCase()} a las ${c.horaInicio}.`, "success");
+      mostrarAviso(`${nombre}: ${c.tipo} ${cuandoEs(c.fecha, hoy)} a las ${c.horaInicio}.`, "success");
     });
   }
 

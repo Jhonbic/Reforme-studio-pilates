@@ -69,8 +69,8 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 |---|---|
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
-| `npm test` | **Vitest**, 58 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 56 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm test` | **Vitest**, 59 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
+| `npm run test:db` | **pgTAP**, 65 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -1614,6 +1614,45 @@ pasó en la agenda.
   app necesita `WHERE` en sus UPDATE/DELETE** (en `ajustes`, `where id`).
 - 5 tests nuevos en `reglas_test.sql` (56).
 
+#### Lista de espera y reprogramar — oct 2026, paso 5
+
+Migración `20261012120000_lista_espera`.
+
+**Lista de espera** (tabla `lista_espera`, por orden de llegada):
+- El cliente se apunta desde «Reservar una clase» cuando una clase está llena
+  («Lista de espera» en vez de un botón apagado; luego «En espera · puesto
+  N» y la sección **«Esperando cupo»** con «Salir»). Hace falta un plan que
+  cubra el día; las privadas no tienen lista (van por recepción).
+  `unirme_lista_espera` (devuelve el puesto) y `salir_lista_espera`.
+- Recepción la ve en el diálogo de la clase («Lista de espera · N», con
+  «Quitar») y apunta gente con el mismo buscador («A la espera») cuando la
+  clase está llena. La tarjeta de la agenda dice «· N en espera».
+- ⚠️ **El primero entra solo** al liberarse un cupo (alguien cancela, lo
+  quitan, lo mueven o sube el aforo): `promover_lista_espera`, desde los
+  triggers `reservas_liberan_cupo` y `clases_aforo_libera_cupo`. Se le
+  reserva y se le descuenta del plan; si no le quedan clases de esa
+  modalidad, se le saca y pasa el siguiente.
+- ⚠️ **Solo si falta más que el plazo de cancelación** (Configuración): sin
+  notificaciones todavía (paso 7), un cupo de última hora nadie lo ve a
+  tiempo y le costaría la clase sin enterarse. Con notificaciones, revisar.
+- Quien consigue plaza por cualquier camino sale de la lista
+  (`reservas_salen_de_la_espera`).
+
+**Reprogramar**:
+- Cliente: «Cambiar» en «Tus próximas clases» (no en privadas) → elige otra
+  clase con cupo que su plan cubra → `reprogramar_mi_reserva` = cancelar +
+  reservar en UNA transacción: con el plazo de cancelar, y si la nueva no
+  entra, la original se queda.
+- Recepción: «Mover» junto a cada persona en el diálogo de la clase (clases
+  de la misma modalidad con cupo) → `mover_reserva`, sin plazo.
+- `agenda_cliente` devuelve `puesto_espera` y llega hasta 12 semanas (antes
+  4), por si Configuración alarga la agenda.
+- `cuandoEs()` (horario.ts): «hoy», «mañana» o «el sábado, 10 de octubre»
+  dentro de una frase (los avisos decían «el mañana»).
+- 9 tests nuevos en `reglas_test.sql` (65). Probado de punta a punta en el
+  navegador: se apunta → recepción libera un cupo → entra sola → cambia su
+  reserva → recepción mueve a alguien.
+
 #### Planes (`/admin/planes`) — desde Supabase, oct 2026
 
 - El catálogo sale de la tabla `planes`, del más barato al más caro. La clave
@@ -1840,7 +1879,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **18 migraciones, todas aplicadas en local y en remoto** |
+| Esquema | `supabase/migrations/` — **19 migraciones, todas aplicadas en local y en remoto** |
 
 ### Variables de entorno
 
@@ -2022,8 +2061,8 @@ Configuración). Lo que falta, por módulo:
    hizo, evolución en tabla o gráfica. Solo usuarios autorizados.
 4. **Planes**: ~~modalidad y descuento al reservar~~ (hecho, «Clases por
    plan»). Las salas que permite cada plan salen de su modalidad.
-5. **Reservas**: ~~reservar solo lo que permite el plan~~ y ~~salas~~ (hecho,
-   «Salas»); faltan lista de espera y reprogramar.
+5. **Reservas**: ~~reservar solo lo que permite el plan~~, ~~salas~~, ~~lista
+   de espera y reprogramar~~ (hecho).
 6. **Asistencia**: ~~marcar asistió / no vino e historial~~ (hecho,
    «Asistencia»); falta la política de cancelación configurable.
 7. **Notificaciones automáticas** (WhatsApp y/o correo): confirmación de
@@ -2059,7 +2098,7 @@ y el aviso de «pocas clases» del 7.
 - [ ] **Verificar el correo** al registrarse: necesita SMTP propio en
       Supabase. Con él se podría enlazar sola una cédula existente.
 - [ ] **Quitar el acceso web** a un cliente (hoy solo se da o se cambia la
-      contraseña) y **lista de espera** cuando una clase está llena.
+      contraseña). La lista de espera ya existe (paso 5).
 - [ ] **Recuperar contraseña** desde `/login`. Necesita SMTP propio en Supabase
       (el gratuito solo envía a los miembros del proyecto de Supabase).
 - [ ] **Ficha del cliente**: editar datos, dar de baja, e historial de pagos y

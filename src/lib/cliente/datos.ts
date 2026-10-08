@@ -93,6 +93,8 @@ export type ClaseParaCliente = {
   /** Clases de ese tipo que le quedan para la fecha de la clase. `null` en
    *  las Privadas, que no descuentan de ningún plan. */
   disponibles: number | null;
+  /** Su puesto en la lista de espera (1 = la siguiente), o `null` si no espera. */
+  puestoEspera: number | null;
 };
 
 /** El plazo para cancelar (Configuración). `ajustes` lo lee cualquier sesión. */
@@ -128,6 +130,7 @@ export async function getAgendaCliente(hoy: string): Promise<ClaseParaCliente[]>
       libres: Math.max(0, c.cupos - c.reservas),
       reservada: c.reservada,
       disponibles: c.tipo === "Privada" ? null : c.disponibles,
+      puestoEspera: c.puesto_espera ?? null,
     };
   });
 }

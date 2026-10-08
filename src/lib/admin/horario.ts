@@ -202,3 +202,13 @@ export function diaRelativo(iso: string, hoy: string): string {
   if (d === -1) return "Ayer";
   return diaLargo(iso);
 }
+
+/**
+ * El día dentro de una frase: «hoy», «mañana» o «el sábado, 10 de octubre».
+ * `diaRelativo()` es para rótulos; metido en una frase con «el» delante salía
+ * «el mañana».
+ */
+export function cuandoEs(iso: string, hoy: string): string {
+  const d = diaRelativo(iso, hoy);
+  return ["Hoy", "Mañana", "Ayer"].includes(d) ? d.toLowerCase() : `el ${d}`;
+}

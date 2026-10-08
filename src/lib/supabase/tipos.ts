@@ -310,6 +310,50 @@ export type Database = {
           },
         ];
       };
+      lista_espera: {
+        Row: {
+          clase_id: string;
+          cliente_id: string;
+          creado_en: string;
+          id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          clase_id: string;
+          cliente_id: string;
+          creado_en?: string;
+          id?: string;
+        };
+        Update: {
+          clase_id?: string;
+          cliente_id?: string;
+          creado_en?: string;
+          id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "lista_espera_clase_id_fkey";
+            columns: ["clase_id"];
+            isOneToOne: false;
+            referencedRelation: "clases";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "lista_espera_cliente_id_fkey";
+            columns: ["cliente_id"];
+            isOneToOne: false;
+            referencedRelation: "clientes";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "lista_espera_cliente_id_fkey";
+            columns: ["cliente_id"];
+            isOneToOne: false;
+            referencedRelation: "clientes_vigentes";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       membresias: {
         Row: {
           clases_mat: number;
@@ -626,6 +670,7 @@ export type Database = {
           hora_inicio: string;
           id: string;
           instructora: string;
+          puesto_espera: number;
           reservada: boolean;
           reservas: number;
           tipo: Database["public"]["Enums"]["tipo_clase"];
@@ -678,6 +723,8 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: Database["public"]["Enums"]["rol_equipo"];
       };
+      mover_reserva: { Args: { p_clase: string; p_reserva: string }; Returns: undefined };
+      promover_lista_espera: { Args: { p_clase: string }; Returns: number };
       registrar_membresia: {
         Args: {
           p_cliente: string;
@@ -686,6 +733,7 @@ export type Database = {
         };
         Returns: string;
       };
+      reprogramar_mi_reserva: { Args: { p_desde: string; p_hacia: string }; Returns: undefined };
       reservar_mi_clase: { Args: { p_clase: string }; Returns: undefined };
       saldo_clases: {
         Args: { p_cliente: string };
@@ -701,7 +749,9 @@ export type Database = {
           vencimiento: string;
         }[];
       };
+      salir_lista_espera: { Args: { p_clase: string }; Returns: undefined };
       tiene_perfil: { Args: Record<PropertyKey, never>; Returns: boolean };
+      unirme_lista_espera: { Args: { p_clase: string }; Returns: number };
     };
     Enums: {
       asistencia: "Asistió" | "No vino";

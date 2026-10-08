@@ -2,8 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { fecha as fechaCorta } from "@/lib/admin/format";
-import { diaCorto, diaRelativo, diasEntre, numeroDia } from "@/lib/admin/horario";
-import { cancelarReserva, reservarClase } from "@/lib/cliente/acciones";
+import { cuandoEs, diaCorto, diaRelativo, diasEntre, numeroDia } from "@/lib/admin/horario";
+import {
+  cancelarReserva,
+  reprogramarReserva,
+  reservarClase,
+  salirListaEspera,
+  unirmeListaEspera,
+} from "@/lib/cliente/acciones";
 import type { ClaseParaCliente, MiCuenta } from "@/lib/cliente/datos";
 
 /** Recepción, para lo que no se puede hacer desde aquí. Mismo número que el
@@ -68,19 +74,48 @@ export default function PanelCliente({
   const [enCurso, setEnCurso] = useState<string | null>(null);
   const [, iniciar] = useTransition();
   const [todas, setTodas] = useState(false);
+  /** La reserva que se está cambiando de clase, y la clase elegida. */
+  const [cambiando, setCambiando] = useState<string | null>(null);
+  const [destino, setDestino] = useState("");
 
   const mias = agenda.filter((c) => c.reservada);
+  const esperando = agenda.filter((c) => c.puestoEspera !== null);
+
+  /* A qué clases se puede cambiar una reserva: con cupo, que su plan cubra y
+     con clases de esa modalidad. Si es la MISMA modalidad, cambiar devuelve
+     primero la clase de la reserva vieja, así que vale aunque hoy le quede 0. */
+  function destinosPara(c: ClaseParaCliente) {
+    return agenda.filter(
+      (o) =>
+        o.id !== c.id &&
+        !o.reservada &&
+        o.libres > 0 &&
+        o.disponibles !== null &&
+        cubre(cuenta, o.fecha) &&
+        ((o.disponibles ?? 0) > 0 || o.tipo === c.tipo),
+    );
+  }
   const delDia = agenda.filter((c) => c.fecha === dia);
   const nombre = cuenta.nombre.split(" ")[0];
   const conPlan = cuenta.estado !== "Sin plan" && cuenta.estado !== "Vencida";
 
-  function ejecutar(claseId: string, accion: () => Promise<{ ok: boolean; error?: string }>, exito: string) {
+  function ejecutar(
+    claseId: string,
+    accion: () => Promise<{ ok: boolean; error?: string }>,
+    exito: string,
+  ) {
     setMensaje(null);
     setEnCurso(claseId);
     iniciar(async () => {
       const r = await accion();
       setEnCurso(null);
-      setMensaje(r.ok ? { tipo: "ok", texto: exito } : { tipo: "error", texto: r.error ?? "Algo falló." });
+      if (r.ok) {
+        setCambiando(null);
+        setDestino("");
+      }
+      setMensaje(
+        r.ok ? { tipo: "ok", texto: exito } : { tipo: "error", texto: r.error ?? "Algo falló." },
+      );
     });
   }
 
@@ -135,8 +170,8 @@ export default function PanelCliente({
               {cuenta.estado === "Vencida" ? "Tu plan venció" : "Aún no tienes un plan"}
             </p>
             <p className="mt-1 text-sm text-verde-700">
-              Para reservar necesitas un plan vigente. Actívalo en recepción o
-              escríbenos y te ayudamos.
+              Para reservar necesitas un plan vigente. Actívalo en recepción o escríbenos y te
+              ayudamos.
             </p>
             <a
               href={WHATSAPP}
@@ -174,7 +209,10 @@ export default function PanelCliente({
             {(todas ? mias : mias.slice(0, PROXIMAS_A_LA_VISTA)).map((c) => {
               const puede = cancelable(c, hoy, ahora, horasParaCancelar);
               return (
-                <li key={c.id} className="flex items-center justify-between gap-3 rounded-2xl border border-beige bg-white p-4">
+                <li
+                  key={c.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-beige bg-white p-4"
+                >
                   <div className="min-w-0">
                     <p className="text-xs uppercase tracking-wider text-dorado-dark first-letter:uppercase">
                       {diaRelativo(c.fecha, hoy)}
@@ -187,26 +225,102 @@ export default function PanelCliente({
                     </p>
                   </div>
                   {puede ? (
-                    <button
-                      type="button"
-                      disabled={enCurso === c.id}
-                      onClick={() => ejecutar(c.id, () => cancelarReserva(c.id), `Reserva cancelada: ${c.tipo} de las ${c.horaInicio}. El cupo queda libre para otra persona.`)}
-                      className={`${BOTON} shrink-0 border border-verde/30 text-verde-700 hover:border-red-400 hover:text-red-700`}
-                      /* Con el día: dos «Reformer de las 07:00» en días distintos se
-                         anunciaban igual y no se sabía cuál se cancelaba. */
-                      aria-label={`Cancelar la reserva de ${c.tipo}, ${diaRelativo(c.fecha, hoy).toLowerCase()} a las ${c.horaInicio}`}
-                    >
-                      {enCurso === c.id ? "Cancelando…" : "Cancelar"}
-                    </button>
+                    <div className="flex shrink-0 gap-2">
+                      {/* Cambiar = cancelar + reservar otra de una vez: si la
+                          nueva no entra, la reserva vieja se queda. Las
+                          privadas no: se acuerdan con recepción. */}
+                      {c.disponibles !== null && (
+                        <button
+                          type="button"
+                          disabled={enCurso === c.id}
+                          aria-expanded={cambiando === c.id}
+                          onClick={() => {
+                            setCambiando(cambiando === c.id ? null : c.id);
+                            setDestino("");
+                          }}
+                          className={`${BOTON} border border-verde/30 text-verde-700 hover:border-dorado hover:text-verde`}
+                          aria-label={`Cambiar la reserva de ${c.tipo}, ${diaRelativo(c.fecha, hoy).toLowerCase()} a las ${c.horaInicio}, por otra clase`}
+                        >
+                          Cambiar
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={enCurso === c.id}
+                        onClick={() =>
+                          ejecutar(
+                            c.id,
+                            () => cancelarReserva(c.id),
+                            `Reserva cancelada: ${c.tipo} de las ${c.horaInicio}. El cupo queda libre para otra persona.`,
+                          )
+                        }
+                        className={`${BOTON} border border-verde/30 text-verde-700 hover:border-red-400 hover:text-red-700`}
+                        /* Con el día: dos «Reformer de las 07:00» en días distintos se
+                           anunciaban igual y no se sabía cuál se cancelaba. */
+                        aria-label={`Cancelar la reserva de ${c.tipo}, ${diaRelativo(c.fecha, hoy).toLowerCase()} a las ${c.horaInicio}`}
+                      >
+                        {enCurso === c.id ? "Un momento…" : "Cancelar"}
+                      </button>
+                    </div>
                   ) : (
                     /* Pasado el plazo no se esconde sin más: se dice por qué
                        y a quién acudir. */
                     <p className="max-w-[9rem] shrink-0 text-right text-xs text-verde-300">
                       Faltan menos de {horasParaCancelar} h: para cancelar,{" "}
-                      <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="text-dorado-dark underline">
+                      <a
+                        href={WHATSAPP}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-dorado-dark underline"
+                      >
                         escríbenos
                       </a>
                     </p>
+                  )}
+                  {cambiando === c.id && (
+                    <div className="w-full border-t border-beige pt-3">
+                      {destinosPara(c).length === 0 ? (
+                        <p className="text-sm text-verde-300">
+                          No hay otra clase con cupo a la que puedas cambiarla en los próximos días.
+                        </p>
+                      ) : (
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                          <label className="min-w-0 flex-1 text-sm text-verde">
+                            <span className="mb-1.5 block font-medium">Cambiar por</span>
+                            <select
+                              value={destino}
+                              onChange={(e) => setDestino(e.target.value)}
+                              className="min-h-[44px] w-full rounded-full border border-beige bg-white px-4 text-sm text-verde"
+                            >
+                              <option value="">Elige la nueva clase…</option>
+                              {destinosPara(c).map((o) => (
+                                <option key={o.id} value={o.id}>
+                                  {diaRelativo(o.fecha, hoy)} · {o.horaInicio} · {o.tipo} ·{" "}
+                                  {o.instructora}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            disabled={!destino || enCurso === c.id}
+                            onClick={() => {
+                              const o = agenda.find((x) => x.id === destino);
+                              ejecutar(
+                                c.id,
+                                () => reprogramarReserva(c.id, destino),
+                                o
+                                  ? `Cambiada: ahora tienes ${o.tipo} ${cuandoEs(o.fecha, hoy)} a las ${o.horaInicio}.`
+                                  : "Reserva cambiada.",
+                              );
+                            }}
+                            className={`${BOTON} bg-dorado text-verde-900 hover:bg-dorado-dark`}
+                          >
+                            {enCurso === c.id ? "Cambiando…" : "Confirmar cambio"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </li>
               );
@@ -222,6 +336,52 @@ export default function PanelCliente({
               {todas ? "Ver menos" : `Ver las ${mias.length}`}
             </button>
           )}
+        </section>
+      )}
+
+      {/* En lista de espera: dónde está y cómo salir. */}
+      {esperando.length > 0 && (
+        <section>
+          <h2 className="font-display text-2xl text-verde">Esperando cupo</h2>
+          <p className="mt-1 text-sm text-verde-700">
+            Si alguien cancela con al menos {horasParaCancelar} h de antelación, entras solo y la
+            clase aparece en «Tus próximas clases» (se descuenta de tu plan).
+          </p>
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+            {esperando.map((c) => (
+              <li
+                key={c.id}
+                className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-dorado/60 bg-white p-4"
+              >
+                <div className="min-w-0">
+                  <p className="text-xs uppercase tracking-wider text-dorado-dark first-letter:uppercase">
+                    {diaRelativo(c.fecha, hoy)} · puesto {c.puestoEspera}
+                  </p>
+                  <p className="font-cifra text-lg font-normal text-verde">
+                    {c.horaInicio} <span className="text-verde-300">→ {c.horaFin}</span>
+                  </p>
+                  <p className="truncate text-sm text-verde-700">
+                    {c.tipo} · {c.instructora}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={enCurso === c.id}
+                  onClick={() =>
+                    ejecutar(
+                      c.id,
+                      () => salirListaEspera(c.id),
+                      `Saliste de la lista de espera de ${c.tipo} de las ${c.horaInicio}.`,
+                    )
+                  }
+                  className={`${BOTON} shrink-0 border border-verde/30 text-verde-700 hover:border-red-400 hover:text-red-700`}
+                  aria-label={`Salir de la lista de espera de ${c.tipo}, ${diaRelativo(c.fecha, hoy).toLowerCase()} a las ${c.horaInicio}`}
+                >
+                  Salir
+                </button>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
@@ -283,7 +443,10 @@ export default function PanelCliente({
                         ? `Sin clases de ${c.tipo}`
                         : null;
                 return (
-                  <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-beige bg-white p-4">
+                  <li
+                    key={c.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-beige bg-white p-4"
+                  >
                     <div className="min-w-0">
                       <p className="font-cifra text-lg font-normal text-verde">
                         {c.horaInicio} <span className="text-verde-300">→ {c.horaFin}</span>
@@ -292,18 +455,57 @@ export default function PanelCliente({
                         <span className="font-bold text-verde">{c.tipo}</span> · {c.instructora}
                       </p>
                       <p className="text-xs text-verde-300">
-                        {llena ? "Sin cupos libres" : `${c.libres} ${c.libres === 1 ? "cupo libre" : "cupos libres"}`}
+                        {llena
+                          ? "Sin cupos libres"
+                          : `${c.libres} ${c.libres === 1 ? "cupo libre" : "cupos libres"}`}
                       </p>
                     </div>
                     {c.reservada ? (
                       <span className="inline-flex min-h-[44px] items-center rounded-full bg-dorado/15 px-4 text-sm text-dorado-dark">
                         ✓ Reservada
                       </span>
+                    ) : c.puestoEspera !== null ? (
+                      <span className="inline-flex min-h-[44px] items-center rounded-full border border-dashed border-dorado/60 px-4 text-sm text-dorado-dark">
+                        En espera · puesto {c.puestoEspera}
+                      </span>
+                    ) : llena && !privada && !sinPlan && !sinClases ? (
+                      /* Llena, pero podría entrar: lista de espera en vez de un
+                         botón apagado que no ofrece nada. */
+                      <button
+                        type="button"
+                        disabled={enCurso === c.id}
+                        onClick={() => {
+                          setMensaje(null);
+                          setEnCurso(c.id);
+                          iniciar(async () => {
+                            const r = await unirmeListaEspera(c.id);
+                            setEnCurso(null);
+                            setMensaje(
+                              r.ok
+                                ? {
+                                    tipo: "ok",
+                                    texto: `Estás en la lista de espera (puesto ${r.puesto ?? "?"}). Si se libera un cupo con al menos ${horasParaCancelar} h de antelación, entras solo.`,
+                                  }
+                                : { tipo: "error", texto: r.error },
+                            );
+                          });
+                        }}
+                        className={`${BOTON} w-full border border-dorado text-verde hover:bg-dorado/15 sm:w-auto`}
+                        aria-label={`Apuntarme a la lista de espera de ${c.tipo}, ${diaRelativo(c.fecha, hoy).toLowerCase()} a las ${c.horaInicio}`}
+                      >
+                        {enCurso === c.id ? "Un momento…" : "Lista de espera"}
+                      </button>
                     ) : (
                       <button
                         type="button"
                         disabled={motivo !== null || enCurso === c.id}
-                        onClick={() => ejecutar(c.id, () => reservarClase(c.id), `¡Listo! Reservaste ${c.tipo} el ${diaRelativo(c.fecha, hoy).toLowerCase()} a las ${c.horaInicio}.`)}
+                        onClick={() =>
+                          ejecutar(
+                            c.id,
+                            () => reservarClase(c.id),
+                            `¡Listo! Reservaste ${c.tipo} ${cuandoEs(c.fecha, hoy)} a las ${c.horaInicio}.`,
+                          )
+                        }
                         className={`${BOTON} w-full bg-dorado text-verde-900 hover:bg-dorado-dark sm:w-auto`}
                         aria-label={`Reservar ${c.tipo}, ${diaRelativo(c.fecha, hoy).toLowerCase()} a las ${c.horaInicio}`}
                         /* El porqué de un botón apagado, para quien pasa el

@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(56);
+select plan(65);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -422,6 +422,90 @@ set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c1","
 select lives_ok(
   $$select cancelar_mi_reserva('00000000-0000-0000-0000-00000000aa11')$$,
   'con el plazo de cancelación en 0 horas se cancela hasta que empiece');
+reset role;
+
+-- Lista de espera y reprogramar ---------------------------------------------
+-- Dos clientes más: d3 con un plan de Mat de sobra y d4 sin plan. Clases de
+-- Mat en mayo de 2031: X (1 cupo, ocupado por d1), Z (1 cupo, ocupado) y W
+-- (8 cupos).
+set local request.jwt.claims to '{}';
+insert into auth.users (id, email) values
+  ('00000000-0000-0000-0000-0000000000c3', 'cliente-espera@reforme.local'),
+  ('00000000-0000-0000-0000-0000000000c4', 'cliente-sin-plan-espera@reforme.local');
+insert into clientes (id, nombre, identificacion, cuenta_id, acepta_terminos) values
+  ('00000000-0000-0000-0000-0000000000d3', 'Cliente en espera', 'TEST003', '00000000-0000-0000-0000-0000000000c3', true),
+  ('00000000-0000-0000-0000-0000000000d4', 'Cliente sin plan en espera', 'TEST004', '00000000-0000-0000-0000-0000000000c4', true);
+insert into planes (id, nombre, precio, vigencia_dias, modalidad, clases_reformer, clases_mat)
+  values ('00000000-0000-0000-0000-0000000000b2', 'Mat de test', 100000, 365, 'Mat', 0, 5);
+insert into membresias (cliente_id, plan_id, inicio, vencimiento, importe)
+  values ('00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-0000000000b2', '2031-01-01', '2031-12-31', 100000);
+insert into clases (id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos) values
+  ('00000000-0000-0000-0000-0000000000f5', 'Mat', '2031-05-05', '10:00', 50, '00000000-0000-0000-0000-0000000000e2', 1),
+  ('00000000-0000-0000-0000-0000000000f6', 'Mat', '2031-05-06', '10:00', 50, '00000000-0000-0000-0000-0000000000e2', 1),
+  ('00000000-0000-0000-0000-0000000000f7', 'Mat', '2031-05-07', '10:00', 50, '00000000-0000-0000-0000-0000000000e2', 8);
+insert into reservas (clase_id, cliente_id) values
+  ('00000000-0000-0000-0000-0000000000f5', '00000000-0000-0000-0000-0000000000d1'),
+  ('00000000-0000-0000-0000-0000000000f6', '00000000-0000-0000-0000-0000000000d1');
+-- d4 (sin plan) llegó antes a la lista: se la tiene que saltar.
+insert into lista_espera (clase_id, cliente_id, creado_en)
+  values ('00000000-0000-0000-0000-0000000000f5', '00000000-0000-0000-0000-0000000000d4', now() - interval '1 hour');
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c3","role":"authenticated"}';
+select is(
+  unirme_lista_espera('00000000-0000-0000-0000-0000000000f5'), 2,
+  'un cliente con plan se apunta a la lista de espera de una clase llena (y sabe su puesto)');
+select throws_ok(
+  $$select unirme_lista_espera('00000000-0000-0000-0000-0000000000f7')$$,
+  'P0001', 'Hay cupo libre: puedes reservarla directamente.',
+  'no hay lista de espera en una clase con cupo');
+reset role;
+
+-- Recepción quita a d1 de X: entra el primero de la lista que tiene clases.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+delete from reservas
+  where clase_id = '00000000-0000-0000-0000-0000000000f5' and cliente_id = '00000000-0000-0000-0000-0000000000d1';
+select results_eq(
+  $$select cliente_id from reservas where clase_id = '00000000-0000-0000-0000-0000000000f5'$$,
+  $$values ('00000000-0000-0000-0000-0000000000d3'::uuid)$$,
+  'al liberarse un cupo entra solo el primero de la lista que tiene clases; a quien no, se lo salta');
+select is(
+  (select count(*)::int from lista_espera where clase_id = '00000000-0000-0000-0000-0000000000f5'), 0,
+  'quien entra y quien se salta salen de la lista');
+reset role;
+
+-- d3 cambia X por Z, que está llena: no entra y X sigue suya.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c3","role":"authenticated"}';
+select throws_ok(
+  $$select reprogramar_mi_reserva('00000000-0000-0000-0000-0000000000f5', '00000000-0000-0000-0000-0000000000f6')$$,
+  'P0001', null,
+  'reprogramar a una clase llena falla');
+select ok(
+  exists (select 1 from reservas where clase_id = '00000000-0000-0000-0000-0000000000f5'
+                                    and cliente_id = '00000000-0000-0000-0000-0000000000d3'),
+  'si la clase nueva no entra, la reserva original se queda');
+select lives_ok(
+  $$select reprogramar_mi_reserva('00000000-0000-0000-0000-0000000000f5', '00000000-0000-0000-0000-0000000000f7')$$,
+  'reprogramar a una clase con cupo cambia la reserva de una vez');
+select throws_ok(
+  $$select mover_reserva(
+      (select id from reservas where clase_id = '00000000-0000-0000-0000-0000000000f7'
+                                 and cliente_id = '00000000-0000-0000-0000-0000000000d3'),
+      '00000000-0000-0000-0000-0000000000f5')$$,
+  '42501', null,
+  'un cliente no mueve reservas: es de recepción');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok(
+  $$select mover_reserva(
+      (select id from reservas where clase_id = '00000000-0000-0000-0000-0000000000f7'
+                                 and cliente_id = '00000000-0000-0000-0000-0000000000d3'),
+      '00000000-0000-0000-0000-0000000000f5')$$,
+  'recepción mueve a alguien de una clase a otra');
 reset role;
 
 select * from finish();

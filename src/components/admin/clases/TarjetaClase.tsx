@@ -92,6 +92,9 @@ export default function TarjetaClase({
           </span>
           <span className="text-xs text-verde-300">
             {clase.libres === 0 ? "Sin cupos libres" : `${numero(clase.libres)} ${clase.libres === 1 ? "libre" : "libres"}`}
+            {clase.enEspera.length > 0 && (
+              <span className="text-dorado-dark"> · {numero(clase.enEspera.length)} en espera</span>
+            )}
           </span>
         </div>
         <div aria-hidden="true" className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-beige">

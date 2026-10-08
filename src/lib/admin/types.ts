@@ -278,6 +278,8 @@ export type ClaseEnAgenda = Clase & {
   empezada: boolean;
   /** Quién la reservó, por orden alfabético. `reservas` es su longitud. */
   reservados: ReservaEnClase[];
+  /** Lista de espera, por orden de llegada (el primero entra al liberarse un cupo). */
+  enEspera: { id: string; clienteId: string; nombre: string }[];
 };
 
 /**

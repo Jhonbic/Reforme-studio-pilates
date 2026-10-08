@@ -133,6 +133,7 @@ describe("clases", () => {
     empezada: true,
     sala: "Reformer",
     reservados: [],
+    enEspera: [],
     ...p,
   });
 

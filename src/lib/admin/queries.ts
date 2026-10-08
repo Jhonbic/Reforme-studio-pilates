@@ -374,7 +374,7 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
   const { data, error } = await supabase
     .from("clases")
     .select(
-      "id, tipo, sala, fecha, hora_inicio, duracion_min, instructora_id, cupos, cancelada, equipo(nombre), reservas(id, cliente_id, asistencia, clientes(nombre))",
+      "id, tipo, sala, fecha, hora_inicio, duracion_min, instructora_id, cupos, cancelada, equipo(nombre), reservas(id, cliente_id, asistencia, clientes(nombre)), lista_espera(id, cliente_id, creado_en, clientes(nombre))",
     )
     .gte("fecha", sumarDias(hoy, -AGENDA_DIAS_ATRAS))
     .lte("fecha", sumarDias(hoy, AGENDA_DIAS_ADELANTE))
@@ -418,6 +418,9 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
       libres: Math.max(0, clase.cupos - clase.reservas),
       empezada: yaEmpezo(clase.fecha, clase.horaInicio, hoy, ahora),
       reservados,
+      enEspera: [...f.lista_espera]
+        .sort((a, b) => a.creado_en.localeCompare(b.creado_en))
+        .map((e) => ({ id: e.id, clienteId: e.cliente_id, nombre: e.clientes?.nombre ?? "Cliente eliminado" })),
     };
   });
 }

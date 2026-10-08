@@ -355,6 +355,8 @@ export default function PanelClases({
 
       <ReservasClase
         clase={clases.find((c) => c.id === viendo) ?? null}
+        agenda={clases}
+        hoy={hoy}
         clientes={clientes}
         puedeEditar={puedeEditar}
         miEquipoId={miEquipoId}

@@ -134,7 +134,46 @@ export async function reservarClase(claseId: string): Promise<Resultado> {
   return { ok: true };
 }
 
-/** Hasta 2 horas antes (lo comprueba `cancelar_mi_reserva`). */
+function revalidarReservas() {
+  revalidatePath("/mi-cuenta");
+  revalidatePath("/admin/clases", "layout");
+  revalidatePath("/admin/usuarios", "layout");
+}
+
+/** Se apunta a la lista de espera de una clase llena. Devuelve su puesto. */
+export async function unirmeListaEspera(claseId: string): Promise<Resultado & { puesto?: number }> {
+  if (!UUID.test(claseId)) return { ok: false, error: "Clase no válida." };
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("unirme_lista_espera", { p_clase: claseId });
+  if (error) return { ok: false, error: error.code === "P0001" ? error.message : "No se pudo. Inténtalo de nuevo." };
+  revalidarReservas();
+  return { ok: true, puesto: data };
+}
+
+export async function salirListaEspera(claseId: string): Promise<Resultado> {
+  if (!UUID.test(claseId)) return { ok: false, error: "Clase no válida." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("salir_lista_espera", { p_clase: claseId });
+  if (error) return { ok: false, error: "No se pudo. Inténtalo de nuevo." };
+  revalidarReservas();
+  return { ok: true };
+}
+
+/**
+ * Cambia una reserva por otra clase, de una vez (`reprogramar_mi_reserva`):
+ * con el mismo plazo que cancelar, y si la nueva no entra, la original se
+ * queda como estaba.
+ */
+export async function reprogramarReserva(desde: string, hacia: string): Promise<Resultado> {
+  if (!UUID.test(desde) || !UUID.test(hacia)) return { ok: false, error: "Clase no válida." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("reprogramar_mi_reserva", { p_desde: desde, p_hacia: hacia });
+  if (error) return { ok: false, error: error.code === "P0001" ? error.message : "No se pudo cambiar. Inténtalo de nuevo." };
+  revalidarReservas();
+  return { ok: true };
+}
+
+/** Dentro del plazo de Configuración (lo comprueba `cancelar_mi_reserva`). */
 export async function cancelarReserva(claseId: string): Promise<Resultado> {
   if (!UUID.test(claseId)) return { ok: false, error: "Clase no válida." };
   const supabase = await crearClienteServidor();

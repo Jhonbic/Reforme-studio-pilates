@@ -904,6 +904,52 @@ export async function disponiblesParaClase(
   return { ok: true, disponibles: Object.fromEntries(data.map((d) => [d.cliente_id, d.disponibles])) };
 }
 
+/**
+ * Apunta a alguien a la lista de espera de una clase llena (recepción). Al
+ * liberarse un cupo entra solo el primero que tenga clases en su plan
+ * (`promover_lista_espera`).
+ */
+export async function apuntarListaEspera(claseId: string, clienteId: string): Promise<ResultadoClase> {
+  const prohibido = await soloMostrador();
+  if (prohibido) return { ok: false, error: prohibido };
+  if (!UUID_VALIDO.test(claseId) || !UUID_VALIDO.test(clienteId))
+    return { ok: false, error: "Clase o cliente no válido." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("lista_espera").insert({ clase_id: claseId, cliente_id: clienteId });
+  if (error) {
+    if (error.code === "23505") return { ok: false, error: "Ya estaba en la lista de espera." };
+    return { ok: false, error: `No se pudo apuntar a la lista: ${error.message}` };
+  }
+  revalidarAgenda();
+  return { ok: true };
+}
+
+export async function quitarDeListaEspera(id: string): Promise<ResultadoClase> {
+  const prohibido = await soloMostrador();
+  if (prohibido) return { ok: false, error: prohibido };
+  if (!UUID_VALIDO.test(id)) return { ok: false, error: "No válido." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("lista_espera").delete().eq("id", id);
+  if (error) return { ok: false, error: `No se pudo quitar de la lista: ${error.message}` };
+  revalidarAgenda();
+  return { ok: true };
+}
+
+/** Mueve a alguien de una clase a otra en una transacción (`mover_reserva`). */
+export async function moverReserva(reservaId: string, claseId: string): Promise<ResultadoClase> {
+  const prohibido = await soloMostrador();
+  if (prohibido) return { ok: false, error: prohibido };
+  if (!UUID_VALIDO.test(reservaId) || !UUID_VALIDO.test(claseId)) return { ok: false, error: "No válido." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("mover_reserva", { p_reserva: reservaId, p_clase: claseId });
+  if (error) {
+    if (error.code === "P0001" || error.code === "42501") return { ok: false, error: error.message };
+    return { ok: false, error: `No se pudo mover: ${error.message}` };
+  }
+  revalidarAgenda();
+  return { ok: true };
+}
+
 /** Quita una reserva y libera el cupo. */
 export async function quitarReserva(reservaId: string): Promise<ResultadoClase> {
   const prohibido = await soloMostrador();

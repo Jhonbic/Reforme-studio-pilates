@@ -3,7 +3,15 @@
 import { useState, useTransition } from "react";
 import Modal from "@/components/admin/Modal";
 import { useToast } from "@/context/ToastContext";
-import { marcarAsistencia, quitarReserva, reservar } from "@/lib/admin/acciones";
+import {
+  apuntarListaEspera,
+  marcarAsistencia,
+  moverReserva,
+  quitarDeListaEspera,
+  quitarReserva,
+  reservar,
+} from "@/lib/admin/acciones";
+import { cuandoEs, diaRelativo } from "@/lib/admin/horario";
 import { puedeMarcarAsistencia, resumenAsistencia } from "@/lib/admin/asistencia";
 import { numero } from "@/lib/admin/format";
 import type { Asistencia, ClaseEnAgenda, EstadoMembresia } from "@/lib/admin/types";
@@ -49,12 +57,17 @@ const SIMBOLO: Record<Asistencia, string> = { Asistió: "✓", "No vino": "✕" 
  */
 export default function ReservasClase({
   clase,
+  agenda,
+  hoy,
   clientes,
   puedeEditar,
   miEquipoId,
   onCerrar,
 }: {
   clase: ClaseEnAgenda | null;
+  /** Toda la agenda: para «Mover» a otra clase. */
+  agenda: ClaseEnAgenda[];
+  hoy: string;
   clientes: ClienteParaReservar[];
   puedeEditar: boolean;
   /** Para que la instructora de la clase pueda marcar la asistencia. */
@@ -64,13 +77,22 @@ export default function ReservasClase({
   const { mostrarAviso } = useToast();
   const [error, setError] = useState("");
   const [enCurso, iniciar] = useTransition();
+  /** La reserva que se está moviendo y la clase elegida. */
+  const [moviendo, setMoviendo] = useState<string | null>(null);
+  const [destino, setDestino] = useState("");
 
   if (!clase) return null;
 
   // Solo se cambia lo que aún no ha pasado ni se ha anulado.
   const editable = puedeEditar && (clase.estado === "Programada" || clase.estado === "Llena");
   const apuntados = new Set(clase.reservados.map((r) => r.clienteId));
-  const disponibles = clientes.filter((c) => !apuntados.has(c.id));
+  const enEspera = new Set(clase.enEspera.map((e) => e.clienteId));
+  const disponibles = clientes.filter((c) => !apuntados.has(c.id) && !enEspera.has(c.id));
+  /* A dónde se puede mover a alguien: clases de la misma modalidad que no han
+     empezado, no canceladas y con cupo. La base vuelve a comprobarlo todo. */
+  const destinos = agenda.filter(
+    (o) => o.id !== clase.id && o.tipo === clase.tipo && !o.empezada && !o.cancelada && o.libres > 0,
+  );
   const marcable = puedeMarcarAsistencia(clase, puedeEditar, miEquipoId);
   const resumen = resumenAsistencia(clase.reservados);
 
@@ -86,6 +108,40 @@ export default function ReservasClase({
       const r = await reservar(clase.id, cliente.id);
       if (!r.ok) return setError(r.error);
       mostrarAviso(`${cliente.nombre} apuntada a ${clase.tipo} de las ${clase.horaInicio}.`, "success");
+    });
+  }
+
+  function aLaEspera(cliente: ClienteParaReservar) {
+    if (!clase) return;
+    setError("");
+    iniciar(async () => {
+      const r = await apuntarListaEspera(clase.id, cliente.id);
+      if (!r.ok) return setError(r.error);
+      mostrarAviso(`${cliente.nombre} está en la lista de espera. Si se libera un cupo, entra sola.`, "success");
+    });
+  }
+
+  function mover(reservaId: string, nombre: string) {
+    const o = agenda.find((x) => x.id === destino);
+    setError("");
+    iniciar(async () => {
+      const r = await moverReserva(reservaId, destino);
+      if (!r.ok) return setError(r.error);
+      setMoviendo(null);
+      setDestino("");
+      mostrarAviso(
+        o ? `${nombre} pasó a ${o.tipo} ${cuandoEs(o.fecha, hoy)} a las ${o.horaInicio}.` : `${nombre} cambió de clase.`,
+        "success",
+      );
+    });
+  }
+
+  function sacarDeLaEspera(id: string, nombre: string) {
+    setError("");
+    iniciar(async () => {
+      const r = await quitarDeListaEspera(id);
+      if (!r.ok) return setError(r.error);
+      mostrarAviso(`${nombre} ya no está en la lista de espera.`, "success");
     });
   }
 
@@ -215,29 +271,122 @@ export default function ReservasClase({
                     {SIMBOLO[r.asistencia]} {r.asistencia}
                   </span>
                 )}
-                {/* Empezada la clase ya no se quita a nadie: se marca. */}
+                {/* Empezada la clase ya no se quita ni se mueve a nadie: se marca. */}
                 {editable && !clase.empezada && (
-                  <button
-                    type="button"
-                    disabled={enCurso}
-                    onClick={() => quitar(r.id, r.nombre)}
-                    className={QUITAR}
-                    aria-label={`Quitar a ${r.nombre} de la clase`}
-                  >
-                    Quitar
-                  </button>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      disabled={enCurso}
+                      aria-expanded={moviendo === r.id}
+                      onClick={() => {
+                        setMoviendo(moviendo === r.id ? null : r.id);
+                        setDestino("");
+                      }}
+                      className="inline-flex min-h-[44px] items-center rounded-full px-4 text-sm text-verde-700 transition-colors duration-300 hover:bg-arena disabled:opacity-60"
+                      aria-label={`Mover a ${r.nombre} a otra clase`}
+                    >
+                      Mover
+                    </button>
+                    <button
+                      type="button"
+                      disabled={enCurso}
+                      onClick={() => quitar(r.id, r.nombre)}
+                      className={QUITAR}
+                      aria-label={`Quitar a ${r.nombre} de la clase`}
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                )}
+                {moviendo === r.id && (
+                  <div className="w-full pb-2">
+                    {destinos.length === 0 ? (
+                      <p className="text-sm text-verde-300">No hay otra clase de {clase.tipo} con cupo en la agenda.</p>
+                    ) : (
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                        <label className="min-w-0 flex-1 text-sm text-verde">
+                          <span className="mb-1.5 block font-medium">Mover a</span>
+                          <select
+                            value={destino}
+                            onChange={(e) => setDestino(e.target.value)}
+                            className="min-h-[44px] w-full rounded-full border border-beige bg-white px-4 text-sm text-verde"
+                          >
+                            <option value="">Elige la clase…</option>
+                            {destinos.map((o) => (
+                              <option key={o.id} value={o.id}>
+                                {diaRelativo(o.fecha, hoy)} · {o.horaInicio} · {o.instructora} · {o.libres}{" "}
+                                {o.libres === 1 ? "libre" : "libres"}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          type="button"
+                          disabled={!destino || enCurso}
+                          onClick={() => mover(r.id, r.nombre)}
+                          className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-dorado px-5 text-sm font-medium text-verde-900 transition-colors duration-300 hover:bg-dorado-dark disabled:opacity-60"
+                        >
+                          Mover
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </li>
             ))}
           </ul>
         )}
 
+        {/* Lista de espera, por orden de llegada: al liberarse un cupo entra
+            sola la primera que tenga clases en su plan. */}
+        {clase.enEspera.length > 0 && (
+          <div>
+            <p className="text-sm font-medium text-verde">
+              Lista de espera · {numero(clase.enEspera.length)}
+            </p>
+            <ol className="mt-2 divide-y divide-beige rounded-xl border border-dashed border-dorado/60">
+              {clase.enEspera.map((e, i) => (
+                <li key={e.id} className="flex min-h-[52px] items-center justify-between gap-3 px-4 py-2">
+                  <span className="min-w-0 truncate text-sm text-verde">
+                    <span className="font-cifra text-dorado-dark">{i + 1}.</span> {e.nombre}
+                  </span>
+                  {editable && (
+                    <button
+                      type="button"
+                      disabled={enCurso}
+                      onClick={() => sacarDeLaEspera(e.id, e.nombre)}
+                      className={QUITAR}
+                      aria-label={`Quitar a ${e.nombre} de la lista de espera`}
+                    >
+                      Quitar
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
         {editable &&
           (clase.libres === 0 ? (
-            <p className="text-sm text-verde-300">
-              Sin cupos libres. Para apuntar a alguien más, quita a otra persona
-              o sube el aforo desde «Editar».
-            </p>
+            clase.tipo === "Privada" ? (
+              <p className="text-sm text-verde-300">
+                Sin cupos libres. Para apuntar a otra persona, quítala o sube el aforo desde «Editar».
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-verde-300">
+                  Llena. Puedes apuntar a alguien a la lista de espera: entra sola si se libera un cupo.
+                </p>
+                <BuscadorApuntar
+                  clase={clase}
+                  clientes={disponibles}
+                  enCurso={enCurso}
+                  onApuntar={aLaEspera}
+                  textoBoton="A la espera"
+                />
+              </>
+            )
           ) : (
             <BuscadorApuntar clase={clase} clientes={disponibles} enCurso={enCurso} onApuntar={apuntar} />
           ))}

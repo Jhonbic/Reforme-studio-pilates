@@ -19,6 +19,7 @@ const clase = (p: Partial<ClaseEnAgenda> = {}): ClaseEnAgenda => ({
   empezada: true,
   sala: "Reformer",
   reservados: [],
+  enEspera: [],
   ...p,
 });
 
