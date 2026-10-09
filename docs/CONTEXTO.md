@@ -2105,6 +2105,18 @@ de repetir:
       Trimestral → Fusión Esencial). Copia previa en
       `../respaldo-reforme-ngjy-2026-10-06-planes/`. ⚠️ `supabase/seed.sql`
       sigue sembrando los planes de ejemplo en LOCAL.
+      ⚠️ **Ese traspaso dejó membresías incoherentes**: conservaron la
+      duración y el precio del plan viejo (90 días en Fusión Esencial, 60 en
+      Equilibrio, **1 día** en Inicio) con las clases de un plan de 30. El 9
+      oct 2026 se **borraron todos los clientes de producción** (21, con sus
+      membresías, pagos, reservas y 4 cuentas web; copia en JSON en
+      `../respaldo-reforme-ngjy-2026-10-09-clientes/`) y se crearon tres de
+      prueba con `registrar_membresia`: «Prueba Mat» (Origen), «Prueba
+      Reformer» (Equilibrio) y «Prueba Fusión» (Fusión Esencial), documentos
+      9000000001–3. Salen con 30 días, sus clases y el pago completo; al
+      reservar descuentan de la modalidad correcta y la otra la rechazan
+      (probado en una transacción deshecha). Borrarlos cuando haya clientes
+      reales.
 - [ ] **Confirmar con el estudio las modalidades de clase** (`tipo_clase`:
       Reformer · Mat · Privada, ahora un enum de la base) y los cupos de
       `catalogos.ts`. Reformer y Mat están confirmadas por sus planes;
