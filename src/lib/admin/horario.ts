@@ -184,6 +184,17 @@ export const DIAS_CORTOS: string[] = (() => {
   });
 })();
 
+const DIA_SOLO = new Intl.DateTimeFormat("es-CO", { weekday: "long", timeZone: "UTC" });
+
+/**
+ * «todos los lunes», «todos los sábados»: cómo se dice una clase que se repite
+ * ese día de la semana. Lunes a viernes ya acaban en «s»; sábado y domingo no.
+ */
+export function cadaSemana(iso: string): string {
+  const dia = DIA_SOLO.format(aFechaUTC(iso));
+  return `todos los ${dia.endsWith("s") ? dia : `${dia}s`}`;
+}
+
 /** El número del día, para la tira de la semana. */
 export function numeroDia(iso: string): number {
   return aFechaUTC(iso).getUTCDate();

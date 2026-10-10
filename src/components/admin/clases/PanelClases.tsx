@@ -2,14 +2,12 @@
 
 import { useState } from "react";
 import Card from "@/components/admin/Card";
-import ConfirmDialog from "@/components/admin/ConfirmDialog";
-import { cancelarClase, eliminarClase } from "@/lib/admin/acciones";
 import { useToast } from "@/context/ToastContext";
 import { numero } from "@/lib/admin/format";
-import { diaLargo, diaRelativo } from "@/lib/admin/horario";
-import type { ClaseEnAgenda, MiembroEquipo, Sala, SalaId } from "@/lib/admin/types";
+import { diaLargo, diaRelativo, diaSemana } from "@/lib/admin/horario";
+import type { ClaseEnAgenda, HorasDelEstudio, MiembroEquipo, Sala, SalaId } from "@/lib/admin/types";
 import FormularioClase from "./FormularioClase";
-import PestanasClases from "./PestanasClases";
+import QuitarClase from "./QuitarClase";
 import ReservasClase, { type ClienteParaReservar } from "./ReservasClase";
 import SelectorDia from "./SelectorDia";
 import TarjetaClase from "./TarjetaClase";
@@ -30,7 +28,7 @@ const TODAS = "Todas";
  *
  * ⚠️ **Rejilla y no lista** (oct 2026): con dos salas, la lista mezclaba las
  * clases de Reformer y de Mat y no se veía qué sala quedaba libre a cada hora.
- * Ahora tiene el mismo dibujo que el horario semanal, y un hueco libre se
+ * Ahora cada sala tiene su columna, y un hueco libre se
  * programa desde ahí mismo («+ Programar aquí», con hora y sala ya puestas).
  *
  * ⚠️ **Un día y no un mes.** Un calendario mensual enseña 30 casillas donde no
@@ -50,6 +48,8 @@ export default function PanelClases({
   puedeEditar,
   miEquipoId,
   salas,
+  horasDelEstudio,
+  ahora,
   hoy,
 }: {
   clases: ClaseEnAgenda[];
@@ -61,6 +61,10 @@ export default function PanelClases({
   miEquipoId: string | null;
   /** Las salas y su aforo, para el formulario. */
   salas: Sala[];
+  /** Las horas a las que abre el estudio cada día: la agenda pinta un hueco en cada una. */
+  horasDelEstudio: HorasDelEstudio;
+  /** Hora de Bogotá («20:15»): hoy, las horas que ya pasaron no se ofrecen. */
+  ahora: string;
   hoy: string;
 }) {
   /** La clase cuyo diálogo de reservas está abierto. Por ID y no el objeto:
@@ -104,24 +108,36 @@ export default function PanelClases({
     setFormAbierto(true);
   }
 
-  /* Las horas del día: las de sus clases, en orden. Un hueco de una sala solo
-     existe donde la otra tiene clase a esa hora; para lo demás, «Nueva clase». */
-  const horas = [...new Set(delDia.map((c) => c.horaInicio))].sort();
   /* Programar en un hueco solo tiene sentido viendo la agenda entera de un
      día que no ha pasado: con un filtro puesto, el hueco puede no estarlo. */
   const huecosProgramables = puedeEditar && instructora === TODAS && dia >= hoy;
+  /* Las horas del día: las de apertura del estudio (así un día vacío ya enseña
+     dónde se puede programar, sin ir a otra pantalla) más las de sus clases,
+     por si alguna se puso a una hora suelta. Mirando el pasado o con filtro,
+     solo las de sus clases: un hueco que no se puede usar es ruido. */
+  const horas = [
+    ...new Set([
+      ...(huecosProgramables
+        ? (horasDelEstudio[diaSemana(dia) + 1] ?? []).filter((h) => dia > hoy || h > ahora)
+        : []),
+      ...delDia.map((c) => c.horaInicio),
+    ]),
+  ].sort();
 
   function abrirEdicion(c: ClaseEnAgenda) {
     setEditando(c);
     setFormAbierto(true);
   }
 
-  const hayReservas = (quitando?.reservas ?? 0) > 0;
-
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <PestanasClases actual="/admin/clases" />
+        {/* Lo único que hay que saber para usar la pantalla, dicho una vez. */}
+        <p className="max-w-xl text-sm text-verde-700">
+          {puedeEditar
+            ? "Pulsa una hora libre para programar una clase: solo ese día o todas las semanas."
+            : "La agenda del estudio: qué clases hay cada día y quién las da."}
+        </p>
 
         <div className="flex flex-wrap gap-2">
           {puedeEditar && (
@@ -183,7 +199,7 @@ export default function PanelClases({
           </div>
         </div>
 
-        {delDia.length === 0 ? (
+        {horas.length === 0 ? (
           <div className="px-4 py-14 text-center sm:px-5">
             <p className="font-display text-xl text-verde">
               {instructora === TODAS
@@ -191,15 +207,17 @@ export default function PanelClases({
                 : "Esa instructora no da clase ese día"}
             </p>
             <p className="mx-auto mt-2 max-w-sm text-sm text-verde-300">
-              {instructora === TODAS
-                ? "Ni una sola clase este día. Puedes programar la primera o mirar otro día en la tira de arriba."
-                : "Prueba con otro día, o quita el filtro para ver la agenda completa."}
+              {instructora !== TODAS
+                ? "Prueba con otro día, o quita el filtro para ver la agenda completa."
+                : huecosProgramables
+                  ? "El estudio no abre este día. Si hace falta, puedes programar una clase igualmente."
+                  : "Ni una sola clase este día. Mira otro día en la tira de arriba."}
             </p>
 
             {/* Siempre una salida, como `EstadoVacio` del listado: quien no
                 encuentra nada suele tener un filtro puesto sin darse cuenta. */}
             {instructora === TODAS ? (
-              puedeEditar && (
+              huecosProgramables && (
                 <button
                   type="button"
                   onClick={() => abrirAlta()}
@@ -260,7 +278,7 @@ export default function PanelClases({
                       );
                     /* Hueco libre. En móvil solo se enseña si se puede
                        programar: una tarjeta vacía apilada no dice nada. */
-                    return huecosProgramables ? (
+                    return huecosProgramables && (dia > hoy || h > ahora) ? (
                       <button
                         key={s.id}
                         type="button"
@@ -302,55 +320,14 @@ export default function PanelClases({
         salas={salas}
         clases={clases}
         onCerrar={() => setFormAbierto(false)}
-        onGuardado={(resumen, esNueva) =>
-          mostrarAviso(
-            esNueva ? `Clase creada: ${resumen}.` : `Cambios guardados: ${resumen}.`,
-            "success",
-          )
-        }
+        onGuardado={(mensaje) => mostrarAviso(mensaje, "success")}
       />
 
-      {/* ⚠️ Cancelar y eliminar NO son la misma acción, y lo que las separa es
-          si hay alguien apuntado. Una clase con reservas se **cancela**: el
-          registro se queda (y sale «Cancelada» en la agenda) porque hay personas
-          a las que avisar. Una clase vacía es un error de horario y se
-          **elimina**. Es la misma distinción que en la base de datos impide
-          borrar un pago: lo que ya afectó a alguien no se reescribe. */}
-      <ConfirmDialog
-        abierto={quitando !== null}
-        titulo={
-          hayReservas
-            ? `¿Cancelar ${quitando?.tipo} de las ${quitando?.horaInicio}?`
-            : `¿Eliminar ${quitando?.tipo} de las ${quitando?.horaInicio}?`
-        }
-        mensaje={
-          quitando && hayReservas
-            ? `${numero(quitando.reservas)} ${
-                quitando.reservas === 1 ? "persona la tiene" : "personas la tienen"
-              } reservada. La clase se queda en la agenda marcada como «Cancelada» con sus reservas, para que quede constancia de a quién avisar: hay que hacerlo una por una (ver «Quién reservó»), el sistema todavía no manda ningún mensaje.`
-            : "Nadie la ha reservado, así que no afecta a nadie. Desaparecerá del horario y esta acción no se puede deshacer."
-        }
-        textoConfirmar={hayReservas ? "Cancelar la clase" : "Eliminar clase"}
-        /* «Cancelar» a secas se confundiría con el botón de cerrar el diálogo. */
-        textoCancelar="Volver"
-        variante="peligro"
-        onConfirmar={async () => {
-          if (!quitando) return;
-          const que = `${quitando.tipo} de las ${quitando.horaInicio}`;
-          const r = hayReservas
-            ? await cancelarClase(quitando.id)
-            : await eliminarClase(quitando.id);
-          setQuitando(null);
-          mostrarAviso(
-            r.ok
-              ? hayReservas
-                ? `Clase cancelada (${que}). Avisa a quienes la tenían reservada.`
-                : `Clase eliminada (${que}).`
-              : r.error,
-            r.ok ? "success" : "warning",
-          );
-        }}
-        onCancelar={() => setQuitando(null)}
+      {/* Cancelar o eliminar (y, si se repite, solo esta o todas): ver `QuitarClase`. */}
+      <QuitarClase
+        clase={quitando}
+        onCerrar={() => setQuitando(null)}
+        onHecho={(mensaje, ok) => mostrarAviso(mensaje, ok ? "success" : "warning")}
       />
 
       <ReservasClase

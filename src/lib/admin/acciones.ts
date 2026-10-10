@@ -8,7 +8,7 @@ import {
   TIPOS_COMPROBANTE,
   TIPOS_IDENTIFICACION,
 } from "./catalogos";
-import { moneda } from "./format";
+import { fecha as fechaCorta, moneda } from "./format";
 import { hoyEnBogota } from "./horario";
 import { getUsuarioActual } from "./queries";
 import type {
@@ -771,7 +771,8 @@ export async function cambiarMiContrasena(actual: string, nueva: string): Promis
    ====================================================================== */
 
 export type ResultadoClase =
-  | { ok: true }
+  /** `resumen`: lo que pasó con una clase semanal («4 clases, hasta el 2 nov…»). */
+  | { ok: true; resumen?: string }
   | { ok: false; error: string; campo?: "instructoraId" | "cupos" | "horaInicio" };
 
 const TIPOS_CLASE: TipoClase[] = ["Reformer", "Mat", "Privada"];
@@ -819,20 +820,8 @@ function errorDeClase(e: { code?: string; message: string }): ResultadoClase {
   return { ok: false, error: `No se pudo guardar la clase: ${e.message}` };
 }
 
-/**
- * Crea una clase (`id` nulo) o guarda los cambios de una existente.
- *
- * El solapamiento de instructora lo comprueba el formulario EN VIVO (para
- * avisar antes de pulsar) y lo impide la BASE (restricción de exclusión): el
- * formulario evita el error de quien lo usa, la base el de cualquiera.
- */
-export async function guardarClase(
-  id: string | null,
-  b: BorradorClase,
-): Promise<ResultadoClase> {
-  const prohibido = await soloMostrador();
-  if (prohibido) return { ok: false, error: prohibido };
-
+/** Comprueba un borrador de clase. `null` si está bien. */
+function errorDeBorrador(b: BorradorClase): ResultadoClase | null {
   if (!esTipoClase(b.tipo)) return { ok: false, error: "Tipo de clase no válido." };
   if (b.sala !== "Reformer" && b.sala !== "Mat") return { ok: false, error: "Sala no válida." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(b.fecha)) return { ok: false, error: "Fecha no válida." };
@@ -846,6 +835,62 @@ export async function guardarClase(
   // Programar en el pasado no tiene sentido; editar una clase que ya pasó,
   // tampoco (la pantalla ni siquiera ofrece el botón).
   if (b.fecha < hoyEnBogota()) return { ok: false, error: "La fecha ya pasó." };
+  return null;
+}
+
+/** «4 clases», «1 clase». */
+const clases_ = (n: number) => `${n} ${n === 1 ? "clase" : "clases"}`;
+
+/**
+ * Crea una clase (`id` nulo) o guarda los cambios de UNA clase.
+ *
+ * Con `repetir`, la clase nueva se repite cada semana (mismo día, hora y sala)
+ * desde su fecha: lo hace `crear_clase_semanal` en la base, que la deja en la
+ * agenda hasta donde llega y dice cuántas semanas no se pudieron (sala o
+ * instructora ocupadas). Una privada no se repite.
+ *
+ * El solapamiento de instructora lo comprueba el formulario EN VIVO (para
+ * avisar antes de pulsar) y lo impide la BASE (restricción de exclusión): el
+ * formulario evita el error de quien lo usa, la base el de cualquiera.
+ */
+export async function guardarClase(
+  id: string | null,
+  b: BorradorClase,
+  repetir = false,
+): Promise<ResultadoClase> {
+  const prohibido = await soloMostrador();
+  if (prohibido) return { ok: false, error: prohibido };
+  const invalido = errorDeBorrador(b);
+  if (invalido) return invalido;
+
+  if (repetir && !id) {
+    if (b.tipo === "Privada") return { ok: false, error: "Una clase privada no se repite: prográmala día a día." };
+    const supabase = await crearClienteServidor();
+    const { data, error } = await supabase.rpc("crear_clase_semanal", {
+      p_fecha: b.fecha,
+      p_hora: b.horaInicio,
+      p_sala: b.tipo,
+      p_duracion: b.duracionMin,
+      p_instructora: b.instructoraId,
+      p_cupos: b.cupos,
+    });
+    if (error) {
+      if (error.code === "P0001") return { ok: false, campo: "horaInicio", error: error.message };
+      return errorDeClase(error);
+    }
+    const r = data as { creadas: number; saltadas: number; hasta: string | null };
+    revalidarAgenda();
+    return {
+      ok: true,
+      resumen:
+        `${clases_(r.creadas)} en la agenda` +
+        (r.hasta ? `, hasta el ${fechaCorta(r.hasta)}` : "") +
+        (r.saltadas > 0
+          ? `. ${r.saltadas === 1 ? "Una semana no se pudo" : `${r.saltadas} semanas no se pudieron`}: la sala o la instructora ya estaban ocupadas`
+          : "") +
+        ". Las siguientes salen solas.",
+    };
+  }
 
   const fila = {
     tipo: b.tipo,
@@ -1190,65 +1235,64 @@ export async function abrirDia(fecha: string): Promise<ResultadoConfig> {
 }
 
 /* ======================================================================
-   Horario semanal
+   Clases semanales («todos los lunes a las 07:00»)
    ====================================================================== */
 
-function revalidarHorario() {
-  // `layout`: la agenda y su subpágina /horario.
-  revalidatePath("/admin/clases", "layout");
+/**
+ * Cambia quién da, cuánto dura y cuántos caben en TODAS las próximas clases
+ * de una serie, y en las que vengan. Día, hora y sala no: eso es otra serie
+ * (se quita esta y se crea la nueva). Las clases que no admiten el cambio se
+ * quedan como estaban y el resumen lo dice.
+ */
+export async function editarClaseSemanal(franjaId: string, b: BorradorClase): Promise<ResultadoClase> {
+  const prohibido = await soloMostrador();
+  if (prohibido) return { ok: false, error: prohibido };
+  if (!UUID_VALIDO.test(franjaId)) return { ok: false, error: "Clase semanal no válida." };
+  const invalido = errorDeBorrador(b);
+  if (invalido) return invalido;
+
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("editar_clase_semanal", {
+    p_franja: franjaId,
+    p_instructora: b.instructoraId,
+    p_duracion: b.duracionMin,
+    p_cupos: b.cupos,
+  });
+  if (error) return { ok: false, error: error.message };
+  const r = data as { cambiadas: number; sin_cambiar: number };
+  revalidarAgenda();
+  return {
+    ok: true,
+    resumen:
+      `${clases_(r.cambiadas)} ${r.cambiadas === 1 ? "cambiada" : "cambiadas"}` +
+      (r.sin_cambiar > 0
+        ? `. ${clases_(r.sin_cambiar)} no se ${r.sin_cambiar === 1 ? "pudo" : "pudieron"} cambiar (la instructora ya tenía otra a esa hora, o hay más reservas que cupos): ${r.sin_cambiar === 1 ? "se queda" : "se quedan"} como ${r.sin_cambiar === 1 ? "estaba" : "estaban"}`
+        : ""),
+  };
 }
 
 /**
- * Enciende o apaga una franja y le pone (o quita) instructora. La base
- * (trigger `horario_sincroniza_clases`) lleva el cambio a las próximas clases.
- * Devuelve lo que quedó en la agenda (de hoy en adelante): cuántas clases y
- * hasta cuándo. Apagada, las que quedan son las que tenían reservas.
+ * Deja de repetir una clase: borra las próximas que nadie reservó y cancela
+ * las que tienen gente (se quedan «Canceladas» para saber a quién avisar).
  */
-export async function guardarFranja(
-  id: string,
-  activa: boolean,
-  instructoraId: string | null,
-): Promise<{ ok: true; enAgenda: number; hasta: string | null } | { ok: false; error: string }> {
+export async function quitarClaseSemanal(franjaId: string): Promise<ResultadoClase> {
   const prohibido = await soloMostrador();
   if (prohibido) return { ok: false, error: prohibido };
-  if (!UUID_VALIDO.test(id) || (instructoraId !== null && !UUID_VALIDO.test(instructoraId)))
-    return { ok: false, error: "Franja o instructora no válida." };
+  if (!UUID_VALIDO.test(franjaId)) return { ok: false, error: "Clase semanal no válida." };
 
   const supabase = await crearClienteServidor();
-  const { error, count } = await supabase
-    .from("horario_semanal")
-    .update({ activa, instructora_id: instructoraId }, { count: "exact" })
-    .eq("id", id);
-  if (error) return { ok: false, error: `No se pudo guardar el horario: ${error.message}` };
-  if (count === 0) return { ok: false, error: "Esa franja ya no existe." };
-
-  const { data: quedan } = await supabase
-    .from("clases")
-    .select("fecha")
-    .eq("franja_id", id)
-    .eq("cancelada", false)
-    .gte("fecha", hoyEnBogota())
-    .order("fecha", { ascending: false });
-  revalidarHorario();
-  return { ok: true, enAgenda: quedan?.length ?? 0, hasta: quedan?.[0]?.fecha ?? null };
-}
-
-/** Copia lo encendido de un día (y quién lo da) a otros días. */
-export async function copiarDiaHorario(
-  desde: number,
-  dias: number[],
-): Promise<{ ok: true; cambiadas: number } | { ok: false; error: string }> {
-  const prohibido = await soloMostrador();
-  if (prohibido) return { ok: false, error: prohibido };
-  const valido = (d: number) => Number.isInteger(d) && d >= 1 && d <= 7;
-  if (!valido(desde) || dias.length === 0 || !dias.every(valido))
-    return { ok: false, error: "Días no válidos." };
-
-  const supabase = await crearClienteServidor();
-  const { data, error } = await supabase.rpc("copiar_dia_horario", { p_desde: desde, p_dias: dias });
-  if (error) return { ok: false, error: `No se pudo copiar el día: ${error.message}` };
-  revalidarHorario();
-  return { ok: true, cambiadas: data };
+  const { data, error } = await supabase.rpc("quitar_clase_semanal", { p_franja: franjaId });
+  if (error) return { ok: false, error: error.message };
+  const r = data as { borradas: number; canceladas: number };
+  revalidarAgenda();
+  return {
+    ok: true,
+    resumen:
+      `${clases_(r.borradas)} ${r.borradas === 1 ? "quitada" : "quitadas"} de la agenda` +
+      (r.canceladas > 0
+        ? `. ${clases_(r.canceladas)} con reservas ${r.canceladas === 1 ? "quedó cancelada" : "quedaron canceladas"}: avisa a esas personas`
+        : ""),
+  };
 }
 
 /* ======================================================================

@@ -270,6 +270,8 @@ export type Database = {
       horario_semanal: {
         Row: {
           activa: boolean;
+          cupos: number | null;
+          desde: string | null;
           dia: number;
           duracion_min: number;
           hora_inicio: string;
@@ -280,6 +282,8 @@ export type Database = {
         ComputedFields: never;
         Insert: {
           activa?: boolean;
+          cupos?: number | null;
+          desde?: string | null;
           dia: number;
           duracion_min?: number;
           hora_inicio: string;
@@ -289,6 +293,8 @@ export type Database = {
         };
         Update: {
           activa?: boolean;
+          cupos?: number | null;
+          desde?: string | null;
           dia?: number;
           duracion_min?: number;
           hora_inicio?: string;
@@ -753,6 +759,17 @@ export type Database = {
         Returns: number;
       };
       copiar_dia_horario: { Args: { p_desde: number; p_dias: number[] }; Returns: number };
+      crear_clase_semanal: {
+        Args: {
+          p_cupos: number;
+          p_duracion: number;
+          p_fecha: string;
+          p_hora: string;
+          p_instructora: string;
+          p_sala: string;
+        };
+        Returns: Json;
+      };
       crear_clases_de_horario: {
         Args: { p_desde: string; p_franja?: string; p_hasta: string };
         Returns: number;
@@ -763,6 +780,10 @@ export type Database = {
           cliente_id: string;
           disponibles: number;
         }[];
+      };
+      editar_clase_semanal: {
+        Args: { p_cupos: number; p_duracion: number; p_franja: string; p_instructora: string };
+        Returns: Json;
       };
       es_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       es_mostrador: { Args: Record<PropertyKey, never>; Returns: boolean };
@@ -792,6 +813,7 @@ export type Database = {
       };
       mover_reserva: { Args: { p_clase: string; p_reserva: string }; Returns: undefined };
       promover_lista_espera: { Args: { p_clase: string }; Returns: number };
+      quitar_clase_semanal: { Args: { p_franja: string }; Returns: Json };
       registrar_membresia: {
         Args: {
           p_abono?: number;
@@ -868,8 +890,7 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
@@ -891,8 +912,7 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
@@ -914,8 +934,7 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema["Enums"] | { schema: keyof DatabaseWithoutInternals },
   EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
@@ -929,8 +948,7 @@ export type Enums<
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema["CompositeTypes"] | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }

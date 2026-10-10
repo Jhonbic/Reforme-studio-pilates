@@ -69,8 +69,8 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 |---|---|
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
-| `npm test` | **Vitest**, 62 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 72 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm test` | **Vitest**, 63 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
+| `npm run test:db` | **pgTAP**, 81 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -198,7 +198,8 @@ En `src/components/`:
   (`rounded-full`, `min-h-[44px]`). Vive en `admin/` y no en `admin/usuarios/`
   porque Planes y Finanzas van a necesitar formularios.
 - `admin/clases/` — la agenda: `PanelClases` (día, filtro y diálogos),
-  `SelectorDia` (tira de la semana), `FilaClase`, `FormularioClase` y
+  `SelectorDia` (tira de la semana), `TarjetaClase`, `FormularioClase`,
+  `QuitarClase`, `Opciones` (tarjetas de radio «solo esta / todas») y
   `EstadoClaseBadge`. Ver §6.
 - `AdminNav.tsx` (cliente, estado activo por `usePathname`), `AdminTopbar.tsx`
   (cliente, titula la página desde la ruta), `StatTile.tsx` (solo Finanzas),
@@ -1471,6 +1472,10 @@ del estudio).
 
 #### Horario semanal (`/admin/clases/horario`) — oct 2026, paso 4
 
+> ⚠️ **Esta PANTALLA ya no existe** (migración `20261015120000`, ver
+> «Clases semanales desde la agenda»): la ruta redirige a la agenda. La
+> tabla `horario_semanal` y el relleno automático siguen debajo.
+>
 > ✅ **Desde la migración `20261010120000_agenda_automatica` ya no hay
 > «Generar clases»**: la agenda sigue al horario sola (ver «Clases más
 > intuitivas» justo debajo). Lo que se cuenta aquí de `generar_clases` y del
@@ -1582,6 +1587,65 @@ encendidas (L–V 07:00, Reformer, con una instructora de ejemplo) y 59 clases
 generadas con el «Generar» antiguo hasta el 29 dic, **sin `franja_id`**. Se
 enlazaron a su franja a mano (mismo día, hora, sala y duración) para que los
 cambios del horario les lleguen. Queda suelta una clase manual del 6 oct.
+
+#### Clases semanales desde la agenda (oct 2026)
+
+Feedback del usuario (9 oct 2026): «no es claro el tema de las clases para un
+administrador». Había dos pantallas con dos ideas (el horario = plantilla, la
+agenda = clases con fecha), una ventana de «4 semanas por delante» que nadie
+veía y franjas encendidas sin instructora que no salían en ningún sitio. Se
+pasó al modelo del **calendario del móvil** (decisión del usuario). Migración
+`20261015120000_clases_semanales`.
+
+- **Una sola pantalla, la agenda.** La pestaña «Horario semanal» y
+  `PanelHorario`/`PestanasClases` se borraron; `/admin/clases/horario`
+  redirige. Arriba, una frase: «Pulsa una hora libre para programar una
+  clase: solo ese día o todas las semanas».
+- **La rejilla del día enseña TODAS las horas del estudio** como huecos
+  «+ Programar aquí» (`getHorasDelEstudio()`, sacadas de las filas de
+  `horario_semanal`), no solo las que ya tienen clase: un día vacío ya dice
+  dónde se puede programar. Hoy, las horas que ya pasaron no se ofrecen
+  (prop `ahora`). Mirando el pasado o con filtro de instructora, sin huecos.
+- **Crear: «¿Se repite? Solo este día / Todos los miércoles a las 06:00»**,
+  por defecto lo segundo (lo normal es un horario fijo). Una privada no se
+  repite. Lo hace `crear_clase_semanal` en UNA transacción: enciende (o crea)
+  la franja con `desde` = ese día y sus `cupos`, y crea las clases hasta donde
+  llega la agenda (o hasta ese día, si cae más lejos).
+  - ⚠️ **La primera clase tiene que poder crearse**; si la sala o la
+    instructora están ocupadas ese día, falla todo y no queda serie a medias.
+    Las semanas siguientes que choquen se saltan, y el formulario lo avisa en
+    ámbar ANTES de pulsar («una de las próximas semanas tiene la sala
+    ocupada…»), con la agenda cargada.
+  - ⚠️ **`desde`**: sin él, crear «todos los miércoles» mirando el de la semana
+    que viene creaba también el de esta. `crear_clases_de_horario` lo respeta.
+  - La instructora es obligatoria: el estado «franja encendida sin
+    instructora» ya no se puede producir desde la app.
+- **Editar una clase que se repite pregunta «¿Qué quieres cambiar? Solo esta
+  clase / Todas las próximas»** (por defecto, solo esta). En «todas»
+  (`editar_clase_semanal`) se cambian instructora, duración y cupos de las
+  próximas y de la serie; **día, hora y modalidad no** (es otra serie: se
+  quita y se crea). Lo que no entra en una clase concreta (choque de
+  instructora, más reservas que cupos) la deja como estaba, se avisa antes y
+  se cuenta después.
+- **Quitar** (`QuitarClase`, sustituye al `ConfirmDialog`) pregunta lo mismo.
+  «Todas las próximas» (`quitar_clase_semanal`) borra las que nadie reservó
+  y **cancela** las que tienen gente (antes se quedaban vivas esperando que
+  alguien las cancelara una a una). Las pasadas no se tocan.
+- La tarjeta de una clase que se repite dice «↻ Se repite todos los
+  miércoles» (`cadaSemana()` en `horario.ts`, con test: sábados, domingos).
+- Configuración: «Agenda creada por delante» pasó a **«Se puede reservar con
+  antelación de»**. El número es el mismo (`semanas_por_delante`).
+- ⚠️ Las tres funciones son `security definer` con
+  `coalesce(es_mostrador(), false)` y EXECUTE revocado a `anon`.
+- 9 tests nuevos en `reglas_test.sql` (81). Arreglado por el camino: el test
+  de «Agenda automática» usaba «mañana a las 07:00» y **fallaba los viernes
+  y sábados** (el sábado abre a las 08:00 y el domingo no hay franjas); ahora
+  crea la franja si falta.
+- Probado en el navegador a 1280 y 390 px contra la base local: crear la
+  serie (6 clases, una semana saltada por choque), cambiar todas, quitar
+  todas; sin errores ni desplazamiento lateral.
+- ⚠️ `next dev` reescribe `AGENTS.md` (bloque `nextjs-agent-rules`): ese
+  cambio no es de este trabajo.
 
 #### Configuración (`/admin/configuracion`) — oct 2026, paso 4
 
@@ -1921,7 +1985,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **21 migraciones, todas aplicadas en local y en remoto** |
+| Esquema | `supabase/migrations/` — **22 migraciones, todas aplicadas en local y en remoto** |
 
 ### Variables de entorno
 
@@ -2121,9 +2185,13 @@ de repetir:
       Reformer · Mat · Privada, ahora un enum de la base) y los cupos de
       `catalogos.ts`. Reformer y Mat están confirmadas por sus planes;
       «Privada» sigue siendo una suposición.
-- [ ] **Armar el horario real** en «Horario semanal»: encender las franjas
-      que se usan y asignar instructoras (antes, dar de alta al equipo real).
-      La agenda se rellena sola. La agenda de ejemplo ya se borró.
+- [ ] **Armar el horario real** desde la agenda: pulsar cada hora libre y
+      crear la clase con «todos los lunes…» (antes, dar de alta al equipo
+      real). Ver «Clases semanales desde la agenda».
+      ⚠️ **9 oct 2026: agenda vacía otra vez** (decisión del usuario): se
+      borraron las 57 clases que quedaban y se apagaron las 8 franjas
+      encendidas (sin instructora), para que el cron no las vuelva a crear.
+      Copia en `../respaldo-reforme-ngjy-2026-10-09-clases/`.
 - [ ] **`public/terminos-y-condiciones.pdf`** no existe: el alta de cliente
       enlaza ahí → 404 en un documento legal. Lo aporta el estudio.
 

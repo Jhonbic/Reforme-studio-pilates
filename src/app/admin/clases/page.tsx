@@ -4,6 +4,7 @@ import {
   extenderAgenda,
   getClases,
   getClientes,
+  getHorasDelEstudio,
   getInstructoras,
   getMiEquipoId,
   getSalas,
@@ -27,20 +28,22 @@ import {
  */
 export default async function ClasesPage() {
   const hoy = hoyEnBogota();
+  const ahora = horaEnBogota();
   const usuario = await getUsuarioActual();
   const puedeEditar =
     usuario?.rol === "Administración" || usuario?.rol === "Recepción";
 
   // Antes de leer: que la agenda llegue hasta donde toca según el horario.
   await extenderAgenda();
-  const [clases, instructoras, clientes, miEquipoId, salas] = await Promise.all([
-    getClases(hoy, horaEnBogota()),
+  const [clases, instructoras, clientes, miEquipoId, salas, horasDelEstudio] = await Promise.all([
+    getClases(hoy, ahora),
     getInstructoras(),
     // La lista para apuntar gente: solo hace falta a quien puede apuntar.
     puedeEditar ? getClientes() : Promise.resolve([]),
     // La instructora de una clase marca su asistencia (y la base lo comprueba).
     getMiEquipoId(),
     getSalas(),
+    getHorasDelEstudio(),
   ]);
 
   return (
@@ -53,7 +56,9 @@ export default async function ClasesPage() {
         puedeEditar={puedeEditar}
         miEquipoId={miEquipoId}
         salas={salas}
+        horasDelEstudio={horasDelEstudio}
         hoy={hoy}
+        ahora={ahora}
       />
     </div>
   );

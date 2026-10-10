@@ -20,7 +20,7 @@ import type {
   MembresiaConSaldo,
   ClaseEnAgenda,
   Configuracion,
-  FranjaHorario,
+  HorasDelEstudio,
   Sala,
   SalaId,
   Cliente,
@@ -295,42 +295,20 @@ export async function extenderAgenda(): Promise<void> {
   if (error) console.error(`No se pudo rellenar la agenda: ${error.message}`);
 }
 
-/** El horario semanal: todas las franjas, por día, hora y sala (Reformer primero). */
-export async function getHorarioSemanal(hoy: string): Promise<FranjaHorario[]> {
+/**
+ * Las horas a las que abre el estudio cada día de la semana, desde las franjas
+ * de `horario_semanal` (encendidas o no). La agenda pinta un hueco
+ * «+ Programar aquí» en cada una, así que un día vacío ya enseña dónde se
+ * puede poner una clase sin tener que ir a otra pantalla.
+ */
+export async function getHorasDelEstudio(): Promise<HorasDelEstudio> {
   const supabase = await crearClienteServidor();
-  /* Lo que cada franja ya tiene en la agenda: es la respuesta a «¿y esto qué
-     hace?» que la pantalla da junto a cada hora encendida. */
-  const { data: enAgenda, error: errorAgenda } = await supabase
-    .from("clases")
-    .select("franja_id, fecha")
-    .not("franja_id", "is", null)
-    .eq("cancelada", false)
-    .gte("fecha", hoy);
-  if (errorAgenda) throw new Error(`No se pudo leer la agenda del horario: ${errorAgenda.message}`);
-  const porFranja = new Map<string, { n: number; hasta: string }>();
-  for (const c of enAgenda) {
-    const a = porFranja.get(c.franja_id!) ?? { n: 0, hasta: c.fecha };
-    porFranja.set(c.franja_id!, { n: a.n + 1, hasta: c.fecha > a.hasta ? c.fecha : a.hasta });
-  }
-
-  const { data, error } = await supabase
-    .from("horario_semanal")
-    .select("id, dia, hora_inicio, duracion_min, sala, activa, instructora_id")
-    .order("dia")
-    .order("hora_inicio")
-    .order("sala", { ascending: false });
-  if (error) throw new Error(`No se pudo leer el horario: ${error.message}`);
-  return data.map((f) => ({
-    id: f.id,
-    dia: f.dia,
-    horaInicio: f.hora_inicio.slice(0, 5),
-    duracionMin: f.duracion_min,
-    sala: f.sala as SalaId,
-    activa: f.activa,
-    instructoraId: f.instructora_id,
-    enAgenda: porFranja.get(f.id)?.n ?? 0,
-    hastaAgenda: porFranja.get(f.id)?.hasta ?? null,
-  }));
+  const { data, error } = await supabase.from("horario_semanal").select("dia, hora_inicio");
+  if (error) throw new Error(`No se pudieron leer las horas del estudio: ${error.message}`);
+  const horas: HorasDelEstudio = {};
+  for (const f of data) (horas[f.dia] ??= []).push(f.hora_inicio.slice(0, 5));
+  for (const dia of Object.keys(horas)) horas[Number(dia)] = [...new Set(horas[Number(dia)])].sort();
+  return horas;
 }
 
 /** Las salas y su aforo (tabla `salas`): el formulario de clase no deja pasar de ahí. */
@@ -420,7 +398,7 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
   const { data, error } = await supabase
     .from("clases")
     .select(
-      "id, tipo, sala, fecha, hora_inicio, duracion_min, instructora_id, cupos, cancelada, equipo(nombre), reservas(id, cliente_id, asistencia, clientes(nombre)), lista_espera(id, cliente_id, creado_en, clientes(nombre))",
+      "id, tipo, sala, fecha, hora_inicio, duracion_min, instructora_id, cupos, cancelada, franja_id, equipo(nombre), reservas(id, cliente_id, asistencia, clientes(nombre)), lista_espera(id, cliente_id, creado_en, clientes(nombre))",
     )
     .gte("fecha", sumarDias(hoy, -AGENDA_DIAS_ATRAS))
     .lte("fecha", sumarDias(hoy, AGENDA_DIAS_ADELANTE))
@@ -454,6 +432,7 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
     const horaFin = finDe(clase.horaInicio, clase.duracionMin);
     return {
       ...clase,
+      franjaId: f.franja_id,
       /* Una instructora borrada del equipo no puede pasar (`restrict`), pero si
          faltara el dato se nota en vez de disimularlo. */
       instructora: f.equipo?.nombre ?? "Sin asignar",

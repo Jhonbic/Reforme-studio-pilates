@@ -86,10 +86,10 @@ function AgendaYReservas({ config }: { config: Configuracion }) {
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <CampoSelect
           nombre="semanas"
-          etiqueta="Agenda creada por delante"
+          etiqueta="Se puede reservar con antelación de"
           value={String(semanas)}
           onChange={(e) => setSemanas(Number(e.target.value))}
-          ayuda="Las clases del horario semanal ya están en la agenda para este tiempo. Se puede reservar hasta ahí."
+          ayuda="Las clases que se repiten cada semana aparecen en la agenda con este margen, y los clientes pueden reservarlas desde ya."
         >
           {SEMANAS.map((n) => (
             <option key={n} value={n}>
@@ -230,7 +230,7 @@ function DiasCerrados({ config, hoy }: { config: Configuracion; hoy: string }) {
         setMotivo("");
       }
       return r;
-    }, `${fecha ? mayuscula(diaLargo(fecha)) : "El día"} queda cerrado: no habrá clases del horario.`);
+    }, `${fecha ? mayuscula(diaLargo(fecha)) : "El día"} queda cerrado: no habrá clases.`);
   }
 
   return (

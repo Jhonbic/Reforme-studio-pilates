@@ -146,23 +146,11 @@ export type Sala = {
 };
 
 /**
- * Una franja del horario semanal: un día, una hora y una sala. Si está
- * encendida y tiene instructora, «Generar clases» la convierte en una clase
- * cada semana. La modalidad la da la sala.
+ * Las horas a las que abre el estudio cada día de la semana (ISO: 1 = lunes …
+ * 7 = domingo), en `"07:00"`. Salen de las franjas de `horario_semanal`: la
+ * agenda pinta un hueco en cada una aunque ese día no haya ninguna clase.
  */
-export type FranjaHorario = {
-  id: string;
-  /** ISO: 1 = lunes … 7 = domingo. */
-  dia: number;
-  horaInicio: string;
-  duracionMin: number;
-  sala: SalaId;
-  activa: boolean;
-  instructoraId: string | null;
-  /** Cuántas clases suyas hay en la agenda de hoy en adelante, y hasta cuándo. */
-  enAgenda: number;
-  hastaAgenda: string | null;
-};
+export type HorasDelEstudio = Record<number, string[]>;
 
 export type Clase = {
   id: string;
@@ -269,6 +257,12 @@ export type ClaseDelCliente = {
 };
 
 export type ClaseEnAgenda = Clase & {
+  /**
+   * La serie semanal de la que sale («todos los lunes a las 07:00»), o `null`
+   * si se programó para un solo día. Editarla o quitarla pregunta «solo esta /
+   * todas las próximas».
+   */
+  franjaId: string | null;
   /** Nombre resuelto desde la tabla `equipo` a partir de `instructoraId`. */
   instructora: string;
   /** `"07:50"`, calculada con `finDe()`. */

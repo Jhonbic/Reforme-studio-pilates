@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cadaSemana,
   diaSemana,
   diasEntre,
   finDe,
@@ -44,5 +45,15 @@ describe("fechas en UTC (sin corrimientos por zona horaria)", () => {
     expect(diaSemana("2026-10-11")).toBe(6); // domingo
     expect(lunesDe("2026-10-11")).toBe("2026-10-05");
     expect(lunesDe("2026-10-05")).toBe("2026-10-05");
+  });
+});
+
+describe("clases que se repiten", () => {
+  it("dice el día en plural, también sábado y domingo", () => {
+    // 2026-10-12 es lunes; el 17, sábado; el 18, domingo.
+    expect(cadaSemana("2026-10-12")).toBe("todos los lunes");
+    expect(cadaSemana("2026-10-14")).toBe("todos los miércoles");
+    expect(cadaSemana("2026-10-17")).toBe("todos los sábados");
+    expect(cadaSemana("2026-10-18")).toBe("todos los domingos");
   });
 });

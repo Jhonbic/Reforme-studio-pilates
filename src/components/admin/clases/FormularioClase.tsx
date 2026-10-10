@@ -10,9 +10,16 @@ import {
   HORAS_CLASE,
   TIPOS_CLASE,
 } from "@/lib/admin/catalogos";
-import { guardarClase } from "@/lib/admin/acciones";
+import { editarClaseSemanal, guardarClase } from "@/lib/admin/acciones";
 import { numero } from "@/lib/admin/format";
-import { duracionLegible, rangoHorario, seSolapan } from "@/lib/admin/horario";
+import {
+  cadaSemana,
+  diaLargo,
+  duracionLegible,
+  rangoHorario,
+  seSolapan,
+  sumarDias,
+} from "@/lib/admin/horario";
 import { salaDeClase } from "@/lib/admin/salas";
 import type {
   BorradorClase,
@@ -23,9 +30,14 @@ import type {
   TipoClase,
 } from "@/lib/admin/types";
 import { soloDigitos } from "@/lib/validacion";
+import Opciones from "./Opciones";
 
 const BOTON_PRIMARIO =
   "inline-flex min-h-[44px] items-center justify-center rounded-full bg-dorado px-5 text-sm font-medium text-verde-900 transition-colors duration-300 hover:bg-dorado-dark";
+
+/** Aviso ámbar en caja: no bloquea el guardado. */
+const AVISO_CAJA =
+  "rounded-xl border border-[color-mix(in_srgb,var(--color-estado-aviso)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-aviso)_8%,transparent)] px-4 py-3 text-sm text-[var(--color-estado-aviso)]";
 
 const BOTON =
   "control-fx relative inline-flex min-h-[44px] items-center justify-center gap-2 overflow-hidden rounded-full border border-verde/40 px-5 text-sm text-verde-700 transition-colors duration-300 hover:border-dorado hover:text-verde";
@@ -42,9 +54,12 @@ const ORDEN: Campo[] = ["fecha", "horaInicio", "instructoraId", "cupos"];
  * Un solo componente para las dos cosas, como `FormularioPlan`: los campos son
  * idénticos y dos formularios gemelos acaban divergiendo siempre.
  *
- * ⚠️ **NO GUARDA NADA**, y lo dice al enviar. El horario vive en `mock.ts` como
- * constante de módulo: mutarlo se perdería en el siguiente render del servidor
- * y —lo peor— *parecería* que funciona.
+ * ⚠️ **Las clases que se repiten se crean AQUÍ** (oct 2026), como en el
+ * calendario del móvil: «¿Se repite? Solo este día / Todos los lunes». Antes
+ * había una pantalla aparte («Horario semanal») con otra idea —la plantilla—
+ * y el administrador no entendía qué pasaba al encenderla. Al editar una clase
+ * que se repite se pregunta «solo esta / todas las próximas». En «todas» no se
+ * cambian día, hora ni modalidad: eso es otra serie (se quita y se crea).
  *
  * ⚠️ **Aquí el foco va al primer campo inválido y NO a un resumen de errores**,
  * al revés que el alta de cliente. No es una incoherencia: el alta tiene catorce
@@ -78,9 +93,16 @@ export default function FormularioClase({
   /** La agenda entera, para detectar choques de horario. */
   clases: ClaseEnAgenda[];
   onCerrar: () => void;
-  onGuardado: (resumen: string, esNueva: boolean) => void;
+  /** El aviso que se enseña al guardar, ya redactado. */
+  onGuardado: (mensaje: string) => void;
 }) {
   const esNueva = clase === undefined;
+  /* Al crear: ¿se repite cada semana? Por defecto sí: lo normal en un estudio
+     es un horario fijo, y una clase suelta es la excepción. */
+  const [repite, setRepite] = useState<"semana" | "dia">("semana");
+  /* Al editar una clase que se repite: ¿solo esta o todas las próximas? Por
+     defecto, solo esta: lo que se cambia sin pensar no debe tocar 12 semanas. */
+  const [alcance, setAlcance] = useState<"esta" | "todas">("esta");
 
   function vacia(fecha: string): BorradorClase {
     const sala = propuesta?.sala ?? "Reformer";
@@ -133,7 +155,15 @@ export default function FormularioClase({
     setV(clase ? aBorrador(clase) : vacia(fechaPorDefecto));
     setErrores({});
     setCuposTocados(false);
+    setRepite("semana");
+    setAlcance("esta");
   }
+
+  /* Una privada no se repite: se programa día a día. */
+  const repetir = esNueva && v.tipo !== "Privada" && repite === "semana";
+  /* Cambiar toda la serie: no se tocan día, hora ni modalidad. */
+  const enSerie = !esNueva && clase.franjaId !== null && alcance === "todas";
+  const cada = cadaSemana(v.fecha);
 
   /**
    * ⚠️ **El choque de horarios se calcula en vivo, no al enviar.**
@@ -147,7 +177,7 @@ export default function FormularioClase({
    *
    * Las canceladas no cuentan: su hueco está libre, para eso se anularon.
    */
-  const choque = v.instructoraId
+  const choque = !enSerie && v.instructoraId
     ? (clases.find(
         (c) =>
           c.id !== clase?.id &&
@@ -165,15 +195,55 @@ export default function FormularioClase({
      (`clases_sala_sin_solapes`). */
   const sala = salaDeClase(v.tipo, v.sala);
   const capacidad = salas.find((s) => s.id === sala)?.capacidad ?? 0;
-  const salaOcupada =
-    clases.find(
-      (c) =>
-        c.id !== clase?.id &&
-        !c.cancelada &&
-        c.fecha === v.fecha &&
-        c.sala === sala &&
-        seSolapan(c.horaInicio, c.duracionMin, v.horaInicio, v.duracionMin),
-    ) ?? null;
+  const salaOcupada = enSerie
+    ? null
+    : (clases.find(
+        (c) =>
+          c.id !== clase?.id &&
+          !c.cancelada &&
+          c.fecha === v.fecha &&
+          c.sala === sala &&
+          seSolapan(c.horaInicio, c.duracionMin, v.horaInicio, v.duracionMin),
+      ) ?? null);
+
+  /* ⚠️ Las semanas SIGUIENTES que chocan no bloquean: solo la primera (la que
+     se está viendo) tiene que poder crearse. Las demás se saltan y se avisa
+     antes de pulsar de cuántas son. Se mira la agenda cargada (13 semanas). */
+  const ultimaFecha = clases.at(-1)?.fecha ?? v.fecha;
+  let semanasOcupadas = 0;
+  if (repetir) {
+    for (let f = sumarDias(v.fecha, 7); f <= ultimaFecha; f = sumarDias(f, 7)) {
+      const fecha = f;
+      const ocupada = clases.some(
+        (c) =>
+          !c.cancelada &&
+          c.fecha === fecha &&
+          (c.sala === sala || (v.instructoraId !== "" && c.instructoraId === v.instructoraId)) &&
+          seSolapan(c.horaInicio, c.duracionMin, v.horaInicio, v.duracionMin),
+      );
+      if (ocupada) semanasOcupadas++;
+    }
+  }
+
+  /* Al cambiar toda la serie: en cuántas de sus próximas clases no entraría
+     el cambio (la instructora ya tiene otra a esa hora, o hay más reservas
+     que los cupos nuevos). Esas se quedan como están. */
+  const serie = enSerie
+    ? clases.filter((c) => c.franjaId === clase?.franjaId && !c.cancelada && !c.empezada)
+    : [];
+  const noEntran = serie.filter(
+    (s) =>
+      s.reservas > v.cupos ||
+      (v.instructoraId !== "" &&
+        clases.some(
+          (c) =>
+            c.id !== s.id &&
+            !c.cancelada &&
+            c.fecha === s.fecha &&
+            c.instructoraId === v.instructoraId &&
+            seSolapan(c.horaInicio, c.duracionMin, s.horaInicio, v.duracionMin),
+        )),
+  ).length;
 
   function errorDe(campo: Campo, valores: BorradorClase): string {
     switch (campo) {
@@ -197,7 +267,7 @@ export default function FormularioClase({
         /* El aforo no puede quedar por debajo de la gente que ya reservó: esas
            personas tienen su sitio confirmado y el sistema no puede dejarlas
            fuera sin que nadie decida a quién. */
-        return clase && valores.cupos < clase.reservas
+        return clase && !enSerie && valores.cupos < clase.reservas
           ? `Ya hay ${numero(clase.reservas)} ${clase.reservas === 1 ? "reserva" : "reservas"}: el aforo no puede bajar de ahí sin cancelarlas antes.`
           : "";
       }
@@ -264,9 +334,20 @@ export default function FormularioClase({
       instructoras.find((i) => i.id === v.instructoraId)?.nombre ?? "";
     setErrorEnvio("");
     iniciarGuardado(async () => {
-      const r = await guardarClase(clase?.id ?? null, v);
+      const r = enSerie
+        ? await editarClaseSemanal(clase.franjaId!, v)
+        : await guardarClase(clase?.id ?? null, v, repetir);
       if (r.ok) {
-        onGuardado(`${v.tipo} del ${v.fecha} a las ${v.horaInicio} con ${nombre}`, esNueva);
+        const que = `${v.tipo} a las ${v.horaInicio} con ${nombre}`;
+        onGuardado(
+          repetir
+            ? `${v.tipo} ${cada} a las ${v.horaInicio} con ${nombre}: ${r.resumen ?? ""}`
+            : enSerie
+              ? `Cambios guardados en ${cada}: ${r.resumen ?? ""}.`
+              : esNueva
+                ? `Clase creada: ${que}, ${diaLargo(v.fecha)}.`
+                : `Cambios guardados: ${que}, ${diaLargo(v.fecha)}.`,
+        );
         onCerrar();
         return;
       }
@@ -290,27 +371,48 @@ export default function FormularioClase({
       tamano="lg"
     >
       <form onSubmit={enviar} noValidate className="space-y-4">
+        {/* Lo primero que se decide al editar una clase que se repite: a qué
+            afecta el cambio. Arriba, porque cambia qué campos se pueden tocar. */}
+        {!esNueva && clase.franjaId && (
+          <Opciones
+            nombre="alcance"
+            leyenda="¿Qué quieres cambiar?"
+            valor={alcance}
+            onCambio={setAlcance}
+            opciones={[
+              { valor: "esta", titulo: "Solo esta clase", detalle: diaLargo(clase.fecha) },
+              {
+                valor: "todas",
+                titulo: "Todas las próximas",
+                detalle: `${cada} a las ${clase.horaInicio}`,
+              },
+            ]}
+          />
+        )}
+
         {/* Qué se da y cuánta gente cabe: se leen juntos, el aforo depende de la
             modalidad. El resto de campos NO se emparejan porque un formulario a
             dos columnas de verdad rompe el recorrido vertical. */}
         <div className="grid gap-4 sm:grid-cols-2">
-          <CampoSelect
-            nombre="tipo"
-            etiqueta="Modalidad"
-            value={v.tipo}
-            onChange={(e) => set("tipo", e.target.value as TipoClase)}
-            ayuda={
-              v.tipo === "Privada"
-                ? "Una privada se da en la sala que elijas."
-                : `Se da en la sala de ${v.tipo}.`
-            }
-          >
-            {TIPOS_CLASE.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </CampoSelect>
+          {!enSerie && (
+            <CampoSelect
+              nombre="tipo"
+              etiqueta="Modalidad"
+              value={v.tipo}
+              onChange={(e) => set("tipo", e.target.value as TipoClase)}
+              ayuda={
+                v.tipo === "Privada"
+                  ? "Una privada se da en la sala que elijas, y no se repite."
+                  : `Se da en la sala de ${v.tipo}.`
+              }
+            >
+              {TIPOS_CLASE.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </CampoSelect>
+          )}
 
           <CampoTexto
             nombre="cupos"
@@ -326,7 +428,9 @@ export default function FormularioClase({
             }}
             error={errores.cupos}
             ayuda={
-              clase && clase.reservas > 0
+              enSerie
+                ? `En todas las próximas · máximo ${numero(capacidad)}.`
+                : clase && clase.reservas > 0
                 ? `${numero(clase.reservas)} ya ${clase.reservas === 1 ? "reservó" : "reservaron"} · máximo ${numero(capacidad)}.`
                 : `Máximo ${numero(capacidad)}: es lo que cabe en la sala de ${sala}.`
             }
@@ -354,7 +458,17 @@ export default function FormularioClase({
           </CampoSelect>
         )}
 
-        {/* Cuándo */}
+        {/* Cuándo. En «todas las próximas» no se cambia: es lo que define la
+            serie, y moverla es quitar esta y crear otra. */}
+        {enSerie ? (
+          <p className="rounded-xl bg-arena px-4 py-3 text-sm text-verde-700">
+            <strong className="text-verde first-letter:uppercase">
+              {cada.charAt(0).toUpperCase() + cada.slice(1)} a las {v.horaInicio}
+            </strong>{" "}
+            · Sala de {sala}. Para cambiar el día o la hora de todas, quita esta clase semanal y
+            créala de nuevo a la hora nueva.
+          </p>
+        ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           <CampoTexto
             nombre="fecha"
@@ -394,6 +508,7 @@ export default function FormularioClase({
             ))}
           </CampoSelect>
         </div>
+        )}
 
         {/* Duración a media columna, con el eco al lado — el mismo reparto que
             la fecha de nacimiento y el eco de la edad en el alta de cliente. */}
@@ -451,6 +566,40 @@ export default function FormularioClase({
           ))}
         </CampoSelect>
 
+        {/* ¿Se repite? Al final, cuando ya se sabe qué, cuándo y con quién: la
+            opción dice la frase entera («todos los lunes a las 07:00»). */}
+        {esNueva && v.tipo !== "Privada" && (
+          <Opciones
+            nombre="repite"
+            leyenda="¿Se repite?"
+            valor={repite}
+            onCambio={setRepite}
+            opciones={[
+              { valor: "dia", titulo: "Solo este día", detalle: diaLargo(v.fecha) },
+              {
+                valor: "semana",
+                titulo: `${cada} a las ${v.horaInicio}`,
+                detalle: "Sale sola en la agenda cada semana.",
+              },
+            ]}
+          />
+        )}
+
+        {/* Avisos que NO bloquean (ámbar): lo que no va a salir, dicho antes. */}
+        {repetir && semanasOcupadas > 0 && (
+          <p className={AVISO_CAJA}>
+            ▲ {semanasOcupadas === 1 ? "Una de las próximas semanas tiene" : `${numero(semanasOcupadas)} de las próximas semanas tienen`}{" "}
+            la sala o la instructora ocupadas a esa hora: ahí no se creará la clase.
+          </p>
+        )}
+        {enSerie && noEntran > 0 && (
+          <p className={AVISO_CAJA}>
+            ▲ En {noEntran === 1 ? "una de las próximas clases" : `${numero(noEntran)} de las próximas clases`} el
+            cambio no entra (la instructora ya tiene otra a esa hora, o hay más reservas que cupos):{" "}
+            {noEntran === 1 ? "se quedará" : "se quedarán"} como está.
+          </p>
+        )}
+
         {errorEnvio && (
           <p role="alert" className="rounded-xl border border-[color-mix(in_srgb,var(--color-estado-grave)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-grave)_8%,transparent)] px-4 py-3 text-sm text-[var(--color-estado-grave)]">
             {errorEnvio}
@@ -467,7 +616,7 @@ export default function FormularioClase({
             disabled={guardando}
             className={`${BOTON_PRIMARIO} disabled:opacity-60`}
           >
-            {guardando ? "Guardando…" : esNueva ? "Crear clase" : "Guardar cambios"}
+            {guardando ? "Guardando…" : repetir ? "Crear clases" : enSerie ? "Guardar en todas" : esNueva ? "Crear clase" : "Guardar cambios"}
           </button>
         </div>
       </form>

@@ -2,7 +2,7 @@
 
 import { puedeMarcarAsistencia, resumenAsistencia } from "@/lib/admin/asistencia";
 import { numero } from "@/lib/admin/format";
-import { duracionLegible } from "@/lib/admin/horario";
+import { cadaSemana, duracionLegible } from "@/lib/admin/horario";
 import type { ClaseEnAgenda } from "@/lib/admin/types";
 import EstadoClaseBadge from "./EstadoClaseBadge";
 
@@ -79,6 +79,12 @@ export default function TarjetaClase({
               <span className="sr-only"> (empieza a las {clase.horaInicio}, {duracionLegible(clase.duracionMin)})</span>
             </span>
           </p>
+          {/* Saber que se repite cambia lo que se espera al editarla o quitarla. */}
+          {clase.franjaId && (
+            <p className="text-xs text-verde-300">
+              <span aria-hidden="true">↻ </span>Se repite {cadaSemana(clase.fecha)}
+            </p>
+          )}
         </div>
         {excepcional && <EstadoClaseBadge estado={clase.estado} />}
       </div>

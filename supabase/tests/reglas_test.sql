@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(72);
+select plan(81);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -325,6 +325,11 @@ reset role;
 -- sala de Reformer → dentro de la ventana caen mañana y dentro de 8 días.
 set local request.jwt.claims to '{}';
 update horario_semanal set activa = false, instructora_id = null;
+-- ⚠️ La franja se crea si falta: el horario del estudio no tiene 07:00 el
+-- sábado ni nada el domingo, y el test fallaba los viernes y los sábados.
+insert into horario_semanal (dia, hora_inicio, sala)
+  values (extract(isodow from current_date + 1), '07:00', 'Reformer')
+  on conflict do nothing;
 delete from reservas where clase_id in (select id from clases where fecha >= current_date);
 delete from clases where fecha >= current_date;
 update ajustes set agenda_generada_hasta = current_date + 13;
@@ -405,6 +410,71 @@ select is(
   (select cupos from clases where franja_id is not null and fecha = current_date + 22), 6,
   'bajar el aforo de la sala lo baja en sus próximas clases');
 update ajustes set horas_para_cancelar = 0;
+reset role;
+
+-- Clases semanales desde la agenda -------------------------------------------
+-- La agenda llega hasta el día 27 (el bloque anterior la rellenó). La serie de
+-- prueba: sala de Mat a las 10:00, el mismo día de la semana que el día 2,
+-- pero EMPEZANDO la semana siguiente (día 9) → días 9, 16 y 23.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(
+  (select (crear_clase_semanal(current_date + 9, '10:00', 'Mat', 50,
+                               '00000000-0000-0000-0000-0000000000e1', 5) ->> 'creadas')::int),
+  3, 'crear una clase semanal la pone en cada semana hasta donde llega la agenda');
+select is(
+  (select count(*)::int from clases where sala = 'Mat' and hora_inicio = '10:00' and fecha = current_date + 2),
+  0, 'la serie empieza el día elegido: la semana anterior no tiene clase');
+select is(
+  (select count(*)::int from clases c join horario_semanal h on h.id = c.franja_id
+    where h.sala = 'Mat' and h.hora_inicio = '10:00' and c.cupos = 5),
+  3, 'las clases de la serie llevan sus cupos');
+select throws_ok(
+  $$select crear_clase_semanal(current_date + 9, '10:00', 'Mat', 50, '00000000-0000-0000-0000-0000000000e2', 8)$$,
+  'P0001', 'Ya hay una clase semanal ese día a esa hora en esa sala.',
+  'no se crea dos veces la misma clase semanal');
+
+-- El primer día choca: no se crea nada.
+insert into clases (tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos)
+  values ('Reformer', current_date + 3, '11:00', 50, '00000000-0000-0000-0000-0000000000e2', 6);
+select throws_ok(
+  $$select crear_clase_semanal(current_date + 3, '11:00', 'Reformer', 50, '00000000-0000-0000-0000-0000000000e1', 6)$$,
+  'P0001', 'Ese día la sala o la instructora ya están ocupadas a esa hora.',
+  'si el primer día está ocupado, la clase semanal no se crea');
+select ok(
+  not exists (select 1 from horario_semanal
+              where dia = extract(isodow from current_date + 3) and hora_inicio = '11:00'
+                and sala = 'Reformer' and activa),
+  '…y no queda ninguna serie a medias');
+
+select is(
+  (select (editar_clase_semanal(
+      (select id from horario_semanal where sala = 'Mat' and hora_inicio = '10:00' and activa),
+      '00000000-0000-0000-0000-0000000000e2', 55, 4) ->> 'cambiadas')::int),
+  3, 'cambiar todas las próximas cambia instructora, duración y cupos de la serie');
+reset role;
+
+-- Alguien reserva la del día 16; luego se quita la serie.
+set local request.jwt.claims to '{}';
+insert into reservas (clase_id, cliente_id)
+  select c.id, '00000000-0000-0000-0000-0000000000d2' from clases c
+  join horario_semanal h on h.id = c.franja_id
+  where h.sala = 'Mat' and h.hora_inicio = '10:00' and c.fecha = current_date + 16;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(
+  quitar_clase_semanal((select id from horario_semanal where sala = 'Mat' and hora_inicio = '10:00' and activa)),
+  '{"borradas": 2, "canceladas": 1}'::jsonb,
+  'quitar una clase semanal borra las vacías y cancela la que tiene reservas');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select throws_ok(
+  $$select crear_clase_semanal(current_date + 9, '12:00', 'Mat', 50, '00000000-0000-0000-0000-0000000000e1', 8)$$,
+  '42501', null,
+  'un cliente no crea clases semanales');
 reset role;
 
 -- Una clase que empieza dentro de 30 min, con la cliente apuntada (el bloque
