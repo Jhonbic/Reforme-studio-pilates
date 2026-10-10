@@ -11,10 +11,11 @@ import {
   TIPOS_CLASE,
 } from "@/lib/admin/catalogos";
 import { editarClaseSemanal, guardarClase } from "@/lib/admin/acciones";
-import { numero } from "@/lib/admin/format";
+import { fecha as fechaCorta, numero } from "@/lib/admin/format";
 import {
   cadaSemana,
   diaLargo,
+  diasEntre,
   duracionLegible,
   rangoHorario,
   seSolapan,
@@ -42,11 +43,37 @@ const AVISO_CAJA =
 const BOTON =
   "control-fx relative inline-flex min-h-[44px] items-center justify-center gap-2 overflow-hidden rounded-full border border-verde/40 px-5 text-sm text-verde-700 transition-colors duration-300 hover:border-dorado hover:text-verde";
 
-type Campo = "instructoraId" | "cupos" | "fecha" | "horaInicio";
+type Campo = "instructoraId" | "cupos" | "fecha" | "horaInicio" | "hasta";
 type Errores = Partial<Record<Campo, string>>;
 
 /** El orden en que se enfocan al fallar el envío. */
-const ORDEN: Campo[] = ["fecha", "horaInicio", "instructoraId", "cupos"];
+const ORDEN: Campo[] = ["fecha", "horaInicio", "instructoraId", "cupos", "hasta"];
+
+/** Una serie dura como mucho un año (la base lo vuelve a impedir). */
+const MAX_DIAS_SERIE = 366;
+
+/**
+ * Hasta cuándo se propone una serie nueva: el último día del mes que viene
+ * después del siguiente (del 12 de octubre, el 31 de diciembre). Un fin
+ * redondo se entiende y se recuerda; «12 semanas» no.
+ */
+function finPorDefecto(fecha: string): string {
+  const [a, m] = fecha.split("-").map(Number);
+  return new Date(Date.UTC(a, m + 2, 0)).toISOString().slice(0, 10);
+}
+
+/** El primer día desde `desde` (incluido) que cae el mismo día de la semana que `base`. */
+function mismoDiaDesde(base: string, desde: string): string {
+  const semanas = Math.ceil(diasEntre(base, desde) / 7);
+  return sumarDias(base, 7 * Math.max(semanas, 0));
+}
+
+/** Cuántas clases salen de `desde` a `hasta`, una por semana, y la última. */
+function semanasEntre(desde: string, hasta: string): { n: number; ultima: string } {
+  if (hasta < desde) return { n: 0, ultima: desde };
+  const n = Math.floor(diasEntre(desde, hasta) / 7) + 1;
+  return { n, ultima: sumarDias(desde, 7 * (n - 1)) };
+}
 
 /**
  * Alta y edición de una clase.
@@ -103,6 +130,8 @@ export default function FormularioClase({
   /* Al editar una clase que se repite: ¿solo esta o todas las próximas? Por
      defecto, solo esta: lo que se cambia sin pensar no debe tocar 12 semanas. */
   const [alcance, setAlcance] = useState<"esta" | "todas">("esta");
+  /* El fin de la serie que se escribió a mano; `null` = el propuesto. */
+  const [hastaPropio, setHastaPropio] = useState<string | null>(null);
 
   function vacia(fecha: string): BorradorClase {
     const sala = propuesta?.sala ?? "Reformer";
@@ -157,6 +186,7 @@ export default function FormularioClase({
     setCuposTocados(false);
     setRepite("semana");
     setAlcance("esta");
+    setHastaPropio(null);
   }
 
   /* Una privada no se repite: se programa día a día. */
@@ -164,6 +194,30 @@ export default function FormularioClase({
   /* Cambiar toda la serie: no se tocan día, hora ni modalidad. */
   const enSerie = !esNueva && clase.franjaId !== null && alcance === "todas";
   const cada = cadaSemana(v.fecha);
+
+  /* ⚠️ Hasta cuándo llega la serie. Mientras nadie lo toque se DERIVA (del día
+     elegido al crear, o del fin actual de la serie al editar), no se copia:
+     así cambiar el día de una clase nueva mueve también la propuesta de fin.
+     Mismo patrón que los «mismo que…» del alta de cliente. */
+  const finSerie = clase?.serieHasta ?? null;
+  const hasta =
+    hastaPropio ?? (esNueva ? finPorDefecto(v.fecha) : (finSerie ?? sumarDias(v.fecha, 84)));
+  const minHasta = esNueva ? v.fecha : v.fecha < hoy ? hoy : v.fecha;
+  const maxHasta = sumarDias(esNueva ? v.fecha : hoy, MAX_DIAS_SERIE);
+  const nuevas = semanasEntre(v.fecha, hasta);
+  /* Al editar la serie: cuántas se añaden o se quitan respecto al fin actual. */
+  const fin = finSerie ?? hasta;
+  /* Contando solo el día de la semana de la serie (los miércoles), no 7 días
+     desde cualquier fecha: si no, «se añaden 5» y salían 4. */
+  const seAnaden =
+    enSerie && hasta > fin ? semanasEntre(mismoDiaDesde(v.fecha, sumarDias(fin, 1)), hasta) : null;
+  const seQuitan =
+    enSerie && hasta < fin ? semanasEntre(mismoDiaDesde(v.fecha, sumarDias(hasta, 1)), fin) : null;
+  const quitanConReservas = seQuitan
+    ? clases.filter(
+        (c) => c.franjaId === clase?.franjaId && !c.cancelada && c.fecha > hasta && c.reservas > 0,
+      ).length
+    : 0;
 
   /**
    * ⚠️ **El choque de horarios se calcula en vivo, no al enviar.**
@@ -212,7 +266,8 @@ export default function FormularioClase({
   const ultimaFecha = clases.at(-1)?.fecha ?? v.fecha;
   let semanasOcupadas = 0;
   if (repetir) {
-    for (let f = sumarDias(v.fecha, 7); f <= ultimaFecha; f = sumarDias(f, 7)) {
+    const tope = hasta < ultimaFecha ? hasta : ultimaFecha;
+    for (let f = sumarDias(v.fecha, 7); f <= tope; f = sumarDias(f, 7)) {
       const fecha = f;
       const ocupada = clases.some(
         (c) =>
@@ -257,6 +312,15 @@ export default function FormularioClase({
           : "";
       case "horaInicio":
         return "";
+      case "hasta":
+        /* Solo cuenta si hay serie: crear repitiendo o cambiar todas. */
+        if (!repetir && !enSerie) return "";
+        if (!hasta) return "Elige hasta cuándo se repite.";
+        if (hasta < minHasta)
+          return esNueva
+            ? "Tiene que ser el primer día o después."
+            : "No puede ser antes de esta clase.";
+        return hasta > maxHasta ? "Como mucho, un año." : "";
       case "instructoraId":
         return valores.instructoraId ? "" : "Elige quién va a dar la clase.";
       case "cupos": {
@@ -335,8 +399,8 @@ export default function FormularioClase({
     setErrorEnvio("");
     iniciarGuardado(async () => {
       const r = enSerie
-        ? await editarClaseSemanal(clase.franjaId!, v)
-        : await guardarClase(clase?.id ?? null, v, repetir);
+        ? await editarClaseSemanal(clase.franjaId!, v, hasta)
+        : await guardarClase(clase?.id ?? null, v, repetir ? hasta : null);
       if (r.ok) {
         const que = `${v.tipo} a las ${v.horaInicio} con ${nombre}`;
         onGuardado(
@@ -579,10 +643,68 @@ export default function FormularioClase({
               {
                 valor: "semana",
                 titulo: `${cada} a las ${v.horaInicio}`,
-                detalle: "Sale sola en la agenda cada semana.",
+                detalle: "Hasta la fecha que elijas.",
               },
             ]}
           />
+        )}
+
+        {/* ⚠️ Hasta cuándo: la serie tiene FIN y se crea entera al momento.
+            Nada aparece solo después (feedback del usuario: las clases que
+            salían cada noche «parecían algo raro»). El eco dice exactamente
+            qué va a pasar antes de pulsar. */}
+        {(repetir || enSerie) && (
+          <div className="grid items-start gap-4 sm:grid-cols-2">
+            <CampoTexto
+              nombre="hasta"
+              etiqueta={enSerie ? "Se repite hasta" : "Hasta"}
+              type="date"
+              min={minHasta}
+              max={maxHasta}
+              value={hasta}
+              onChange={(e) => {
+                setHastaPropio(e.target.value);
+                if (errores.hasta) setErrores((x) => ({ ...x, hasta: "" }));
+              }}
+              error={errores.hasta}
+              ref={(el) => {
+                refs.current.hasta = el;
+              }}
+            />
+            <p className="rounded-xl bg-arena px-4 py-3 text-sm text-verde-700 sm:mt-7">
+              {repetir ? (
+                nuevas.n > 0 ? (
+                  <>
+                    Se crean <strong className="text-verde">{numero(nuevas.n)} {nuevas.n === 1 ? "clase" : "clases"}</strong>
+                    {nuevas.n > 1 && (
+                      <>
+                        , del {fechaCorta(v.fecha)} al {fechaCorta(nuevas.ultima)}
+                      </>
+                    )}
+                    . No aparece ninguna más sola.
+                  </>
+                ) : (
+                  "Elige una fecha a partir del primer día."
+                )
+              ) : seAnaden && seAnaden.n > 0 ? (
+                <>
+                  Se añaden <strong className="text-verde">{numero(seAnaden.n)} {seAnaden.n === 1 ? "clase" : "clases"}</strong>, hasta el{" "}
+                  {fechaCorta(seAnaden.ultima)}.
+                </>
+              ) : seQuitan && seQuitan.n > 0 ? (
+                <>
+                  Se quitan <strong className="text-verde">{numero(seQuitan.n)} {seQuitan.n === 1 ? "clase" : "clases"}</strong> del final
+                  {quitanConReservas > 0 &&
+                    ` (${numero(quitanConReservas)} con reservas: quedan canceladas para avisar a esa gente)`}
+                  .
+                </>
+              ) : finSerie ? (
+                <>Ahora llega hasta el {fechaCorta(finSerie)}. Cambia la fecha para alargarla o acortarla.</>
+              ) : (
+                "Elige hasta cuándo se repite."
+              )}
+            </p>
+          </div>
         )}
 
         {/* Avisos que NO bloquean (ámbar): lo que no va a salir, dicho antes. */}

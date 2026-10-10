@@ -398,7 +398,7 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
   const { data, error } = await supabase
     .from("clases")
     .select(
-      "id, tipo, sala, fecha, hora_inicio, duracion_min, instructora_id, cupos, cancelada, franja_id, equipo(nombre), reservas(id, cliente_id, asistencia, clientes(nombre)), lista_espera(id, cliente_id, creado_en, clientes(nombre))",
+      "id, tipo, sala, fecha, hora_inicio, duracion_min, instructora_id, cupos, cancelada, franja_id, serie:horario_semanal(hasta), equipo(nombre), reservas(id, cliente_id, asistencia, clientes(nombre)), lista_espera(id, cliente_id, creado_en, clientes(nombre))",
     )
     .gte("fecha", sumarDias(hoy, -AGENDA_DIAS_ATRAS))
     .lte("fecha", sumarDias(hoy, AGENDA_DIAS_ADELANTE))
@@ -433,6 +433,7 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
     return {
       ...clase,
       franjaId: f.franja_id,
+      serieHasta: f.serie?.hasta ?? null,
       /* Una instructora borrada del equipo no puede pasar (`restrict`), pero si
          faltara el dato se nota en vez de disimularlo. */
       instructora: f.equipo?.nombre ?? "Sin asignar",

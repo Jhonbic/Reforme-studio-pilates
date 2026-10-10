@@ -263,6 +263,9 @@ export type ClaseEnAgenda = Clase & {
    * todas las próximas».
    */
   franjaId: string | null;
+  /** Último día de su serie («hasta el 28 dic»). `null` si no se repite o si
+   *  es de una franja antigua sin fin. */
+  serieHasta: string | null;
   /** Nombre resuelto desde la tabla `equipo` a partir de `instructoraId`. */
   instructora: string;
   /** `"07:50"`, calculada con `finDe()`. */

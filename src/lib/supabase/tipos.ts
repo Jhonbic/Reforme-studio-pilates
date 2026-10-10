@@ -274,6 +274,7 @@ export type Database = {
           desde: string | null;
           dia: number;
           duracion_min: number;
+          hasta: string | null;
           hora_inicio: string;
           id: string;
           instructora_id: string | null;
@@ -286,6 +287,7 @@ export type Database = {
           desde?: string | null;
           dia: number;
           duracion_min?: number;
+          hasta?: string | null;
           hora_inicio: string;
           id?: string;
           instructora_id?: string | null;
@@ -297,6 +299,7 @@ export type Database = {
           desde?: string | null;
           dia?: number;
           duracion_min?: number;
+          hasta?: string | null;
           hora_inicio?: string;
           id?: string;
           instructora_id?: string | null;
@@ -764,6 +767,7 @@ export type Database = {
           p_cupos: number;
           p_duracion: number;
           p_fecha: string;
+          p_hasta: string;
           p_hora: string;
           p_instructora: string;
           p_sala: string;
@@ -782,7 +786,13 @@ export type Database = {
         }[];
       };
       editar_clase_semanal: {
-        Args: { p_cupos: number; p_duracion: number; p_franja: string; p_instructora: string };
+        Args: {
+          p_cupos: number;
+          p_duracion: number;
+          p_franja: string;
+          p_hasta: string;
+          p_instructora: string;
+        };
         Returns: Json;
       };
       es_admin: { Args: Record<PropertyKey, never>; Returns: boolean };

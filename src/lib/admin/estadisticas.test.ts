@@ -135,6 +135,7 @@ describe("clases", () => {
     reservados: [],
     enEspera: [],
     franjaId: null,
+    serieHasta: null,
     ...p,
   });
 

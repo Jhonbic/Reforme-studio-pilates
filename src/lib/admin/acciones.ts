@@ -773,7 +773,7 @@ export async function cambiarMiContrasena(actual: string, nueva: string): Promis
 export type ResultadoClase =
   /** `resumen`: lo que pasó con una clase semanal («4 clases, hasta el 2 nov…»). */
   | { ok: true; resumen?: string }
-  | { ok: false; error: string; campo?: "instructoraId" | "cupos" | "horaInicio" };
+  | { ok: false; error: string; campo?: "instructoraId" | "cupos" | "horaInicio" | "hasta" };
 
 const TIPOS_CLASE: TipoClase[] = ["Reformer", "Mat", "Privada"];
 const esTipoClase = (v: string): v is TipoClase => (TIPOS_CLASE as string[]).includes(v);
@@ -844,10 +844,10 @@ const clases_ = (n: number) => `${n} ${n === 1 ? "clase" : "clases"}`;
 /**
  * Crea una clase (`id` nulo) o guarda los cambios de UNA clase.
  *
- * Con `repetir`, la clase nueva se repite cada semana (mismo día, hora y sala)
- * desde su fecha: lo hace `crear_clase_semanal` en la base, que la deja en la
- * agenda hasta donde llega y dice cuántas semanas no se pudieron (sala o
- * instructora ocupadas). Una privada no se repite.
+ * Con `hasta`, la clase nueva se repite cada semana (mismo día, hora y sala)
+ * desde su fecha hasta ese día: lo hace `crear_clase_semanal` en la base, que
+ * crea TODAS sus clases al momento y dice cuántas semanas no se pudieron (sala
+ * o instructora ocupadas). Una privada no se repite.
  *
  * El solapamiento de instructora lo comprueba el formulario EN VIVO (para
  * avisar antes de pulsar) y lo impide la BASE (restricción de exclusión): el
@@ -856,14 +856,16 @@ const clases_ = (n: number) => `${n} ${n === 1 ? "clase" : "clases"}`;
 export async function guardarClase(
   id: string | null,
   b: BorradorClase,
-  repetir = false,
+  /** Último día de la serie: si llega, la clase se repite cada semana. */
+  hasta: string | null = null,
 ): Promise<ResultadoClase> {
   const prohibido = await soloMostrador();
   if (prohibido) return { ok: false, error: prohibido };
   const invalido = errorDeBorrador(b);
   if (invalido) return invalido;
 
-  if (repetir && !id) {
+  if (hasta && !id) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(hasta)) return { ok: false, campo: "hasta", error: "Fecha de fin no válida." };
     if (b.tipo === "Privada") return { ok: false, error: "Una clase privada no se repite: prográmala día a día." };
     const supabase = await crearClienteServidor();
     const { data, error } = await supabase.rpc("crear_clase_semanal", {
@@ -873,9 +875,11 @@ export async function guardarClase(
       p_duracion: b.duracionMin,
       p_instructora: b.instructoraId,
       p_cupos: b.cupos,
+      p_hasta: hasta,
     });
     if (error) {
-      if (error.code === "P0001") return { ok: false, campo: "horaInicio", error: error.message };
+      if (error.code === "P0001")
+        return { ok: false, campo: /fin|año/.test(error.message) ? "hasta" : "horaInicio", error: error.message };
       return errorDeClase(error);
     }
     const r = data as { creadas: number; saltadas: number; hasta: string | null };
@@ -884,11 +888,11 @@ export async function guardarClase(
       ok: true,
       resumen:
         `${clases_(r.creadas)} en la agenda` +
-        (r.hasta ? `, hasta el ${fechaCorta(r.hasta)}` : "") +
+        (r.hasta ? `, la última el ${fechaCorta(r.hasta)}` : "") +
         (r.saltadas > 0
           ? `. ${r.saltadas === 1 ? "Una semana no se pudo" : `${r.saltadas} semanas no se pudieron`}: la sala o la instructora ya estaban ocupadas`
           : "") +
-        ". Las siguientes salen solas.",
+        ".",
     };
   }
 
@@ -1239,15 +1243,21 @@ export async function abrirDia(fecha: string): Promise<ResultadoConfig> {
    ====================================================================== */
 
 /**
- * Cambia quién da, cuánto dura y cuántos caben en TODAS las próximas clases
- * de una serie, y en las que vengan. Día, hora y sala no: eso es otra serie
- * (se quita esta y se crea la nueva). Las clases que no admiten el cambio se
- * quedan como estaban y el resumen lo dice.
+ * Cambia quién da, cuánto dura, cuántos caben y HASTA CUÁNDO llega una serie,
+ * en todas sus próximas clases. Día, hora y sala no: eso es otra serie (se
+ * quita esta y se crea la nueva). Alargarla crea las clases nuevas al momento;
+ * acortarla quita las que sobran (las reservadas quedan canceladas). Las que
+ * no admiten el cambio se quedan como estaban y el resumen lo dice.
  */
-export async function editarClaseSemanal(franjaId: string, b: BorradorClase): Promise<ResultadoClase> {
+export async function editarClaseSemanal(
+  franjaId: string,
+  b: BorradorClase,
+  hasta: string,
+): Promise<ResultadoClase> {
   const prohibido = await soloMostrador();
   if (prohibido) return { ok: false, error: prohibido };
   if (!UUID_VALIDO.test(franjaId)) return { ok: false, error: "Clase semanal no válida." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(hasta)) return { ok: false, campo: "hasta", error: "Fecha de fin no válida." };
   const invalido = errorDeBorrador(b);
   if (invalido) return invalido;
 
@@ -1257,14 +1267,32 @@ export async function editarClaseSemanal(franjaId: string, b: BorradorClase): Pr
     p_instructora: b.instructoraId,
     p_duracion: b.duracionMin,
     p_cupos: b.cupos,
+    p_hasta: hasta,
   });
-  if (error) return { ok: false, error: error.message };
-  const r = data as { cambiadas: number; sin_cambiar: number };
+  if (error) {
+    if (error.code === "P0001" && /fin|año/.test(error.message))
+      return { ok: false, campo: "hasta", error: error.message };
+    return { ok: false, error: error.message };
+  }
+  const r = data as {
+    cambiadas: number;
+    sin_cambiar: number;
+    creadas: number;
+    quitadas: number;
+    canceladas: number;
+    hasta: string | null;
+  };
   revalidarAgenda();
+  const partes = [`${clases_(r.cambiadas)} al día`];
+  if (r.creadas > 0) partes.push(`${clases_(r.creadas)} ${r.creadas === 1 ? "nueva" : "nuevas"}`);
+  if (r.quitadas > 0) partes.push(`${clases_(r.quitadas)} ${r.quitadas === 1 ? "quitada" : "quitadas"}`);
+  if (r.canceladas > 0)
+    partes.push(`${clases_(r.canceladas)} con reservas ${r.canceladas === 1 ? "cancelada" : "canceladas"} (avisa a esas personas)`);
   return {
     ok: true,
     resumen:
-      `${clases_(r.cambiadas)} ${r.cambiadas === 1 ? "cambiada" : "cambiadas"}` +
+      partes.join(", ") +
+      (r.hasta ? `. La última, el ${fechaCorta(r.hasta)}` : "") +
       (r.sin_cambiar > 0
         ? `. ${clases_(r.sin_cambiar)} no se ${r.sin_cambiar === 1 ? "pudo" : "pudieron"} cambiar (la instructora ya tenía otra a esa hora, o hay más reservas que cupos): ${r.sin_cambiar === 1 ? "se queda" : "se quedan"} como ${r.sin_cambiar === 1 ? "estaba" : "estaban"}`
         : ""),

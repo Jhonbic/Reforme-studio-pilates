@@ -70,7 +70,7 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
 | `npm test` | **Vitest**, 63 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 81 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm run test:db` | **pgTAP**, 84 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -1647,6 +1647,45 @@ pasó al modelo del **calendario del móvil** (decisión del usuario). Migració
 - ⚠️ `next dev` reescribe `AGENTS.md` (bloque `nextjs-agent-rules`): ese
   cambio no es de este trabajo.
 
+#### Clases semanales con fecha de fin (oct 2026)
+
+Feedback del usuario: «no me termina de convencer, siento que sigue algo
+raro». Una serie sin fin se iba creando por detrás cada noche hasta donde
+dijera `semanas_por_delante` (que alguien había subido a 8 en Configuración):
+no se veía hasta cuándo estaba programada y aparecían clases solas. Decisión
+del usuario: **serie con fecha de fin**. Migración `20261016120000_series_con_fin`.
+
+- `horario_semanal.hasta`. **Al crear se crean TODAS las clases hasta esa
+  fecha** y no aparece ninguna más sola. Máximo un año.
+- El formulario pide **«Hasta»** (propuesto: el último día del mes que viene
+  después del siguiente, p. ej. del 14 oct → 31 dic; se DERIVA del día
+  elegido mientras no se toque) y lo dice antes de pulsar: «Se crean 12
+  clases, del 14 oct al 30 dic. No aparece ninguna más sola».
+- **Alargar o acortar = «Todas las próximas» → «Se repite hasta»**
+  (`editar_clase_semanal`, ahora con `p_hasta`). Alargar crea solo lo que va
+  DESPUÉS del fin anterior; acortar borra las que sobran y cancela las que
+  tienen reservas. El eco cuenta solo el día de la semana de la serie (antes
+  decía «se añaden 5» y salían 4).
+- La tarjeta dice «↻ Todos los miércoles · hasta el 30 dic», y en la última
+  clase, «· última de la serie» en ámbar.
+- ⚠️ **El relleno de cada noche (cron + `extender_agenda`) ya NO toca las
+  series con fin**: `crear_clases_de_horario` sin franja concreta solo crea
+  franjas con `hasta` nulo (las antiguas). Así una clase quitada a mano no
+  vuelve.
+- ⚠️ **Arreglo cazado por un test**: el trigger `horario_sincroniza_clases`
+  volvía a crear las clases de la serie en CUALQUIER cambio de una franja
+  encendida (p. ej. otra instructora), resucitando las quitadas a mano.
+  Ahora solo crea al encenderla.
+- `dias_cerrados_sincronizan_agenda` recrea por franja: al abrir un día
+  cerrado vuelven las clases de las series que lo cubren.
+- **Configuración**: se quitó «Se puede reservar con antelación de»; la
+  tarjeta pasa a llamarse «Reservas» y solo tiene el plazo para cancelar.
+  La columna `semanas_por_delante` sigue (solo la usan franjas antiguas).
+- 12 tests de base del bloque de clases semanales (84 en total).
+- Probado en el navegador a 1280 y 390 px contra la base local: crear (11
+  clases, una semana saltada por choque), alargar un mes (4 nuevas), quitar
+  todas (15); sin errores ni desplazamiento lateral.
+
 #### Configuración (`/admin/configuracion`) — oct 2026, paso 4
 
 Migración `20261011120000_configuracion`. Solo Administración (RLS y la
@@ -1985,7 +2024,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **22 migraciones, todas aplicadas en local y en remoto** |
+| Esquema | `supabase/migrations/` — **23 migraciones (la `20261016120000_series_con_fin` aún solo en local)** |
 
 ### Variables de entorno
 

@@ -18,8 +18,6 @@ const BOTON_PRIMARIO =
 const BOTON =
   "control-fx relative inline-flex min-h-[44px] items-center justify-center overflow-hidden rounded-full border border-verde/40 px-4 text-sm text-verde-700 transition-colors duration-300 hover:border-dorado hover:text-verde disabled:opacity-60";
 
-const SEMANAS = [1, 2, 3, 4, 6, 8, 12];
-
 /** «sábado, 17 de octubre» → «Sábado, 17 de octubre» (para empezar una frase). */
 const mayuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const HORAS = [0, 1, 2, 3, 4, 6, 12, 24, 48];
@@ -74,29 +72,21 @@ function useGuardar() {
   return { enCurso, guardar };
 }
 
+/**
+ * ⚠️ Ya no tiene «semanas de agenda por delante» (oct 2026): las clases que se
+ * repiten tienen fecha de fin y se crean enteras al programarlas, así que ese
+ * número no cambiaba nada que se viera. La columna sigue en `ajustes` (solo la
+ * usan las franjas antiguas sin fin) y se guarda tal como está.
+ */
 function AgendaYReservas({ config }: { config: Configuracion }) {
-  const [semanas, setSemanas] = useState(config.semanasPorDelante);
   const [horas, setHoras] = useState(config.horasParaCancelar);
   const { enCurso, guardar } = useGuardar();
-  const cambiado = semanas !== config.semanasPorDelante || horas !== config.horasParaCancelar;
+  const cambiado = horas !== config.horasParaCancelar;
 
   return (
     <Card>
-      <CardHeader titulo="Agenda y reservas" />
+      <CardHeader titulo="Reservas" />
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <CampoSelect
-          nombre="semanas"
-          etiqueta="Se puede reservar con antelación de"
-          value={String(semanas)}
-          onChange={(e) => setSemanas(Number(e.target.value))}
-          ayuda="Las clases que se repiten cada semana aparecen en la agenda con este margen, y los clientes pueden reservarlas desde ya."
-        >
-          {SEMANAS.map((n) => (
-            <option key={n} value={n}>
-              {n} {n === 1 ? "semana" : "semanas"}
-            </option>
-          ))}
-        </CampoSelect>
         <CampoSelect
           nombre="horas"
           etiqueta="Cancelar desde la web hasta"
@@ -115,7 +105,7 @@ function AgendaYReservas({ config }: { config: Configuracion }) {
         <button
           type="button"
           disabled={!cambiado || enCurso}
-          onClick={() => guardar(() => guardarAjustes(semanas, horas), "Ajustes guardados.")}
+          onClick={() => guardar(() => guardarAjustes(config.semanasPorDelante, horas), "Ajustes guardados.")}
           className={BOTON_PRIMARIO}
         >
           {enCurso ? "Guardando…" : "Guardar"}

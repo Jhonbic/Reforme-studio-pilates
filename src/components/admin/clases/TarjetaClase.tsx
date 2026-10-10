@@ -1,8 +1,8 @@
 "use client";
 
 import { puedeMarcarAsistencia, resumenAsistencia } from "@/lib/admin/asistencia";
-import { numero } from "@/lib/admin/format";
-import { cadaSemana, duracionLegible } from "@/lib/admin/horario";
+import { fecha, numero } from "@/lib/admin/format";
+import { cadaSemana, duracionLegible, sumarDias } from "@/lib/admin/horario";
 import type { ClaseEnAgenda } from "@/lib/admin/types";
 import EstadoClaseBadge from "./EstadoClaseBadge";
 
@@ -82,7 +82,15 @@ export default function TarjetaClase({
           {/* Saber que se repite cambia lo que se espera al editarla o quitarla. */}
           {clase.franjaId && (
             <p className="text-xs text-verde-300">
-              <span aria-hidden="true">↻ </span>Se repite {cadaSemana(clase.fecha)}
+              <span aria-hidden="true">↻ </span>
+              {cadaSemana(clase.fecha).replace(/^t/, "T")}
+              {clase.serieHasta &&
+                (clase.fecha >= sumarDias(clase.serieHasta, -6) ? (
+                  /* La última de la serie: es donde se nota que se acaba. */
+                  <span className="text-[var(--color-estado-aviso)]"> · última de la serie</span>
+                ) : (
+                  <> · hasta el {fecha(clase.serieHasta)}</>
+                ))}
             </p>
           )}
         </div>

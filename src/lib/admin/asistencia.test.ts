@@ -21,6 +21,7 @@ const clase = (p: Partial<ClaseEnAgenda> = {}): ClaseEnAgenda => ({
   reservados: [],
   enEspera: [],
   franjaId: null,
+  serieHasta: null,
   ...p,
 });
 
