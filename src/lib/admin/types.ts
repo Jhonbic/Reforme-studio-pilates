@@ -47,7 +47,10 @@ export type EstadoMembresia =
   | "Inactiva"
   /** Dado de alta y sin ninguna membresía todavía: el alta no pregunta por
    *  el plan. Ni plan, ni vencimiento, ni importe. */
-  | "Sin plan";
+  | "Sin plan"
+  /** Se fue del estudio: gana a cualquier otro estado. No reserva ni compra
+   *  plan hasta que se le reactive. Su historia se conserva. */
+  | "De baja";
 
 /**
  * Una persona que entrena en el estudio.
@@ -85,6 +88,8 @@ export type Cliente = {
   ultimaAsistencia: string | null;
   /** Lo que cuesta renovar su plan, COP entero. */
   importeRenovacion: number;
+  /** Día en que se dio de baja, o `null` si sigue en el estudio. */
+  baja: string | null;
 };
 
 export type TipoIdentificacion =

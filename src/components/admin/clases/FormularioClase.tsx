@@ -248,7 +248,6 @@ export default function FormularioClase({
      dos salas»); con las salas reales es un bloqueo, y la base lo impide
      (`clases_sala_sin_solapes`). */
   const sala = salaDeClase(v.tipo, v.sala);
-  const capacidad = salas.find((s) => s.id === sala)?.capacidad ?? 0;
   const salaOcupada = enSerie
     ? null
     : (clases.find(
@@ -464,11 +463,6 @@ export default function FormularioClase({
               etiqueta="Modalidad"
               value={v.tipo}
               onChange={(e) => set("tipo", e.target.value as TipoClase)}
-              ayuda={
-                v.tipo === "Privada"
-                  ? "Una privada se da en la sala que elijas, y no se repite."
-                  : `Se da en la sala de ${v.tipo}.`
-              }
             >
               {TIPOS_CLASE.map((t) => (
                 <option key={t} value={t}>
@@ -491,13 +485,6 @@ export default function FormularioClase({
               set("cupos", Number(soloDigitos(e.target.value)));
             }}
             error={errores.cupos}
-            ayuda={
-              enSerie
-                ? `En todas las próximas · máximo ${numero(capacidad)}.`
-                : clase && clase.reservas > 0
-                ? `${numero(clase.reservas)} ya ${clase.reservas === 1 ? "reservó" : "reservaron"} · máximo ${numero(capacidad)}.`
-                : `Máximo ${numero(capacidad)}: es lo que cabe en la sala de ${sala}.`
-            }
             autoComplete="off"
             ref={(el) => {
               refs.current.cupos = el;
@@ -529,8 +516,7 @@ export default function FormularioClase({
             <strong className="text-verde first-letter:uppercase">
               {cada.charAt(0).toUpperCase() + cada.slice(1)} a las {v.horaInicio}
             </strong>{" "}
-            · Sala de {sala}. Para cambiar el día o la hora de todas, quita esta clase semanal y
-            créala de nuevo a la hora nueva.
+            · Sala de {sala}
           </p>
         ) : (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -560,7 +546,6 @@ export default function FormularioClase({
                 ? `La sala de ${sala} está ocupada: ${salaOcupada.tipo} con ${salaOcupada.instructora} de ${salaOcupada.horaInicio} a ${salaOcupada.horaFin}.`
                 : errores.horaInicio
             }
-            ayuda="El estudio abre de 05:00 a 21:00."
             ref={(el) => {
               refs.current.horaInicio = el;
             }}
@@ -612,11 +597,6 @@ export default function FormularioClase({
               ? `Esa instructora ya tiene ${choque.tipo} de ${choque.horaInicio} a ${choque.horaFin} ese día. Cambia la hora o elige a otra persona.`
               : errores.instructoraId
           }
-          ayuda={
-            /* Solo instructoras EN ACTIVO: ver `getInstructoras()`. Se dice
-               aquí porque, si no, faltar en la lista parece un fallo. */
-            "Solo aparecen las instructoras en activo."
-          }
           ref={(el) => {
             refs.current.instructoraId = el;
           }}
@@ -643,7 +623,6 @@ export default function FormularioClase({
               {
                 valor: "semana",
                 titulo: `${cada} a las ${v.horaInicio}`,
-                detalle: "Hasta la fecha que elijas.",
               },
             ]}
           />
@@ -681,7 +660,7 @@ export default function FormularioClase({
                         , del {fechaCorta(v.fecha)} al {fechaCorta(nuevas.ultima)}
                       </>
                     )}
-                    . No aparece ninguna más sola.
+                    .
                   </>
                 ) : (
                   "Elige una fecha a partir del primer día."

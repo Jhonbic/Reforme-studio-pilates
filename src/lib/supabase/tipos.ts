@@ -120,6 +120,8 @@ export type Database = {
           acudiente_nombre: string | null;
           acudiente_telefono: string | null;
           alta: string;
+          baja: string | null;
+          baja_motivo: string | null;
           correo: string | null;
           creado_en: string;
           cuenta_id: string | null;
@@ -141,6 +143,8 @@ export type Database = {
           acudiente_nombre?: string | null;
           acudiente_telefono?: string | null;
           alta?: string;
+          baja?: string | null;
+          baja_motivo?: string | null;
           correo?: string | null;
           creado_en?: string;
           cuenta_id?: string | null;
@@ -161,6 +165,8 @@ export type Database = {
           acudiente_nombre?: string | null;
           acudiente_telefono?: string | null;
           alta?: string;
+          baja?: string | null;
+          baja_motivo?: string | null;
           correo?: string | null;
           creado_en?: string;
           cuenta_id?: string | null;
@@ -688,6 +694,7 @@ export type Database = {
       clientes_vigentes: {
         Row: {
           alta: string | null;
+          baja: string | null;
           correo: string | null;
           estado: Database["public"]["Enums"]["estado_membresia"] | null;
           id: string | null;
@@ -778,6 +785,7 @@ export type Database = {
         Args: { p_desde: string; p_franja?: string; p_hasta: string };
         Returns: number;
       };
+      dar_de_baja: { Args: { p_cliente: string; p_motivo: string }; Returns: Json };
       disponibles_para: {
         Args: { p_fecha: string; p_tipo: Database["public"]["Enums"]["tipo_clase"] };
         Returns: {
@@ -824,6 +832,7 @@ export type Database = {
       mover_reserva: { Args: { p_clase: string; p_reserva: string }; Returns: undefined };
       promover_lista_espera: { Args: { p_clase: string }; Returns: number };
       quitar_clase_semanal: { Args: { p_franja: string }; Returns: Json };
+      reactivar_cliente: { Args: { p_cliente: string }; Returns: undefined };
       registrar_membresia: {
         Args: {
           p_abono?: number;
@@ -856,7 +865,7 @@ export type Database = {
     Enums: {
       asistencia: "Asistió" | "No vino";
       categoria_gasto: "Arriendo" | "Nómina" | "Servicios" | "Mantenimiento" | "Marketing";
-      estado_membresia: "Activa" | "Por vencer" | "Vencida" | "Inactiva" | "Sin plan";
+      estado_membresia: "Activa" | "Por vencer" | "Vencida" | "Inactiva" | "Sin plan" | "De baja";
       metodo_pago: "Efectivo" | "Nequi" | "Transferencia" | "Tarjeta" | "Daviplata" | "Otro";
       modalidad_plan: "Mat" | "Reformer" | "Fusión";
       rol_equipo: "Instructora" | "Administración" | "Recepción";
@@ -978,7 +987,7 @@ export const Constants = {
     Enums: {
       asistencia: ["Asistió", "No vino"],
       categoria_gasto: ["Arriendo", "Nómina", "Servicios", "Mantenimiento", "Marketing"],
-      estado_membresia: ["Activa", "Por vencer", "Vencida", "Inactiva", "Sin plan"],
+      estado_membresia: ["Activa", "Por vencer", "Vencida", "Inactiva", "Sin plan", "De baja"],
       metodo_pago: ["Efectivo", "Nequi", "Transferencia", "Tarjeta", "Daviplata", "Otro"],
       modalidad_plan: ["Mat", "Reformer", "Fusión"],
       rol_equipo: ["Instructora", "Administración", "Recepción"],

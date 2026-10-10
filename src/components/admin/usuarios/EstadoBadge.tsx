@@ -7,11 +7,12 @@ import type { EstadoMembresia } from "@/lib/admin/types";
 export { default as Pastilla } from "@/components/admin/Pastilla";
 
 /**
- * Los cinco estados de membresía.
+ * Los seis estados de un cliente.
  *
  * `Inactiva` va en neutro a propósito: no es una alarma, es alguien que dejó de
  * venir. `Sin plan` también: es alguien recién dado de alta, no un problema;
  * lleva un símbolo propio (◇) para no confundirse con «Inactiva» (○).
+ * `De baja` es neutro y con raya (–): se fue, no hay nada que resolver.
  */
 const ESTILOS: Record<EstadoMembresia, { simbolo: string; clase: string }> = {
   Activa: { simbolo: "●", clase: TONO_ESTADO.ok },
@@ -19,6 +20,7 @@ const ESTILOS: Record<EstadoMembresia, { simbolo: string; clase: string }> = {
   Vencida: { simbolo: "■", clase: TONO_ESTADO.grave },
   Inactiva: { simbolo: "○", clase: TONO_ESTADO.neutro },
   "Sin plan": { simbolo: "◇", clase: TONO_ESTADO.neutro },
+  "De baja": { simbolo: "–", clase: TONO_ESTADO.neutro },
 };
 
 export default function EstadoBadge({ estado }: { estado: EstadoMembresia }) {

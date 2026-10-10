@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/context/ToastContext";
 import {
   useRef,
   useState,
@@ -21,7 +23,7 @@ import {
   TIPOS_IDENTIFICACION,
   URL_TERMINOS,
 } from "@/lib/admin/catalogos";
-import { crearCliente } from "@/lib/admin/acciones";
+import { crearCliente, editarCliente, type AltaCliente } from "@/lib/admin/acciones";
 import { documento, fechaCompacta } from "@/lib/admin/format";
 import type { TipoIdentificacion } from "@/lib/admin/types";
 import {
@@ -126,6 +128,32 @@ const INICIAL: Valores = {
 
 type Errores = Partial<Record<Campo, string>>;
 
+/**
+ * Los datos guardados de un cliente → los valores del formulario. Para editar.
+ * Una EPS que no está en la lista va a «Otra» con su nombre: así no se pierde
+ * ni se queda un desplegable vacío.
+ */
+function valoresDe(a: AltaCliente): Valores {
+  const epsConocida = a.eps === "" || (EPS as readonly string[]).includes(a.eps);
+  return {
+    ...INICIAL,
+    nombre: a.nombre,
+    tipoIdentificacion: a.tipoIdentificacion,
+    identificacion: a.identificacion,
+    fechaNacimiento: a.fechaNacimiento,
+    telefono: a.telefono,
+    correo: a.correo,
+    eps: epsConocida ? a.eps : EPS_OTRA,
+    epsOtra: epsConocida ? "" : a.eps,
+    emergenciaNombre: a.emergenciaNombre,
+    emergenciaTelefono: a.emergenciaTelefono,
+    tutorNombrePropio: a.acudiente?.nombre ?? "",
+    tutorIdentificacion: a.acudiente?.identificacion ?? "",
+    tutorTelefonoPropio: a.acudiente?.telefono ?? "",
+    terminos: a.aceptaTerminos,
+  };
+}
+
 const MSJ_MOVIL = "El móvil colombiano tiene 10 dígitos y empieza por 3.";
 const MSJ_DOC = `El documento tiene entre ${DOC_MIN} y ${DOC_MAX} dígitos.`;
 
@@ -140,7 +168,19 @@ type Contexto = {
   nombresExistentes: Record<string, string>;
   tutorNombre: string;
   tutorTelefono: string;
+  /** Al EDITAR: los campos que la ficha ya tenía vacíos (clientes de la web o
+   *  de antes). Pueden seguir vacíos; si se rellenan, se validan igual. */
+  opcionales: Campo[];
 };
+
+/** Los datos que el registro web no pide: al editar, pueden seguir vacíos. */
+const OPCIONALES_AL_EDITAR: { campo: Campo; vacio: (a: AltaCliente) => boolean }[] = [
+  { campo: "fechaNacimiento", vacio: (a) => !a.fechaNacimiento },
+  { campo: "telefono", vacio: (a) => !a.telefono },
+  { campo: "eps", vacio: (a) => !a.eps },
+  { campo: "emergenciaNombre", vacio: (a) => !a.emergenciaNombre },
+  { campo: "emergenciaTelefono", vacio: (a) => !a.emergenciaTelefono },
+];
 
 /** El valor visible del campo, para poder saber si está vacío. */
 function valorDe(campo: Campo, v: Valores, ctx: Contexto): string {
@@ -164,6 +204,7 @@ function valorDe(campo: Campo, v: Valores, ctx: Contexto): string {
  * al salir del campo y el que sale al enviar no coincidan.
  */
 function errorDe(campo: Campo, v: Valores, ctx: Contexto): string | undefined {
+  if (ctx.opcionales.includes(campo) && !valorDe(campo, v, ctx)) return undefined;
   const alfanumerico = TIPOS_ALFANUMERICOS.includes(v.tipoIdentificacion);
 
   switch (campo) {
@@ -296,11 +337,20 @@ const enServidor = () => "";
 export default function FormularioAlta({
   documentosExistentes,
   nombresExistentes,
+  editar,
 }: {
   documentosExistentes: Record<string, string>;
   nombresExistentes: Record<string, string>;
+  /**
+   * Editar un cliente que ya existe: sus datos de partida. Las listas de
+   * existentes tienen que llegar SIN él, o su propio documento saldría como
+   * repetido. Al guardar vuelve a su ficha.
+   */
+  editar?: { id: string; datos: AltaCliente };
 }) {
-  const [v, setV] = useState<Valores>(INICIAL);
+  const router = useRouter();
+  const { mostrarAviso } = useToast();
+  const [v, setV] = useState<Valores>(() => (editar ? valoresDe(editar.datos) : INICIAL));
   const [errores, setErrores] = useState<Errores>({});
   const [intentado, setIntentado] = useState(false);
   /** El cliente recién guardado: su id para enlazar a la ficha y el nombre
@@ -312,7 +362,7 @@ export default function FormularioAlta({
   const [errorEnvio, setErrorEnvio] = useState("");
   const [guardando, iniciarGuardado] = useTransition();
   /** Si nadie ha tocado el tipo de documento, la edad puede sugerirlo. */
-  const [tipoTocado, setTipoTocado] = useState(false);
+  const [tipoTocado, setTipoTocado] = useState(editar !== undefined);
 
   /**
    * La fecha de hoy, **solo en el cliente**.
@@ -356,6 +406,9 @@ export default function FormularioAlta({
     nombresExistentes,
     tutorNombre,
     tutorTelefono,
+    opcionales: editar
+      ? OPCIONALES_AL_EDITAR.filter((o) => o.vacio(editar.datos)).map((o) => o.campo)
+      : [],
   };
   const avisos = avisosDe(v, ctx);
 
@@ -411,7 +464,7 @@ export default function FormularioAlta({
     const nombre = v.nombre.trim();
     setErrorEnvio("");
     iniciarGuardado(async () => {
-      const r = await crearCliente({
+      const datos: AltaCliente = {
         nombre,
         tipoIdentificacion: v.tipoIdentificacion,
         identificacion: v.identificacion,
@@ -430,9 +483,15 @@ export default function FormularioAlta({
               }
             : undefined,
         aceptaTerminos: v.terminos,
-      });
+      };
+      const r = editar ? await editarCliente(editar.id, datos) : await crearCliente(datos);
 
       if (r.ok) {
+        if (editar) {
+          mostrarAviso(`Datos de ${nombre} guardados.`, "success");
+          router.push(`/admin/usuarios/${editar.id}`);
+          return;
+        }
         setCreado({ id: r.id, nombre });
         return;
       }
@@ -874,7 +933,7 @@ export default function FormularioAlta({
           «Guardar» al final de un scroll largo es donde se pierde la gente. */}
       <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center justify-end gap-3 border-t border-beige bg-arena/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
         <Link
-          href="/admin/usuarios"
+          href={editar ? `/admin/usuarios/${editar.id}` : "/admin/usuarios"}
           className="control-fx relative inline-flex min-h-[44px] items-center overflow-hidden rounded-full px-5 text-sm text-verde-700 transition-colors duration-300 hover:text-verde"
         >
           <span className="control-sheen" aria-hidden="true" />
@@ -889,7 +948,7 @@ export default function FormularioAlta({
           className="control-fx relative inline-flex min-h-[44px] items-center gap-2 overflow-hidden rounded-full bg-verde px-6 text-sm text-arena transition-colors duration-300 hover:bg-verde-700 disabled:opacity-60"
         >
           <span className="control-sheen" aria-hidden="true" />
-          {guardando ? "Guardando…" : "Guardar cliente"}
+          {guardando ? "Guardando…" : editar ? "Guardar cambios" : "Guardar cliente"}
         </button>
       </div>
     </form>

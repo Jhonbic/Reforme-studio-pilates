@@ -60,25 +60,35 @@ export type ResultadoAlta =
  * quiera, sin pasar por el formulario. Los mensajes son cortos a propósito:
  * con el formulario de por medio no deberían verse nunca.
  */
-function problemaDe(a: AltaCliente, hoy: string): string | null {
+function problemaDe(
+  a: AltaCliente,
+  hoy: string,
+  puedenFaltar: Partial<Record<keyof AltaCliente, boolean>> = {},
+): string | null {
+  /* Al EDITAR, lo que la ficha ya tenía vacío (clientes de la web o de antes)
+     puede seguir vacío; si se rellena, se valida igual que en el alta. */
+  const vacio = (k: keyof AltaCliente) => puedenFaltar[k] === true && !String(a[k] ?? "").trim();
   if (a.nombre.trim().length < 3) return "Falta el nombre.";
   if (!TIPOS_IDENTIFICACION.includes(a.tipoIdentificacion))
     return "Tipo de documento no válido.";
   if (!/^[A-Z0-9]{4,15}$/.test(a.identificacion))
     return "Número de documento no válido.";
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(a.fechaNacimiento) || a.fechaNacimiento > hoy)
+  if (
+    !vacio("fechaNacimiento") &&
+    (!/^\d{4}-\d{2}-\d{2}$/.test(a.fechaNacimiento) || a.fechaNacimiento > hoy)
+  )
     return "Fecha de nacimiento no válida.";
-  if (!esMovilCO(a.telefono)) return "Teléfono no válido.";
+  if (!vacio("telefono") && !esMovilCO(a.telefono)) return "Teléfono no válido.";
   if (a.correo && !esCorreo(a.correo)) return "Correo no válido.";
-  if (!a.eps.trim()) return "Falta la EPS.";
-  if (a.emergenciaNombre.trim().length < 3)
+  if (!vacio("eps") && !a.eps.trim()) return "Falta la EPS.";
+  if (!vacio("emergenciaNombre") && a.emergenciaNombre.trim().length < 3)
     return "Falta el contacto de emergencia.";
-  if (!esMovilCO(a.emergenciaTelefono))
+  if (!vacio("emergenciaTelefono") && !esMovilCO(a.emergenciaTelefono))
     return "Teléfono de emergencia no válido.";
 
   // La minoría de edad se decide AQUÍ, con la fecha del servidor, y no se
   // cree la del navegador: si no, bastaría con no mandar acudiente.
-  const anios = edad(a.fechaNacimiento, hoy);
+  const anios = a.fechaNacimiento ? edad(a.fechaNacimiento, hoy) : null;
   if (anios !== null && anios < MAYORIA_DE_EDAD) {
     const t = a.acudiente;
     if (!t || t.nombre.trim().length < 3 || !t.identificacion || !esMovilCO(t.telefono))
@@ -146,6 +156,120 @@ export async function crearCliente(a: AltaCliente): Promise<ResultadoAlta> {
   revalidatePath("/admin/usuarios");
   revalidatePath("/admin");
   return { ok: true, id: data.id };
+}
+
+/**
+ * Guarda los datos de un cliente que ya existe. Las MISMAS reglas que el alta
+ * (`problemaDe`): un formulario de edición más permisivo que el de alta
+ * dejaría colar por la puerta de atrás lo que el alta impide.
+ *
+ * Al pasar de menor a adulto (corrigiendo la fecha), el acudiente se borra:
+ * guardado, diría que alguien firma por un adulto.
+ */
+export async function editarCliente(id: string, a: AltaCliente): Promise<ResultadoAlta> {
+  const usuario = await getUsuarioActual();
+  if (usuario?.rol !== "Administración" && usuario?.rol !== "Recepción") {
+    return { ok: false, error: "Tu rol no puede editar clientes." };
+  }
+  if (!UUID_VALIDO.test(id)) return { ok: false, error: "Cliente no válido." };
+
+  const supabase = await crearClienteServidor();
+  const { data: actual } = await supabase
+    .from("clientes")
+    .select("fecha_nacimiento, telefono, eps, emergencia_nombre, emergencia_telefono")
+    .eq("id", id)
+    .maybeSingle();
+  if (!actual) return { ok: false, error: "Ese cliente ya no existe." };
+  const problema = problemaDe(a, hoyEnBogota(), {
+    fechaNacimiento: !actual.fecha_nacimiento,
+    telefono: !actual.telefono,
+    eps: !actual.eps,
+    emergenciaNombre: !actual.emergencia_nombre,
+    emergenciaTelefono: !actual.emergencia_telefono,
+  });
+  if (problema) return { ok: false, error: problema };
+
+  const { error, count } = await supabase
+    .from("clientes")
+    .update(
+      {
+        nombre: a.nombre.trim(),
+        tipo_identificacion: a.tipoIdentificacion,
+        identificacion: a.identificacion,
+        // Vacío es NULL, no cadena vacía: la base no acepta "" como fecha ni
+        // como teléfono.
+        fecha_nacimiento: a.fechaNacimiento || null,
+        telefono: a.telefono || null,
+        correo: a.correo.trim().toLowerCase() || null,
+        eps: a.eps.trim() || null,
+        emergencia_nombre: a.emergenciaNombre.trim() || null,
+        emergencia_telefono: a.emergenciaTelefono || null,
+        acudiente_nombre: a.acudiente?.nombre.trim() ?? null,
+        acudiente_identificacion: a.acudiente?.identificacion ?? null,
+        acudiente_telefono: a.acudiente?.telefono ?? null,
+        acepta_terminos: a.aceptaTerminos,
+      },
+      { count: "exact" },
+    )
+    .eq("id", id);
+
+  if (error) {
+    if (error.code === "23505") {
+      return {
+        ok: false,
+        campo: "identificacion",
+        error: "Ya hay otro cliente con ese tipo y número de documento.",
+      };
+    }
+    return { ok: false, error: `No se pudo guardar: ${error.message}` };
+  }
+  if (count === 0) return { ok: false, error: "Ese cliente ya no existe." };
+
+  revalidatePath("/admin/usuarios", "layout");
+  revalidatePath("/admin");
+  return { ok: true, id };
+}
+
+export type ResultadoBaja = { ok: true; reservasQuitadas: number } | { ok: false; error: string };
+
+/**
+ * Da de baja a un cliente (`dar_de_baja` en la base): no se borra nada de su
+ * historia; se le quitan las reservas de clases que no han empezado y deja de
+ * poder reservar o comprar plan hasta que se le reactive.
+ */
+export async function darDeBaja(id: string, motivo: string): Promise<ResultadoBaja> {
+  const usuario = await getUsuarioActual();
+  if (usuario?.rol !== "Administración" && usuario?.rol !== "Recepción") {
+    return { ok: false, error: "Tu rol no puede dar de baja clientes." };
+  }
+  if (!UUID_VALIDO.test(id)) return { ok: false, error: "Cliente no válido." };
+
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("dar_de_baja", {
+    p_cliente: id,
+    p_motivo: motivo.trim().slice(0, 200),
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/admin/usuarios", "layout");
+  revalidatePath("/admin");
+  revalidatePath("/admin/clases");
+  return { ok: true, reservasQuitadas: (data as { reservas_quitadas: number }).reservas_quitadas };
+}
+
+/** Vuelve a ser cliente del estudio. */
+export async function reactivarCliente(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const usuario = await getUsuarioActual();
+  if (usuario?.rol !== "Administración" && usuario?.rol !== "Recepción") {
+    return { ok: false, error: "Tu rol no puede reactivar clientes." };
+  }
+  if (!UUID_VALIDO.test(id)) return { ok: false, error: "Cliente no válido." };
+
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("reactivar_cliente", { p_cliente: id });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/admin/usuarios", "layout");
+  revalidatePath("/admin");
+  return { ok: true };
 }
 
 /* ======================================================================

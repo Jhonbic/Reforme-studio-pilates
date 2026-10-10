@@ -96,8 +96,11 @@ const porNombre = (a: { nombre: string }, b: { nombre: string }) =>
  */
 export function resumenClientes(d: DatosDashboard, hoy: string) {
   const desdeRecuperable = sumarDias(hoy, -VENTANA);
+  /* Quien se dio de baja no es activo HOY aunque le quede plan. Hace 30 días
+     sí lo era: esa cifra se cuenta con todas. */
+  const deBaja = new Set(d.clientes.filter((c) => c.estado === "De baja").map((c) => c.id));
   return {
-    activos: vigentesEl(hoy, d.membresias),
+    activos: vigentesEl(hoy, d.membresias.filter((m) => !deBaja.has(m.clienteId))),
     activosHace30: vigentesEl(sumarDias(hoy, -VENTANA), d.membresias),
     sinPlan: d.clientes.filter((c) => c.estado === "Sin plan").length,
     recuperables: d.clientes.filter(
@@ -132,6 +135,7 @@ export function porVencer(d: DatosDashboard, hoy: string): PorVencer[] {
       (c) =>
         c.vencimiento !== null &&
         c.estado !== "Vencida" &&
+        c.estado !== "De baja" &&
         c.vencimiento >= hoy &&
         c.vencimiento <= limite,
     )

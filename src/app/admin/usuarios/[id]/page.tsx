@@ -17,6 +17,7 @@ import {
   getClasesParaReservar,
   getHistorialClases,
   getMembresiasConSaldo,
+  getMotivoBaja,
   getPagosPendientes,
   getPlanesALaVenta,
   getSaldoCliente,
@@ -31,8 +32,8 @@ import {
  * una pantalla nueva que se le ocurra a nadie, es el destino que el listado
  * llevaba prometiendo desde que se construyó.
  *
- * Lee de Supabase y es de **solo lectura** por ahora. Lo que sí puede hacer
- * —descargar la ficha— lo hace de verdad.
+ * Lee de Supabase. Desde «Acciones» el mostrador edita los datos
+ * (`/admin/usuarios/[id]/editar`) y da de baja o reactiva.
  *
  * Sin `generateStaticParams`: los clientes viven en la base y cambian, y el
  * panel ya se pinta por petición desde que hay sesión. Prerenderizar fichas en
@@ -104,6 +105,8 @@ export default async function FichaClientePage({
   /* Un id que no existe es un 404 de verdad, no una tarjeta vacía: la ficha de
      alguien que no está no es «sin datos», es otra dirección. */
   if (!cliente) notFound();
+  const deBaja = cliente.estado === "De baja";
+  const motivoBaja = deBaja ? await getMotivoBaja(cliente.id) : null;
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-4">
@@ -129,7 +132,7 @@ export default async function FichaClientePage({
               aplastaban el nombre en dos líneas. En `xl` caben al lado. */}
           <div className="flex w-full flex-wrap items-center gap-2 sm:gap-3 xl:w-auto">
             <EstadoBadge estado={cliente.estado} />
-            {puedeCobrar && (
+            {puedeCobrar && !deBaja && (
               <AsignarPlan
                 clienteId={cliente.id}
                 nombre={cliente.nombre}
@@ -139,7 +142,7 @@ export default async function FichaClientePage({
               />
             )}
             {/* Reservar parte de la PERSONA: «resérvame el jueves a las 7». */}
-            {puedeCobrar && (
+            {puedeCobrar && !deBaja && (
               <ReservarClaseCliente
                 clienteId={cliente.id}
                 nombre={cliente.nombre}
@@ -156,9 +159,15 @@ export default async function FichaClientePage({
                 tieneAcceso={accesoWeb}
               />
             )}
-            <AccionesCliente cliente={cliente} />
+            <AccionesCliente cliente={cliente} puedeEditar={puedeCobrar} />
           </div>
         </div>
+        {deBaja && cliente.baja && (
+          <p className="mt-4 rounded-xl bg-arena px-4 py-3 text-sm text-verde-700">
+            De baja desde el {fecha(cliente.baja, true)}
+            {motivoBaja && <> · {motivoBaja}</>}
+          </p>
+        )}
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2">

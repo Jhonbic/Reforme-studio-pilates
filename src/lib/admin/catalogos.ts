@@ -39,6 +39,7 @@ export const ESTADOS_MEMBRESIA: EstadoMembresia[] = [
   "Vencida",
   "Inactiva",
   "Sin plan",
+  "De baja",
 ];
 
 export const TIPOS_IDENTIFICACION: TipoIdentificacion[] = [

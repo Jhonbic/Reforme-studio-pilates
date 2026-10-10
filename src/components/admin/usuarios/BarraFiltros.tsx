@@ -99,11 +99,11 @@ export default function BarraFiltros({
             aria-label="Filtrar por estado de membresía"
             className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:-mx-5 sm:px-5 lg:mx-0 lg:flex-wrap lg:px-0 [&::-webkit-scrollbar]:hidden"
           >
-            {/* «Sin plan» solo aparece si hay alguien así (o si está elegida):
-                es un estado de paso, y una pastilla «Sin plan 0» fija sería una
-                sexta pastilla en móvil para no decir nada. */}
+            {/* «Sin plan» y «De baja» solo aparecen si hay alguien así (o si
+                están elegidas): una pastilla «… 0» fija sería una más en móvil
+                para no decir nada. */}
             {ESTADOS.filter(
-              (e) => e !== "Sin plan" || conteos[e] > 0 || e === estado,
+              (e) => (e !== "Sin plan" && e !== "De baja") || conteos[e] > 0 || e === estado,
             ).map((e) => {
               const activo = e === estado;
               return (

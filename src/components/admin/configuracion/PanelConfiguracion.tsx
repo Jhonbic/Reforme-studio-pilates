@@ -38,19 +38,13 @@ export default function PanelConfiguracion({ config, hoy }: { config: Configurac
       <DiasCerrados config={config} hoy={hoy} />
       <Card>
         <CardHeader titulo="Formas de pago" />
-        <p className="mt-2 text-sm text-verde-700">
-          Las que se pueden elegir al cobrar un plan y al registrar un gasto:
-        </p>
-        <ul className="mt-3 flex flex-wrap gap-2">
+        <ul className="mt-4 flex flex-wrap gap-2">
           {METODOS_PAGO.map((m) => (
             <li key={m} className="rounded-full border border-beige px-3 py-1 text-sm text-verde-700">
               {m}
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-xs text-verde-300">
-          Para añadir otra, pídela: queda guardada en cada pago y en los informes.
-        </p>
       </Card>
     </div>
   );
@@ -92,7 +86,6 @@ function AgendaYReservas({ config }: { config: Configuracion }) {
           etiqueta="Cancelar desde la web hasta"
           value={String(horas)}
           onChange={(e) => setHoras(Number(e.target.value))}
-          ayuda="Antes de que empiece la clase. Cancelar a tiempo devuelve la clase al plan; después, se habla con recepción."
         >
           {HORAS.map((n) => (
             <option key={n} value={n}>
@@ -125,10 +118,6 @@ function MetaClientes({ meta }: { meta: number }) {
   return (
     <Card>
       <CardHeader titulo="Meta de clientes" />
-      <p className="mt-2 text-sm text-verde-700">
-        Cuántos clientes con plan vigente quiere tener el estudio. El dashboard enseña cuántos hay
-        y cuántos faltan.
-      </p>
       <div className="mt-4 flex flex-wrap items-end gap-3">
         <div className="w-40">
           <CampoTexto
@@ -158,10 +147,6 @@ function Salas({ salas }: { salas: Sala[] }) {
   return (
     <Card>
       <CardHeader titulo="Salas" />
-      <p className="mt-2 text-sm text-verde-700">
-        Cuántas personas caben en cada una. Ninguna clase puede tener más cupos que su sala, y al
-        cambiarlo cambian las próximas clases de esa sala.
-      </p>
       <ul className="mt-4 space-y-3">
         {salas.map((s) => (
           <FilaSala key={s.id} sala={s} />
@@ -226,11 +211,6 @@ function DiasCerrados({ config, hoy }: { config: Configuracion; hoy: string }) {
   return (
     <Card className="lg:col-span-2">
       <CardHeader titulo="Días cerrados" />
-      <p className="mt-2 text-sm text-verde-700">
-        Festivos, vacaciones o cualquier día sin clases. La agenda quita las clases de ese día que
-        nadie había reservado y no vuelve a crearlas; las que ya tenían reservas se quedan para que
-        las canceles y avises.
-      </p>
 
       <form onSubmit={cerrar} noValidate className="mt-4 grid gap-3 sm:grid-cols-[12rem_minmax(0,1fr)_auto] sm:items-end">
         <CampoTexto

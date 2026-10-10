@@ -10,6 +10,7 @@ import {
 import type { DatosEstadisticas } from "./estadisticas";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/tipos";
+import type { AltaCliente } from "./acciones";
 
 type FilaClienteVigente =
   Database["public"]["Views"]["clientes_vigentes"]["Row"];
@@ -132,6 +133,7 @@ function aCliente(f: FilaClienteVigente): Cliente {
     alta: f.alta ?? "",
     ultimaAsistencia: f.ultima_asistencia,
     importeRenovacion: f.importe_renovacion ?? 0,
+    baja: f.baja,
   };
 }
 
@@ -480,6 +482,46 @@ export const getCliente = cache(
 );
 
 /**
+ * Todos los datos de la ficha de un cliente, tal como los pide el formulario
+ * (para editarlos). La vista no los trae: EPS, emergencia y acudiente viven
+ * solo en `clientes`. Teléfonos en dígitos crudos, como se guardan.
+ */
+export async function getDatosCliente(id: string): Promise<AltaCliente | undefined> {
+  if (!UUID.test(id)) return undefined;
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.from("clientes").select("*").eq("id", id).maybeSingle();
+  if (error) throw new Error(`No se pudo leer el cliente: ${error.message}`);
+  if (!data) return undefined;
+  return {
+    nombre: data.nombre,
+    tipoIdentificacion: data.tipo_identificacion,
+    identificacion: data.identificacion,
+    fechaNacimiento: data.fecha_nacimiento ?? "",
+    telefono: data.telefono ?? "",
+    correo: data.correo ?? "",
+    eps: data.eps ?? "",
+    emergenciaNombre: data.emergencia_nombre ?? "",
+    emergenciaTelefono: data.emergencia_telefono ?? "",
+    acudiente: data.acudiente_nombre
+      ? {
+          nombre: data.acudiente_nombre,
+          identificacion: data.acudiente_identificacion ?? "",
+          telefono: data.acudiente_telefono ?? "",
+        }
+      : undefined,
+    aceptaTerminos: data.acepta_terminos,
+  };
+}
+
+/** Motivo de la baja de un cliente, o `null`. Solo lo enseña la ficha. */
+export async function getMotivoBaja(id: string): Promise<string | null> {
+  if (!UUID.test(id)) return null;
+  const supabase = await crearClienteServidor();
+  const { data } = await supabase.from("clientes").select("baja_motivo").eq("id", id).maybeSingle();
+  return data?.baja_motivo ?? null;
+}
+
+/**
  * El catálogo de planes (tabla `planes`) con lo que ha pasado con cada uno,
  * del más barato al más caro.
  *
@@ -518,7 +560,7 @@ export async function getPlanes(
 
   const clientes = new Map<string, number>();
   for (const v of vigentes.data) {
-    if (!v.plan || v.estado === "Vencida") continue;
+    if (!v.plan || v.estado === "Vencida" || v.estado === "De baja") continue;
     clientes.set(v.plan, (clientes.get(v.plan) ?? 0) + 1);
   }
 
@@ -604,12 +646,14 @@ export function getConteoEstados(
   clientes: Cliente[],
 ): Record<EstadoMembresia | "Todas", number> {
   const conteo: Record<EstadoMembresia | "Todas", number> = {
-    Todas: clientes.length,
+    // «Todas» son las que siguen en el estudio: las de baja tienen su pastilla.
+    Todas: clientes.filter((c) => c.estado !== "De baja").length,
     Activa: 0,
     "Por vencer": 0,
     Vencida: 0,
     Inactiva: 0,
     "Sin plan": 0,
+    "De baja": 0,
   };
   // Se cuenta sobre la lista que ya se pidió, no con otra consulta: así las
   // pastillas y las filas no pueden decir cosas distintas.

@@ -127,7 +127,8 @@ export default function PanelUsuarios({
        «laura» busca nombre, y no hay ningún selector que mantener. */
     const digitos = soloDigitos(busqueda);
     const filtrados = clientes.filter((c) => {
-      if (estado !== "Todas" && c.estado !== estado) return false;
+      // «Todas» son las que siguen en el estudio; las de baja, en su pastilla.
+      if (estado === "Todas" ? c.estado === "De baja" : c.estado !== estado) return false;
       if (plan !== "Todos" && c.plan !== plan) return false;
       if (!q) return true;
       if (digitos && c.identificacion.includes(digitos)) return true;

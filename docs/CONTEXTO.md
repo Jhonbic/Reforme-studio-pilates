@@ -70,7 +70,7 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
 | `npm test` | **Vitest**, 63 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 84 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm run test:db` | **pgTAP**, 90 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -1870,6 +1870,43 @@ equipo la ve en solo lectura y sin saber quién tiene acceso.
   (`getInstructoras`): sus clases apuntan a esos ids. Pasa a la tabla con la
   agenda (paso 9).
 
+#### Editar datos y dar de baja (ficha del cliente) — oct 2026
+
+Menú «Acciones» de la ficha, solo Administración y Recepción. Migraciones
+`20261017120000_estado_de_baja` (el valor del enum, solo: no se puede usar
+en la transacción que lo crea) y `20261017120100_dar_de_baja`.
+
+- **Editar datos** → `/admin/usuarios/[id]/editar`: el MISMO
+  `FormularioAlta` (prop `editar`), con las mismas reglas (`editarCliente`
+  reutiliza `problemaDe`). Las listas de duplicados llegan sin el propio
+  cliente. Al guardar vuelve a la ficha con un aviso. La topbar titula
+  «Editar datos» con «← Ficha del cliente».
+  - ⚠️ **Lo que la ficha ya tenía vacío puede seguir vacío** (fecha de
+    nacimiento, teléfono, EPS, emergencia): los clientes de la web y los
+    antiguos no los tienen, y obligaba a rellenar cuatro campos para cambiar
+    un teléfono. Si se rellenan, se validan igual. El servidor lo decide
+    leyendo la fila actual, no fiándose del formulario. Vacío se guarda NULL.
+- **Dar de baja** (`dar_de_baja`, con motivo opcional) NO borra: su historia
+  se queda. Le quita las reservas de clases que no han empezado y lo saca de
+  las listas de espera. Nuevo estado **«De baja»** (–, neutro), que en la
+  vista `clientes_vigentes` gana a todo; la vista añade la columna `baja` al
+  final.
+  - ⚠️ La BASE impide que un cliente de baja reserve, se apunte a la espera o
+    compre un plan (triggers `reservas_a_cliente_activo`, `…lista_espera…`,
+    `…membresias…`). `reservas_a_…` corre antes que los demás triggers de
+    reservas por orden alfabético.
+  - Listado: fuera de «Todas»; tiene su pastilla «De baja» (solo si hay
+    alguno). No cuenta como activo hoy en el dashboard, ni en «Por vencer»,
+    ni en los clientes por plan.
+  - Ficha: «De baja desde el … · motivo», sin «Asignar plan» ni «Reservar».
+    `/mi-cuenta` le dice «Tu cuenta está inactiva».
+- **Reactivar** (`reactivar_cliente`) lo devuelve tal cual estaba.
+- 6 tests de base (90). Probado en el navegador a 1280 y 390 px: editar el
+  teléfono de una cliente sin EPS ni emergencia, dar de baja (le quitó sus
+  reservas), fuera de «Todas», reactivar.
+- Se quitaron también los textos de ayuda del formulario de clase y los
+  párrafos explicativos de Configuración (decisión del usuario).
+
 #### Cabecera de la ficha del cliente
 
 - ⚠️ Estado + «Renovar» + «Acceso web» + «Acciones» van en **fila propia con
@@ -2024,7 +2061,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **23 migraciones (la `20261016120000_series_con_fin` aún solo en local)** |
+| Esquema | `supabase/migrations/` — **25 migraciones (las dos `20261017…` de la baja, aún solo en local)** |
 
 ### Variables de entorno
 
@@ -2297,8 +2334,10 @@ y el aviso de «pocas clases» del 7.
       contraseña). La lista de espera ya existe (paso 5).
 - [ ] **Recuperar contraseña** desde `/login`. Necesita SMTP propio en Supabase
       (el gratuito solo envía a los miembros del proyecto de Supabase).
-- [ ] **Ficha del cliente**: editar datos, dar de baja, e historial de pagos y
-      membresías (hoy los cobros solo se ven en Finanzas).
+- [x] ~~Ficha del cliente: editar datos y dar de baja~~ — hecho (ver §6,
+      «Editar datos y dar de baja»).
+- [ ] **Ficha del cliente**: historial de pagos y membresías (hoy los cobros
+      solo se ven en Finanzas).
 - [ ] **Borrar un gasto** (la base lo permite a Administración; no hay botón) y
       **devoluciones** (los pagos no se editan ni se borran, por diseño).
 - [ ] **Presupuestos**: se leen en Finanzas pero no hay pantalla para

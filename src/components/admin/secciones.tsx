@@ -132,6 +132,8 @@ export const SUBSECCIONES: Record<string, Subseccion> = {
 
 /** `/admin/usuarios/<id>`: un segmento más, sin barras dentro. */
 const RUTA_FICHA = /^\/admin\/usuarios\/([^/]+)$/;
+/** `/admin/usuarios/<id>/editar`. */
+const RUTA_EDITAR = /^\/admin\/usuarios\/([^/]+)\/editar$/;
 
 /**
  * La subsección de una ruta, si la tiene.
@@ -149,6 +151,16 @@ const RUTA_FICHA = /^\/admin\/usuarios\/([^/]+)$/;
 export function subseccionDe(pathname: string): Subseccion | undefined {
   const exacta = SUBSECCIONES[pathname];
   if (exacta) return exacta;
+
+  const editar = RUTA_EDITAR.exec(pathname);
+  if (editar) {
+    // «← Ficha»: se vuelve a la persona, no al listado.
+    return {
+      label: "Editar datos",
+      volverA: `/admin/usuarios/${editar[1]}`,
+      volverLabel: "Ficha del cliente",
+    };
+  }
 
   if (RUTA_FICHA.test(pathname)) {
     return {

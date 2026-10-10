@@ -97,7 +97,8 @@ export default function PanelCliente({
   }
   const delDia = agenda.filter((c) => c.fecha === dia);
   const nombre = cuenta.nombre.split(" ")[0];
-  const conPlan = cuenta.estado !== "Sin plan" && cuenta.estado !== "Vencida";
+  // De baja no reserva aunque le quede plan: la base lo impide.
+  const conPlan = !["Sin plan", "Vencida", "De baja"].includes(cuenta.estado);
 
   function ejecutar(
     claseId: string,
@@ -167,11 +168,16 @@ export default function PanelCliente({
              para luego descubrir que no puede. */
           <div className="rounded-2xl border border-dorado/50 bg-dorado/10 p-5">
             <p className="font-display text-xl text-verde">
-              {cuenta.estado === "Vencida" ? "Tu plan venció" : "Aún no tienes un plan"}
+              {cuenta.estado === "Vencida"
+                ? "Tu plan venció"
+                : cuenta.estado === "De baja"
+                  ? "Tu cuenta está inactiva"
+                  : "Aún no tienes un plan"}
             </p>
             <p className="mt-1 text-sm text-verde-700">
-              Para reservar necesitas un plan vigente. Actívalo en recepción o escríbenos y te
-              ayudamos.
+              {cuenta.estado === "De baja"
+                ? "Escríbenos o pasa por recepción y la volvemos a activar."
+                : "Para reservar necesitas un plan vigente. Actívalo en recepción o escríbenos y te ayudamos."}
             </p>
             <a
               href={WHATSAPP}

@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(84);
+select plan(90);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -644,6 +644,51 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
 select is((select count(*)::int from membresias_pendientes), 0, 'un cliente no ve los pagos pendientes');
+reset role;
+
+-- Dar de baja ---------------------------------------------------------------
+-- Una clase futura con la cliente sin plan apuntada (sin sesión: sin ligar).
+set local request.jwt.claims to '{}';
+insert into clases (id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos) values
+  ('00000000-0000-0000-0000-00000000aa21', 'Mat', current_date + 40, '12:00', 50,
+   '00000000-0000-0000-0000-0000000000e1', 8);
+insert into reservas (clase_id, cliente_id)
+  values ('00000000-0000-0000-0000-00000000aa21', '00000000-0000-0000-0000-0000000000d2');
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+-- (Tiene más reservas futuras de bloques anteriores: lo que importa es que
+-- no le quede ninguna.)
+select dar_de_baja('00000000-0000-0000-0000-0000000000d2', 'Se mudó');
+select is(
+  (select count(*)::int from reservas r join clases c on c.id = r.clase_id
+    where r.cliente_id = '00000000-0000-0000-0000-0000000000d2'
+      and not c.cancelada and c.fecha > current_date),
+  0, 'dar de baja quita las reservas de clases que no han empezado');
+select is(
+  (select estado::text from clientes_vigentes where id = '00000000-0000-0000-0000-0000000000d2'),
+  'De baja', 'un cliente de baja sale «De baja» aunque tenga plan');
+select throws_ok(
+  $$insert into reservas (clase_id, cliente_id)
+    values ('00000000-0000-0000-0000-00000000aa21', '00000000-0000-0000-0000-0000000000d2')$$,
+  'P0001', 'Ese cliente está dado de baja: reactívalo antes.',
+  'un cliente de baja no puede reservar');
+select throws_ok(
+  $$select registrar_membresia('00000000-0000-0000-0000-0000000000d2',
+                               '00000000-0000-0000-0000-0000000000b1', 'Nequi')$$,
+  'P0001', 'Ese cliente está dado de baja: reactívalo antes.',
+  'a un cliente de baja no se le vende un plan');
+select lives_ok(
+  $$select reactivar_cliente('00000000-0000-0000-0000-0000000000d2')$$,
+  'reactivar a un cliente de baja');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select throws_ok(
+  $$select dar_de_baja('00000000-0000-0000-0000-0000000000c1', '')$$,
+  '42501', null,
+  'un cliente no se da de baja (ni a sí mismo) desde la API');
 reset role;
 
 -- Registro: la tabla de intentos solo la usa el servidor (service_role).
