@@ -1962,6 +1962,10 @@ antes**.
 - **«Acceso web»** en la ficha del cliente (recepción y administración): el
   único camino para los clientes que ya existen. Contraseña temporal mostrada
   una vez, como con el equipo; si ya tiene acceso, genera otra.
+  ⚠️ **Desde oct 2026 el botón se llama «Crear contraseña web»** («Nueva
+  contraseña web» si ya tiene cuenta): «Dar acceso web» no decía qué hacía
+  (feedback del usuario). La solución de fondo —que el cliente se registre
+  solo y confirme su correo— necesita SMTP propio (ver §8).
 - **`/login`** es una sola puerta: perfil del equipo → `/admin`; ficha de
   cliente → `/mi-cuenta`; ninguna → se cierra la sesión. `?siguiente=` solo
   vale dentro de la zona de cada uno. Un cliente que escribe `/admin` va a su

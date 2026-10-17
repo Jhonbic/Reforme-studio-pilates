@@ -10,8 +10,11 @@ const BOTON_PRIMARIO =
   "inline-flex min-h-[44px] items-center justify-center rounded-full bg-dorado px-5 text-sm font-medium text-verde-900 transition-colors duration-300 hover:bg-dorado-dark disabled:opacity-60";
 
 /**
- * «Acceso a la web» desde la ficha de un cliente: para que un cliente que dio
- * de alta recepción pueda entrar a `/mi-cuenta` y reservar solo.
+ * «Crear contraseña web» desde la ficha de un cliente: para que un cliente que
+ * dio de alta recepción pueda entrar a `/mi-cuenta` y reservar desde el móvil.
+ *
+ * Se llamaba «Dar acceso web» y no se entendía qué hacía (feedback del
+ * usuario): el nombre dice ahora lo que pasa, que es crear una contraseña.
  *
  * Mismo patrón que dar acceso a alguien del equipo (`GestionMiembro`): una
  * contraseña temporal que se enseña UNA vez y no se cierra hasta pulsar
@@ -63,10 +66,10 @@ export default function AccesoWebCliente({
     <>
       <button type="button" onClick={() => setAbierto(true)} className={BOTON}>
         <span className="control-sheen" aria-hidden="true" />
-        {tieneAcceso ? "Acceso web ✓" : "Dar acceso web"}
+        {tieneAcceso ? "Nueva contraseña web" : "Crear contraseña web"}
       </button>
 
-      <Modal abierto={abierto} onCerrar={cerrar} cerrable={!enCurso} titulo={`Acceso a la web · ${nombre}`} tamano="md">
+      <Modal abierto={abierto} onCerrar={cerrar} cerrable={!enCurso} titulo={`${tieneAcceso ? "Nueva contraseña web" : "Contraseña web"} · ${nombre}`} tamano="md">
         {contrasena ? (
           <div className="space-y-4">
             <p className="text-sm text-verde-700">
@@ -83,7 +86,7 @@ export default function AccesoWebCliente({
             </div>
             <p className="text-xs text-verde-300">
               ⚠️ No se volverá a enseñar: entrégasela ahora (en persona o por
-              WhatsApp). Si se pierde, genera otra.
+              WhatsApp). Si se pierde, crea otra.
             </p>
             <div className="flex justify-end">
               <button type="button" onClick={cerrar} className={BOTON_PRIMARIO}>
@@ -95,8 +98,8 @@ export default function AccesoWebCliente({
           <div className="space-y-4">
             <p className="text-sm text-verde-700">
               {tieneAcceso
-                ? "Ya puede entrar a la web. Si olvidó su contraseña, genera una temporal nueva: la anterior dejará de servir."
-                : "Con acceso a la web puede ver su plan y sus clases, y reservar o cancelar solo. Su usuario será el correo de su ficha."}
+                ? "Ya tiene cuenta en la web. Si olvidó su contraseña, crea una nueva: la anterior dejará de servir."
+                : "Para que reserve sus clases desde el móvil. Entrará con el correo de su ficha y la contraseña que le des ahora."}
             </p>
             {error && (
               <p
@@ -112,7 +115,7 @@ export default function AccesoWebCliente({
                 Volver
               </button>
               <button type="button" onClick={generar} disabled={enCurso} className={BOTON_PRIMARIO}>
-                {enCurso ? "Generando…" : tieneAcceso ? "Nueva contraseña temporal" : "Dar acceso"}
+                {enCurso ? "Creando…" : tieneAcceso ? "Crear nueva contraseña" : "Crear contraseña"}
               </button>
             </div>
           </div>

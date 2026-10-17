@@ -5,7 +5,7 @@ import CambiarContrasena from "@/components/admin/CambiarContrasena";
 
 /**
  * «Contraseña» en la cabecera del área de cliente. Sobre todo para quien
- * recibió una contraseña temporal de recepción («Acceso web» en su ficha).
+ * recibió una contraseña temporal de recepción («Crear contraseña web» en su ficha).
  *
  * Reutiliza el diálogo del panel: la regla es la misma (pide la actual y la
  * nueva dos veces) y la server action `cambiarMiContrasena` solo usa la
