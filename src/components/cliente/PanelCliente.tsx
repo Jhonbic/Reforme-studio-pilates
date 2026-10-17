@@ -199,7 +199,7 @@ export default function PanelCliente({
             className={`rounded-xl px-4 py-3 text-sm ${
               mensaje.tipo === "ok"
                 ? "border border-[color-mix(in_srgb,var(--color-estado-ok)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-ok)_10%,transparent)] text-[var(--color-estado-ok)]"
-                : "border border-red-400/50 bg-red-50/70 text-red-700"
+                : "border border-error/40 bg-error/5 text-error"
             }`}
           >
             {mensaje.texto}
@@ -260,7 +260,7 @@ export default function PanelCliente({
                             `Reserva cancelada: ${c.tipo} de las ${c.horaInicio}. El cupo queda libre para otra persona.`,
                           )
                         }
-                        className={`${BOTON} border border-verde/30 text-verde-700 hover:border-red-400 hover:text-red-700`}
+                        className={`${BOTON} border border-verde/30 text-verde-700 hover:border-error/60 hover:text-error`}
                         /* Con el día: dos «Reformer de las 07:00» en días distintos se
                            anunciaban igual y no se sabía cuál se cancelaba. */
                         aria-label={`Cancelar la reserva de ${c.tipo}, ${diaRelativo(c.fecha, hoy).toLowerCase()} a las ${c.horaInicio}`}
@@ -380,7 +380,7 @@ export default function PanelCliente({
                       `Saliste de la lista de espera de ${c.tipo} de las ${c.horaInicio}.`,
                     )
                   }
-                  className={`${BOTON} shrink-0 border border-verde/30 text-verde-700 hover:border-red-400 hover:text-red-700`}
+                  className={`${BOTON} shrink-0 border border-verde/30 text-verde-700 hover:border-error/60 hover:text-error`}
                   aria-label={`Salir de la lista de espera de ${c.tipo}, ${diaRelativo(c.fecha, hoy).toLowerCase()} a las ${c.horaInicio}`}
                 >
                   Salir

@@ -58,9 +58,9 @@ function useRipple() {
   return { onPointerDown, rippleEls };
 }
 
-const Fx = ({ children }: { children: ReactNode }) => (
+const Fx = ({ children, sheen }: { children: ReactNode; sheen: boolean }) => (
   <>
-    <span className="btn-sheen" aria-hidden="true" />
+    {sheen && <span className="btn-sheen" aria-hidden="true" />}
     <span className="relative z-10 inline-flex items-center gap-2">
       {children}
     </span>
@@ -72,6 +72,8 @@ type CommonProps = {
   size?: Size;
   children: ReactNode;
   className?: string;
+  /** El dash diagonal dorado al hover. `false` lo quita y deja el ripple. */
+  sheen?: boolean;
 };
 
 // Como enlace (next/link)
@@ -79,6 +81,7 @@ export function ButtonLink({
   variant = "primary",
   size = "md",
   className = "",
+  sheen = true,
   children,
   onPointerDown,
   ...props
@@ -93,7 +96,7 @@ export function ButtonLink({
       }}
       {...props}
     >
-      <Fx>{children}</Fx>
+      <Fx sheen={sheen}>{children}</Fx>
       {rippleEls}
     </Link>
   );
@@ -104,6 +107,7 @@ export function Button({
   variant = "primary",
   size = "md",
   className = "",
+  sheen = true,
   children,
   onPointerDown,
   ...props
@@ -118,7 +122,7 @@ export function Button({
       }}
       {...props}
     >
-      <Fx>{children}</Fx>
+      <Fx sheen={sheen}>{children}</Fx>
       {rippleEls}
     </button>
   );

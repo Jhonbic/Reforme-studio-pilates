@@ -4,11 +4,45 @@ import {
   edad,
   esCorreo,
   esMovilCO,
+  esNombreCompleto,
+  nombrePropio,
   normalizar,
   normalizarTelefonoPegado,
   sinDigitos,
   soloDigitos,
 } from "./validacion";
+
+describe("nombrePropio", () => {
+  it("mayúscula inicial por palabra, el resto en minúscula", () => {
+    expect(nombrePropio("laura GUTIÉRREZ")).toBe("Laura Gutiérrez");
+    expect(nombrePropio("ÁNGELA ñañez")).toBe("Ángela Ñañez");
+  });
+
+  it("colapsa y recorta espacios", () => {
+    expect(nombrePropio("  ana   maría  solano ")).toBe("Ana María Solano");
+  });
+
+  it("también tras guion y apóstrofo", () => {
+    expect(nombrePropio("maría-josé o'neill")).toBe("María-José O'Neill");
+  });
+
+  it("sin excepciones para partículas", () => {
+    expect(nombrePropio("carlos de la hoz")).toBe("Carlos De La Hoz");
+  });
+});
+
+describe("esNombreCompleto", () => {
+  it("pide nombre y apellido", () => {
+    expect(esNombreCompleto("Laura Gutiérrez")).toBe(true);
+    expect(esNombreCompleto("  Laura  ")).toBe(false);
+    expect(esNombreCompleto("")).toBe(false);
+  });
+
+  it("las palabras de una letra no cuentan como apellido", () => {
+    expect(esNombreCompleto("Laura Y")).toBe(false);
+    expect(esNombreCompleto("Ana Y Pérez")).toBe(true);
+  });
+});
 
 describe("edad", () => {
   it("cumplir 18 HOY ya es ser mayor de edad (la regla legal)", () => {

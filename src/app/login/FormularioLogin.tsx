@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import TextField from "@/components/auth/TextField";
+import BotonVerContrasena from "@/components/auth/BotonVerContrasena";
 import { Button } from "@/components/ui/Button";
 import { iniciarSesion, type EstadoLogin } from "@/lib/auth/acciones";
 
@@ -56,14 +57,12 @@ export default function FormularioLogin({ siguiente, aviso }: Props) {
           autoComplete="current-password"
           required
           placeholder="••••••••"
-          hint={
-            <button
-              type="button"
-              onClick={() => setShowPass((v) => !v)}
-              className="text-xs text-verde-300 transition-colors hover:text-dorado-dark"
-            >
-              {showPass ? "Ocultar" : "Mostrar"}
-            </button>
+          accesorio={
+            <BotonVerContrasena
+              visible={showPass}
+              onToggle={() => setShowPass((v) => !v)}
+              campo="password"
+            />
           }
         />
         <div className="mt-2 text-right">
@@ -78,12 +77,27 @@ export default function FormularioLogin({ siguiente, aviso }: Props) {
 
       {/* Un solo mensaje para el formulario entero, no uno por campo: el error
           de credenciales no es de ningún campo en concreto (no se dice cuál
-          falló, a propósito). */}
+          falló, a propósito).
+          En dorado de marca y no en rojo (decisión del usuario). El dorado va en
+          el marco, el fondo y el icono, pero el TEXTO es verde: `dorado-dark`
+          sobre claro da 3,8:1 y no llega al 4,5 de AA para texto pequeño. */}
       {mensaje && (
         <p
           role="alert"
-          className="rounded-xl border border-red-400/50 bg-red-50/70 px-4 py-3 text-sm text-red-700"
+          className="flex items-start gap-2.5 rounded-xl border border-dorado/70 bg-dorado/10 px-4 py-3 text-sm text-verde"
         >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            className="mt-px h-5 w-5 shrink-0 text-dorado-dark"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7.5v5.5M12 16.5v.01" />
+          </svg>
           {mensaje}
         </p>
       )}
@@ -93,6 +107,7 @@ export default function FormularioLogin({ siguiente, aviso }: Props) {
         variant="primary"
         size="lg"
         className="w-full"
+        sheen={false}
         disabled={enviando}
       >
         {enviando ? "Entrando…" : "Iniciar sesión"}

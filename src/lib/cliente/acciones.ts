@@ -3,11 +3,17 @@
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { TIPOS_IDENTIFICACION } from "@/lib/admin/catalogos";
+import { hoyEnBogota } from "@/lib/admin/horario";
 import type { TipoIdentificacion } from "@/lib/admin/types";
+import {
+  CAMPOS_REGISTRO,
+  erroresRegistro,
+  esMenorDeEdad,
+  type FichaRegistro,
+} from "@/lib/cliente/registro";
 import { crearClienteAdmin } from "@/lib/supabase/admin";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { esCorreo, esMovilCO } from "@/lib/validacion";
+import { nombrePropio } from "@/lib/validacion";
 
 export type Resultado = { ok: true } | { ok: false; error: string; campo?: string };
 
@@ -15,15 +21,9 @@ export type Resultado = { ok: true } | { ok: false; error: string; campo?: strin
    Registro
    ====================================================================== */
 
-export type DatosRegistro = {
-  nombre: string;
-  tipoIdentificacion: string;
-  identificacion: string;
-  correo: string;
-  /** Dígitos en crudo, o vacío: el teléfono es opcional. */
-  telefono: string;
-  contrasena: string;
-  aceptaTerminos: boolean;
+/** Las reglas de cada campo viven en `registro.ts`, compartidas con el
+ *  formulario. Aquí solo se suma lo que es del servidor. */
+export type DatosRegistro = FichaRegistro & {
   /** Campo trampa: invisible para personas. Si trae algo, es un robot. */
   trampa: string;
   /** Milisegundos que el formulario estuvo abierto antes de enviarse. */
@@ -99,18 +99,31 @@ export async function registrarCliente(d: DatosRegistro): Promise<Resultado> {
   if (d.trampa) return { ok: false, error: NO_SE_PUDO };
   if (!Number.isFinite(d.msAbierto) || d.msAbierto < MS_MINIMO) return { ok: false, error: NO_SE_PUDO };
 
-  const nombre = d.nombre.trim();
-  const correo = d.correo.trim().toLowerCase();
-  const tipo = d.tipoIdentificacion as TipoIdentificacion;
-  const identificacion = d.identificacion.trim().toUpperCase();
+  /* Todo es OBLIGATORIO (decisión del usuario, oct 2026): nombre completo,
+     documento, fecha de nacimiento, correo, teléfono, dirección, contacto de
+     emergencia y, si es menor, su acudiente. Mismas reglas que el formulario
+     (`erroresRegistro`): el navegador avisa, pero quien decide es esto. */
+  const hoy = hoyEnBogota();
+  const ficha: FichaRegistro = {
+    ...d,
+    identificacion: d.identificacion.trim().toUpperCase(),
+    acudiente: {
+      nombre: d.acudiente?.nombre ?? "",
+      identificacion: (d.acudiente?.identificacion ?? "").trim().toUpperCase(),
+      telefono: d.acudiente?.telefono ?? "",
+    },
+  };
+  const errores = erroresRegistro(ficha, hoy);
+  const campo = CAMPOS_REGISTRO.find((c) => errores[c]);
+  if (campo) return { ok: false, campo, error: errores[campo]! };
 
-  if (nombre.length < 3) return { ok: false, campo: "nombre", error: "Escribe tu nombre completo." };
-  if (!TIPOS_IDENTIFICACION.includes(tipo)) return { ok: false, campo: "identificacion", error: "Tipo de documento no válido." };
-  if (!/^[A-Z0-9]{4,15}$/.test(identificacion)) return { ok: false, campo: "identificacion", error: "Número de documento no válido." };
-  if (!esCorreo(correo)) return { ok: false, campo: "correo", error: "Escribe un correo válido." };
-  if (d.telefono && !esMovilCO(d.telefono)) return { ok: false, campo: "telefono", error: "Un móvil colombiano son 10 dígitos y empieza por 3." };
-  if (d.contrasena.length < 8) return { ok: false, campo: "contrasena", error: "Mínimo 8 caracteres." };
-  if (!d.aceptaTerminos) return { ok: false, campo: "terminos", error: "Debes aceptar los términos para continuar." };
+  const nombre = nombrePropio(ficha.nombre);
+  const correo = ficha.correo.trim().toLowerCase();
+  const tipo = ficha.tipoIdentificacion as TipoIdentificacion;
+  const identificacion = ficha.identificacion;
+  /* El acudiente solo se guarda si es menor según la fecha del SERVIDOR. A un
+     adulto se le ignora aunque lo mande: diría que alguien firma por él. */
+  const acudiente = esMenorDeEdad(ficha.fechaNacimiento, hoy) === true ? ficha.acudiente : null;
 
   const admin = crearClienteAdmin();
   if (!admin) {
@@ -152,18 +165,27 @@ export async function registrarCliente(d: DatosRegistro): Promise<Resultado> {
   }
 
   const cuentaId = creada.data.user.id;
-  const ficha = await admin.from("clientes").insert({
+  const insertada = await admin.from("clientes").insert({
     nombre,
     tipo_identificacion: tipo,
     identificacion,
     correo,
-    telefono: d.telefono || null,
+    telefono: ficha.telefono,
+    fecha_nacimiento: ficha.fechaNacimiento,
+    direccion: ficha.direccion.trim().replace(/\s+/g, " "),
+    emergencia_nombre: nombrePropio(ficha.emergenciaNombre),
+    emergencia_telefono: ficha.emergenciaTelefono,
+    acudiente_nombre: acudiente ? nombrePropio(acudiente.nombre) : null,
+    acudiente_identificacion: acudiente?.identificacion ?? null,
+    acudiente_telefono: acudiente?.telefono ?? null,
+    // Si es menor, quien acepta es el acudiente: queda constancia de quién
+    // firmó por él en `acudiente_*` de esta misma fila.
     acepta_terminos: true,
     cuenta_id: cuentaId,
   });
-  if (ficha.error) {
+  if (insertada.error) {
     await admin.auth.admin.deleteUser(cuentaId);
-    return { ok: false, error: `No se pudo completar el registro: ${ficha.error.message}` };
+    return { ok: false, error: `No se pudo completar el registro: ${insertada.error.message}` };
   }
 
   // Deja la sesión abierta: quien acaba de registrarse no tiene por qué volver

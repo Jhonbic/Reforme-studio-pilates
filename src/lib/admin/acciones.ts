@@ -23,7 +23,7 @@ import type {
 } from "./types";
 import { crearClienteAdmin } from "@/lib/supabase/admin";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { MAYORIA_DE_EDAD, edad, esCorreo, esMovilCO } from "@/lib/validacion";
+import { MAYORIA_DE_EDAD, edad, esCorreo, esMovilCO, nombrePropio } from "@/lib/validacion";
 
 /**
  * Lo que el formulario de alta manda al servidor.
@@ -120,16 +120,18 @@ export async function crearCliente(a: AltaCliente): Promise<ResultadoAlta> {
   const { data, error } = await supabase
     .from("clientes")
     .insert({
-      nombre: a.nombre.trim(),
+      // Los nombres de persona se guardan con `nombrePropio`: «laura GUTIÉRREZ»
+      // y «Laura Gutiérrez» no pueden quedar como dos formas del mismo cliente.
+      nombre: nombrePropio(a.nombre),
       tipo_identificacion: a.tipoIdentificacion,
       identificacion: a.identificacion,
       fecha_nacimiento: a.fechaNacimiento,
       telefono: a.telefono,
       correo: a.correo.trim().toLowerCase() || null,
       eps: a.eps.trim(),
-      emergencia_nombre: a.emergenciaNombre.trim(),
+      emergencia_nombre: nombrePropio(a.emergenciaNombre),
       emergencia_telefono: a.emergenciaTelefono,
-      acudiente_nombre: a.acudiente?.nombre.trim() ?? null,
+      acudiente_nombre: a.acudiente ? nombrePropio(a.acudiente.nombre) : null,
       acudiente_identificacion: a.acudiente?.identificacion ?? null,
       acudiente_telefono: a.acudiente?.telefono ?? null,
       acepta_terminos: a.aceptaTerminos,
@@ -193,7 +195,7 @@ export async function editarCliente(id: string, a: AltaCliente): Promise<Resulta
     .from("clientes")
     .update(
       {
-        nombre: a.nombre.trim(),
+        nombre: nombrePropio(a.nombre),
         tipo_identificacion: a.tipoIdentificacion,
         identificacion: a.identificacion,
         // Vacío es NULL, no cadena vacía: la base no acepta "" como fecha ni
@@ -202,9 +204,9 @@ export async function editarCliente(id: string, a: AltaCliente): Promise<Resulta
         telefono: a.telefono || null,
         correo: a.correo.trim().toLowerCase() || null,
         eps: a.eps.trim() || null,
-        emergencia_nombre: a.emergenciaNombre.trim() || null,
+        emergencia_nombre: nombrePropio(a.emergenciaNombre) || null,
         emergencia_telefono: a.emergenciaTelefono || null,
-        acudiente_nombre: a.acudiente?.nombre.trim() ?? null,
+        acudiente_nombre: a.acudiente ? nombrePropio(a.acudiente.nombre) : null,
         acudiente_identificacion: a.acudiente?.identificacion ?? null,
         acudiente_telefono: a.acudiente?.telefono ?? null,
         acepta_terminos: a.aceptaTerminos,
@@ -671,7 +673,7 @@ export async function crearMiembro(datos: {
   const yo = await adminActual();
   if ("error" in yo) return { ok: false, error: yo.error };
 
-  const nombre = datos.nombre.trim();
+  const nombre = nombrePropio(datos.nombre);
   const correo = datos.correo.trim().toLowerCase();
   if (nombre.length < 3) return { ok: false, error: "Falta el nombre." };
   if (!esCorreo(correo)) return { ok: false, campo: "correo", error: "Correo no válido." };

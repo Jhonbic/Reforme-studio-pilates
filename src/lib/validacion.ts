@@ -42,6 +42,31 @@ export function sinDigitos(texto: string): string {
   return texto.replace(/\d/g, "");
 }
 
+/**
+ * Nombre de persona como se escribe: primera letra de cada palabra en
+ * mayúscula, el resto en minúscula y los espacios colapsados.
+ * «  laura   GUTIÉRREZ » → «Laura Gutiérrez».
+ *
+ * Se aplica AL GUARDAR, en el servidor, no al teclear: reescribir un input
+ * controlado descoloca el cursor. También tras guion y apóstrofo
+ * («María-José», «O'Neill»). Sin excepciones para «de / del / la»: «De La
+ * Hoz» existe escrito así, y una regla que adivine se equivoca con alguien.
+ */
+export function nombrePropio(texto: string): string {
+  return texto
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("es-CO")
+    .replace(/(^|[\s\-'’])(\p{L})/gu, (_, antes: string, letra: string) => antes + letra.toLocaleUpperCase("es-CO"));
+}
+
+/** «Nombre completo» = al menos nombre y apellido: dos palabras de 2+ letras.
+ *  Una sola palabra («Laura») no identifica a nadie en recepción. Las de una
+ *  letra («Ana Y Pérez») se toleran, pero no cuentan. */
+export function esNombreCompleto(texto: string): boolean {
+  return texto.trim().split(/\s+/).filter((p) => p.length >= 2).length >= 2;
+}
+
 /** Para comparar dos nombres: sin tildes, sin mayúsculas y con los espacios
  *  colapsados, para que «Ana  MARÍA solano» y «ana maria Solano» sean el mismo. */
 export function claveNombre(texto: string): string {

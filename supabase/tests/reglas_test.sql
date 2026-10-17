@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(90);
+select plan(95);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -36,9 +36,13 @@ insert into equipo (id, nombre, correo, rol, cuenta_id) values
   ('00000000-0000-0000-0000-0000000000e2', 'Otra instructora', 'otra-instructora@reforme.local', 'Instructora',
    '00000000-0000-0000-0000-0000000000a3');
 
-insert into clientes (id, nombre, identificacion, cuenta_id, acepta_terminos) values
-  ('00000000-0000-0000-0000-0000000000d1', 'Cliente con plan', 'TEST001', '00000000-0000-0000-0000-0000000000c1', true),
-  ('00000000-0000-0000-0000-0000000000d2', 'Cliente sin plan', 'TEST002', '00000000-0000-0000-0000-0000000000c2', true);
+-- Con cuenta web, así que con la ficha completa (`clientes_web_con_ficha_completa`).
+insert into clientes (id, nombre, identificacion, cuenta_id, acepta_terminos,
+                      correo, telefono, fecha_nacimiento, direccion, emergencia_nombre, emergencia_telefono) values
+  ('00000000-0000-0000-0000-0000000000d1', 'Cliente con plan', 'TEST001', '00000000-0000-0000-0000-0000000000c1', true,
+   'cliente-con-plan@reforme.local', '3000000001', '1990-01-01', 'Calle de prueba 1', 'Contacto Prueba', '3000000101'),
+  ('00000000-0000-0000-0000-0000000000d2', 'Cliente sin plan', 'TEST002', '00000000-0000-0000-0000-0000000000c2', true,
+   'cliente-sin-plan@reforme.local', '3000000002', '1990-01-01', 'Calle de prueba 2', 'Contacto Prueba', '3000000102');
 
 -- Plan propio: el test no depende de la semilla (en la CI la base está vacía).
 -- Fusión con 1 de Reformer y 2 de Mat: pocas, para poder agotarlas.
@@ -534,9 +538,12 @@ set local request.jwt.claims to '{}';
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000c3', 'cliente-espera@reforme.local'),
   ('00000000-0000-0000-0000-0000000000c4', 'cliente-sin-plan-espera@reforme.local');
-insert into clientes (id, nombre, identificacion, cuenta_id, acepta_terminos) values
-  ('00000000-0000-0000-0000-0000000000d3', 'Cliente en espera', 'TEST003', '00000000-0000-0000-0000-0000000000c3', true),
-  ('00000000-0000-0000-0000-0000000000d4', 'Cliente sin plan en espera', 'TEST004', '00000000-0000-0000-0000-0000000000c4', true);
+insert into clientes (id, nombre, identificacion, cuenta_id, acepta_terminos,
+                      correo, telefono, fecha_nacimiento, direccion, emergencia_nombre, emergencia_telefono) values
+  ('00000000-0000-0000-0000-0000000000d3', 'Cliente en espera', 'TEST003', '00000000-0000-0000-0000-0000000000c3', true,
+   'cliente-espera@reforme.local', '3000000003', '1990-01-01', 'Calle de prueba 3', 'Contacto Prueba', '3000000103'),
+  ('00000000-0000-0000-0000-0000000000d4', 'Cliente sin plan en espera', 'TEST004', '00000000-0000-0000-0000-0000000000c4', true,
+   'cliente-sin-plan-espera@reforme.local', '3000000004', '1990-01-01', 'Calle de prueba 4', 'Contacto Prueba', '3000000104');
 insert into planes (id, nombre, precio, vigencia_dias, modalidad, clases_reformer, clases_mat)
   values ('00000000-0000-0000-0000-0000000000b2', 'Mat de test', 100000, 365, 'Mat', 0, 5);
 insert into membresias (cliente_id, plan_id, inicio, vencimiento, importe)
@@ -697,6 +704,37 @@ set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","
 select throws_ok($$select count(*) from intentos_registro$$, '42501', null,
   'ni Administración lee los intentos de registro (solo el servidor)');
 reset role;
+
+-- Dirección: si viene, es texto de verdad y con tope.
+select throws_ok(
+  $$update clientes set direccion = '   ' where id = '00000000-0000-0000-0000-0000000000d1'$$,
+  '23514', null,
+  'una dirección en blanco no se guarda');
+select lives_ok(
+  $$update clientes set direccion = 'Cra 1 #27-50, Multiplaza Chaira' where id = '00000000-0000-0000-0000-0000000000d1'$$,
+  'una dirección normal se guarda');
+
+-- Registro web: con cuenta, la ficha llega completa ---------------------------
+insert into auth.users (id, email) values
+  ('00000000-0000-0000-0000-0000000000c5', 'web-incompleto@reforme.local'),
+  ('00000000-0000-0000-0000-0000000000c6', 'web-menor@reforme.local');
+select throws_ok(
+  $$insert into clientes (nombre, identificacion, cuenta_id, correo, telefono)
+    values ('Web Incompleto', 'TEST005', '00000000-0000-0000-0000-0000000000c5',
+            'web-incompleto@reforme.local', '3000000005')$$,
+  '23514', null,
+  'un cliente con cuenta web sin fecha, dirección ni emergencia no entra');
+select throws_ok(
+  $$insert into clientes (nombre, tipo_identificacion, identificacion, cuenta_id, correo, telefono,
+                          fecha_nacimiento, direccion, emergencia_nombre, emergencia_telefono)
+    values ('Web Menor', 'T.I.', 'TEST006', '00000000-0000-0000-0000-0000000000c6',
+            'web-menor@reforme.local', '3000000006', current_date - interval '15 years',
+            'Calle de prueba 6', 'Contacto Prueba', '3000000106')$$,
+  '23514', 'Un menor de edad necesita los datos de su acudiente.',
+  'un menor con cuenta web sin acudiente no entra');
+select lives_ok(
+  $$insert into clientes (nombre, identificacion) values ('Alta de mostrador', 'TEST007')$$,
+  'el alta de recepción (sin cuenta) sigue pudiendo ir sin correo ni dirección');
 
 select * from finish();
 rollback;

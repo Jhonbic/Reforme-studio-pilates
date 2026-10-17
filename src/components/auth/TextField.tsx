@@ -4,6 +4,10 @@ type TextFieldProps = ComponentProps<"input"> & {
   label: string;
   id: string;
   hint?: ReactNode;
+  /** Control pegado al borde derecho DENTRO del campo (p. ej. el ojo de la
+   *  contraseña). El input reserva su hueco con `pr-12` para que el texto no
+   *  se meta por debajo. */
+  accesorio?: ReactNode;
   error?: string;
 };
 
@@ -12,6 +16,7 @@ export default function TextField({
   label,
   id,
   hint,
+  accesorio,
   error,
   className = "",
   ...props
@@ -27,17 +32,29 @@ export default function TextField({
         </label>
         {hint}
       </div>
-      <input
-        id={id}
-        aria-invalid={error ? true : undefined}
-        className={`w-full rounded-xl border bg-white/60 px-4 py-3 text-verde placeholder:text-verde-300 transition-all duration-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-dorado/60 ${
-          error
-            ? "border-red-400/70 focus:ring-red-300"
-            : "border-beige hover:border-dorado/50"
-        }`}
-        {...props}
-      />
-      {error && <p className="mt-1.5 text-xs text-red-600">{error}</p>}
+      <div className="relative">
+        <input
+          id={id}
+          aria-invalid={error ? true : undefined}
+          /* El color del anillo va en cada rama, no en la base: dos
+             `focus:ring-*` en la misma clase compiten y ganaba el dorado,
+             así que un campo con error enfocado dejaba de verse en rojo. */
+          className={`w-full rounded-xl border bg-white/60 px-4 py-3 text-verde placeholder:text-verde-300 transition-all duration-300 focus:bg-white focus:outline-none focus:ring-2 ${
+            accesorio ? "pr-12" : ""
+          } ${
+            error
+              ? "border-error/60 focus:ring-error/30"
+              : "border-beige hover:border-dorado/50 focus:ring-dorado/60"
+          }`}
+          {...props}
+        />
+        {accesorio && (
+          <div className="absolute inset-y-0 right-1 flex items-center">
+            {accesorio}
+          </div>
+        )}
+      </div>
+      {error && <p className="mt-1.5 text-xs text-error">{error}</p>}
     </div>
   );
 }

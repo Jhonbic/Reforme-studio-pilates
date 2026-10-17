@@ -125,6 +125,7 @@ export type Database = {
           correo: string | null;
           creado_en: string;
           cuenta_id: string | null;
+          direccion: string | null;
           emergencia_nombre: string | null;
           emergencia_telefono: string | null;
           eps: string | null;
@@ -148,6 +149,7 @@ export type Database = {
           correo?: string | null;
           creado_en?: string;
           cuenta_id?: string | null;
+          direccion?: string | null;
           emergencia_nombre?: string | null;
           emergencia_telefono?: string | null;
           eps?: string | null;
@@ -170,6 +172,7 @@ export type Database = {
           correo?: string | null;
           creado_en?: string;
           cuenta_id?: string | null;
+          direccion?: string | null;
           emergencia_nombre?: string | null;
           emergencia_telefono?: string | null;
           eps?: string | null;

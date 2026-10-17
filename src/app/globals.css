@@ -20,6 +20,12 @@
   --color-beige: #e8e1d9; /* Beige claro */
   --color-arena: #f7f6f3; /* Blanco cálido — fondo base */
 
+  /* Errores de la web pública (login, registro, mi cuenta). Rojo ladrillo
+     oscuro y no el `red-600` de Tailwind, que sobre el blanco cálido se veía
+     chillón (decisión del usuario, oct 2026). ~8:1 sobre blanco: pasa AA de
+     sobra en texto pequeño. El panel usa `--color-estado-grave`. */
+  --color-error: #8f2d24;
+
   /* Alias semánticos */
   --color-background: var(--color-arena);
   --color-foreground: var(--color-verde);
@@ -106,6 +112,14 @@ body {
   outline: 2px solid var(--color-dorado);
   outline-offset: 3px;
   border-radius: 2px;
+}
+
+/* Un campo con error enfocado se rodea en ROJO, no en dorado: si no, al
+   llevar el foco al primer error (el registro lo hace) el contorno dorado
+   tapaba justo la señal de que algo falla. Va aquí, fuera de capas, porque
+   la regla de arriba también lo está y ganaría a cualquier utilidad. */
+:where(input, textarea, select)[aria-invalid="true"]:focus-visible {
+  outline-color: var(--color-error);
 }
 
 /* Utilidades de marca ---------------------------------- */
