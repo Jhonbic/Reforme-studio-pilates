@@ -1647,6 +1647,39 @@ pasó al modelo del **calendario del móvil** (decisión del usuario). Migració
 - ⚠️ `next dev` reescribe `AGENTS.md` (bloque `nextjs-agent-rules`): ese
   cambio no es de este trabajo.
 
+#### Agenda por sala y compacta en el móvil (17 oct 2026)
+
+Feedback del usuario: en el móvil, ver tantos recuadros de horas era
+fatigante, y más tener que pasar por la sala de Mat bajo cada hora de
+Reformer. Con 9 horas y dos salas apiladas salían ~18 cajas, casi todas
+huecos vacíos.
+
+- **Filtro de sala** `Todas N · Reformer N · Mat N` en la cabecera del día,
+  junto al de instructora. Las cifras son las clases vivas del día en cada
+  sala y siguen al filtro de instructora; los números de la tira de la semana
+  siguen a los dos filtros. Pastillas con el idioma de Usuarios: la elegida
+  en dorado, borde siempre presente y `ring` al hover, sin dash.
+- ⚠️ **La sala se RECUERDA por dispositivo** (`clases/useSalaRecordada.ts`,
+  `localStorage`): es una comodidad de quien mira, no un dato del estudio.
+  `useSyncExternalStore` con «Todas» en el servidor, para no romper la
+  hidratación; `try/catch` y respaldo en memoria si el navegador no deja guardar.
+- ⚠️ **«Todas» en el MÓVIL enseña solo las clases**, sin huecos, con el aviso
+  «Elige una sala arriba para ver sus horas libres y programar». En
+  escritorio, «Todas» sigue con las dos columnas y sus huecos. Todo con CSS
+  (`hidden md:grid`, `md:contents`), un solo DOM, sin leer el ancho en JS.
+- **Con una sala elegida, el hueco es una fila fina de 44 px** («Libre ·
+  + Programar»), en todos los tamaños, y la rejilla pasa a una columna.
+- En el móvil la hora va en una columna estrecha a la izquierda, no encima.
+- **Tarjeta compacta en el móvil**: tipo; instructora · `6/8` · hasta;
+  `Reservas` + «⋯» (Editar / Cancelar clase), con el mismo `Dropdown` que
+  «Acciones» de la ficha. Se ocultan la barra de cupos, la línea «↻ Todos
+  los…» y «N libres»; se quedan «Última de la serie», «N en lista de espera»
+  y «▲ sin marcar». El «⋯» se abre **hacia arriba**: la `Card` plana lleva
+  `overflow-hidden` y recortaba el menú de la última clase. En escritorio la
+  tarjeta no cambia.
+- Probado con una página temporal (ya borrada) a 390 y 1280 px: sin
+  desplazamiento lateral ni errores, la sala recordada tras recargar.
+
 #### Clases semanales con fecha de fin (oct 2026)
 
 Feedback del usuario: «no me termina de convencer, siento que sigue algo
@@ -1959,6 +1992,36 @@ antes**.
     no tiene sesión aún). **Sin `SUPABASE_SERVICE_ROLE_KEY` el registro dice
     que no está disponible.** Si la ficha falla, borra la cuenta.
   - El enlace «política de privacidad» (a `#`) se unió al de términos (PDF).
+  - ✅ **Desde el 17 oct 2026 pide la ficha completa, todo obligatorio**
+    (decisión del usuario): nombre completo (nombre y apellido), documento,
+    **fecha de nacimiento**, correo, teléfono, **dirección de residencia** y
+    **contacto de emergencia**. **En 3 pasos** (decisión del usuario: «que no
+    se vea tan largo»): Tus datos (nombre, documento, nacimiento, teléfono,
+    dirección) → Contacto de emergencia (+ acudiente) → Tu cuenta (correo,
+    contraseña, términos). Barra de progreso no navegable; «Siguiente» valida
+    solo el paso visible, «Crear mi cuenta» todo, y un error de un paso
+    anterior (también del servidor) devuelve a ese paso con el foco puesto.
+    - ⚠️ **Errores en `--color-error` (#8f2d24), no en el `red-600` de
+      Tailwind** (decisión del usuario: «rojo oscuro más serio»), en toda la
+      web pública: `TextField`, registro y `/mi-cuenta` (el aviso de
+      credenciales del login va en dorado, a propósito). El contorno de
+      foco global (dorado, fuera de capas) pasa a rojo con `aria-invalid`.
+    - ⚠️ **Los menores ya se registran solos**, con su acudiente: entra la
+      **T.I.** (el R.C. no). El recuadro «Tu acudiente» (nombre, cédula,
+      teléfono, y «es mi contacto de emergencia», que DERIVA en vivo) aparece
+      solo cuando la fecha dice que es menor. Entonces la casilla de términos
+      dice «Soy el acudiente de X: autorizo su registro y acepto…».
+    - Las reglas viven en **`lib/cliente/registro.ts`** (`erroresRegistro`),
+      compartidas con `registrarCliente`, que las vuelve a pasar y decide la
+      edad con `hoyEnBogota()`. A un adulto se le ignora el acudiente aunque
+      lo mande. Un menor con C.C. es error; un adulto no puede ponerse a sí
+      mismo como emergencia (un menor sí: su móvil puede ser el de su madre).
+    - Nombres guardados con **`nombrePropio()`** (`lib/validacion.ts`), también
+      en el alta y la edición del panel y en el alta de equipo.
+    - **`clientes.direccion`** es columna nueva (migración
+      `20261017130000_direccion_cliente`): admite NULL (clientes antiguos y
+      altas de recepción) con `check` de 5–200 caracteres. La ficha del panel
+      aún no la enseña (tampoco enseña emergencia ni acudiente).
 - **«Acceso web»** en la ficha del cliente (recepción y administración): el
   único camino para los clientes que ya existen. Contraseña temporal mostrada
   una vez, como con el equipo; si ya tiene acceso, genera otra.

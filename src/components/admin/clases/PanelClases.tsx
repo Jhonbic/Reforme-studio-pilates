@@ -11,15 +11,29 @@ import QuitarClase from "./QuitarClase";
 import ReservasClase, { type ClienteParaReservar } from "./ReservasClase";
 import SelectorDia from "./SelectorDia";
 import TarjetaClase from "./TarjetaClase";
+import { TODAS_LAS_SALAS, useSalaRecordada, type FiltroSala } from "./useSalaRecordada";
 
-/** La rejilla del día: hora + una columna por sala. Cabecera y filas la comparten. */
-const REJILLA = "md:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)]";
+/* La rejilla del día: hora + una columna por sala visible. Cabecera y filas
+   comparten la parte de escritorio. En el móvil la hora va en una columna
+   estrecha a la IZQUIERDA (no encima): ahorra una línea por hora. */
+const COLS_ESCRITORIO = {
+  2: "md:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)]",
+  1: "md:grid-cols-[5.5rem_minmax(0,1fr)]",
+} as const;
+const COLS_MOVIL = "grid-cols-[3.25rem_minmax(0,1fr)]";
+
+const PASTILLA =
+  "inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-full border px-3 text-sm transition-[border-color,box-shadow,background-color,color] duration-300 sm:px-4";
 
 const BOTON =
   "control-fx relative inline-flex min-h-[44px] items-center gap-2 overflow-hidden rounded-full border border-verde/40 px-5 text-sm text-verde-700 transition-colors duration-300 hover:border-dorado hover:text-verde";
 
 const SELECT =
   "min-h-[44px] rounded-full border border-beige bg-white px-4 text-sm text-verde-700 transition-colors duration-300 hover:border-dorado/60";
+
+/** El botón de salida de los estados vacíos. */
+const SALIDA =
+  "mt-5 inline-flex min-h-[44px] items-center rounded-full border border-verde/40 px-5 text-sm text-verde transition-colors duration-300 hover:border-verde hover:bg-verde hover:text-arena";
 
 const TODAS = "Todas";
 
@@ -79,17 +93,33 @@ export default function PanelClases({
   const [editando, setEditando] = useState<ClaseEnAgenda | undefined>();
   const [propuesta, setPropuesta] = useState<{ horaInicio: string; sala: SalaId } | undefined>();
   const [quitando, setQuitando] = useState<ClaseEnAgenda | null>(null);
+  /* Recordada en este dispositivo: quien solo lleva Reformer no filtra cada
+     vez. Ver `useSalaRecordada`. */
+  const [sala, setSala] = useSalaRecordada(salas.map((s) => s.id));
+  const unaSala = sala !== TODAS_LAS_SALAS;
+  const salasVisibles = unaSala ? salas.filter((s) => s.id === sala) : salas;
+  const colsEscritorio = COLS_ESCRITORIO[salasVisibles.length === 1 ? 1 : 2];
 
-  const filtrada =
+  const porInstructora =
     instructora === TODAS ? clases : clases.filter((c) => c.instructoraId === instructora);
+  const filtrada = unaSala ? porInstructora.filter((c) => c.sala === sala) : porInstructora;
 
-  /* Los números de la tira siguen al filtro a propósito: si el filtro dijera 7
-     y el día abierto enseñara 2, el que estaría mintiendo sería el número.
-     Las canceladas no se cuentan — no van a ocurrir. */
+  /* Los números de la tira siguen a los filtros a propósito: si el filtro
+     dijera 7 y el día abierto enseñara 2, el que estaría mintiendo sería el
+     número. Las canceladas no se cuentan — no van a ocurrir. */
   const conteos: Record<string, number> = {};
   for (const c of filtrada) {
     if (!c.cancelada) conteos[c.fecha] = (conteos[c.fecha] ?? 0) + 1;
   }
+
+  /* Clases vivas del día en cada sala, para las pastillas del filtro. Siguen
+     al filtro de instructora (no al de sala: si no, la pastilla de la sala que
+     no está elegida diría siempre 0). */
+  const porSala: Record<string, number> = {};
+  for (const c of porInstructora) {
+    if (c.fecha === dia && !c.cancelada) porSala[c.sala] = (porSala[c.sala] ?? 0) + 1;
+  }
+  const totalDia = Object.values(porSala).reduce((t, n) => t + n, 0);
 
   /* `clases` ya viene ordenada por fecha y hora desde `getClases()`, así que
      filtrar conserva el orden: no hace falta volver a ordenar aquí. */
@@ -135,7 +165,7 @@ export default function PanelClases({
         {/* Lo único que hay que saber para usar la pantalla, dicho una vez. */}
         <p className="max-w-xl text-sm text-verde-700">
           {puedeEditar
-            ? "Pulsa una hora libre para programar una clase: solo ese día o todas las semanas."
+            ? "Elige una sala y pulsa una hora libre para programar una clase: solo ese día o todas las semanas."
             : "La agenda del estudio: qué clases hay cada día y quién las da."}
         </p>
 
@@ -179,7 +209,49 @@ export default function PanelClases({
             </p>
           </div>
 
-          <div>
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            {/* Filtro de sala (oct 2026): en el móvil, ver la sala de Mat
+                apilada bajo cada hora de Reformer cansaba. Mismo idioma que
+                las pastillas de estado de Usuarios: la elegida en dorado; el
+                borde existe siempre y al pasar se engorda con un `ring`, no
+                con `border-2`, que movería el texto. Sin dash. */}
+            <div
+              role="group"
+              aria-label="Filtrar por sala"
+              className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto"
+            >
+              {(
+                [
+                  { id: TODAS_LAS_SALAS, texto: "Todas", n: totalDia },
+                  ...salas.map((s) => ({ id: s.id, texto: s.id, n: porSala[s.id] ?? 0 })),
+                ] as { id: FiltroSala; texto: string; n: number }[]
+              ).map((o) => {
+                const activa = o.id === sala;
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    aria-pressed={activa}
+                    aria-label={`${o.id === TODAS_LAS_SALAS ? "Todas las salas" : `Sala de ${o.texto}`} · ${o.n} ${o.n === 1 ? "clase" : "clases"}`}
+                    onClick={() => setSala(o.id)}
+                    className={`${PASTILLA} ${
+                      activa
+                        ? "border-dorado bg-dorado text-verde-900"
+                        : "border-beige bg-white text-verde-700 hover:border-dorado hover:text-verde hover:ring-2 hover:ring-dorado/25"
+                    }`}
+                  >
+                    {o.texto}
+                    <span
+                      aria-hidden="true"
+                      className={`font-cifra text-xs ${activa ? "text-verde-900" : "text-verde-300"}`}
+                    >
+                      {numero(o.n)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             <label htmlFor="filtro-instructora" className="sr-only">
               Filtrar por instructora
             </label>
@@ -187,7 +259,7 @@ export default function PanelClases({
               id="filtro-instructora"
               value={instructora}
               onChange={(e) => setInstructora(e.target.value)}
-              className={SELECT}
+              className={`${SELECT} w-full sm:w-auto`}
             >
               <option value={TODAS}>Todas las instructoras</option>
               {instructoras.map((i) => (
@@ -202,12 +274,16 @@ export default function PanelClases({
         {horas.length === 0 ? (
           <div className="px-4 py-14 text-center sm:px-5">
             <p className="font-display text-xl text-verde">
-              {instructora === TODAS
-                ? "No hay clases programadas"
-                : "Esa instructora no da clase ese día"}
+              {instructora !== TODAS
+                ? unaSala
+                  ? "Esa instructora no da clase en esa sala ese día"
+                  : "Esa instructora no da clase ese día"
+                : unaSala
+                  ? `La sala de ${sala} no tiene clases ese día`
+                  : "No hay clases programadas"}
             </p>
             <p className="mx-auto mt-2 max-w-sm text-sm text-verde-300">
-              {instructora !== TODAS
+              {instructora !== TODAS || unaSala
                 ? "Prueba con otro día, o quita el filtro para ver la agenda completa."
                 : huecosProgramables
                   ? "El estudio no abre este día. Si hace falta, puedes programar una clase igualmente."
@@ -216,93 +292,141 @@ export default function PanelClases({
 
             {/* Siempre una salida, como `EstadoVacio` del listado: quien no
                 encuentra nada suele tener un filtro puesto sin darse cuenta. */}
-            {instructora === TODAS ? (
+            {instructora !== TODAS ? (
+              <button type="button" onClick={() => setInstructora(TODAS)} className={SALIDA}>
+                Ver todas las instructoras
+              </button>
+            ) : unaSala ? (
+              <button type="button" onClick={() => setSala(TODAS_LAS_SALAS)} className={SALIDA}>
+                Ver todas las salas
+              </button>
+            ) : (
               huecosProgramables && (
-                <button
-                  type="button"
-                  onClick={() => abrirAlta()}
-                  className="mt-5 inline-flex min-h-[44px] items-center rounded-full border border-verde/40 px-5 text-sm text-verde transition-colors duration-300 hover:border-verde hover:bg-verde hover:text-arena"
-                >
+                <button type="button" onClick={() => abrirAlta()} className={SALIDA}>
                   Programar una clase
                 </button>
               )
-            ) : (
-              <button
-                type="button"
-                onClick={() => setInstructora(TODAS)}
-                className="mt-5 inline-flex min-h-[44px] items-center rounded-full border border-verde/40 px-5 text-sm text-verde transition-colors duration-300 hover:border-verde hover:bg-verde hover:text-arena"
-              >
-                Ver todas las instructoras
-              </button>
             )}
           </div>
         ) : (
           <>
-            {/* Rótulos de columna, solo en escritorio: en móvil las salas se
-                apilan y cada tarjeta dice la suya. `aria-hidden` porque esto
-                no es una tabla: la sala va dentro de cada tarjeta para el
-                lector de pantalla. */}
+            {/* ⚠️ «Todas» en el MÓVIL enseña solo las clases (decisión del
+                usuario): con las dos salas apiladas por hora salían ~18 cajas,
+                casi todas huecos vacíos. Los huecos se ven eligiendo una sala.
+                En escritorio, «Todas» sigue con las dos columnas y sus huecos:
+                ahí cabe y se compara de un vistazo. Todo con CSS (`md:`), un
+                solo DOM, sin leer el ancho de pantalla en JS. */}
+            {!unaSala && huecosProgramables && (
+              <p className="border-b border-beige bg-arena/60 px-4 py-3 text-sm text-verde-700 md:hidden">
+                Elige una sala arriba para ver sus horas libres y programar.
+              </p>
+            )}
+            {!unaSala && delDia.length === 0 && (
+              <p className="px-4 py-12 text-center font-display text-xl text-verde md:hidden">
+                No hay clases programadas
+              </p>
+            )}
+
+            {/* Rótulos de columna, solo en escritorio: en móvil cada tarjeta
+                dice su sala. `aria-hidden` porque esto no es una tabla: la
+                sala va dentro de cada tarjeta para el lector de pantalla. */}
             <div
               aria-hidden="true"
-              className={`hidden gap-4 px-5 pt-4 text-xs font-bold uppercase tracking-[0.14em] text-verde-300 md:grid ${REJILLA}`}
+              className={`hidden gap-4 px-5 pt-4 text-xs font-bold uppercase tracking-[0.14em] text-verde-300 md:grid ${colsEscritorio}`}
             >
               <span>Hora</span>
-              {salas.map((s) => (
+              {salasVisibles.map((s) => (
                 <span key={s.id}>{s.nombre}</span>
               ))}
             </div>
-            <ul className="mt-2">
-              {horas.map((h) => (
-                <li
-                  key={h}
-                  className={`grid gap-3 border-t border-beige px-4 py-4 sm:px-5 md:gap-4 ${REJILLA}`}
-                >
-                  <p className="font-cifra text-lg text-verde md:pt-3">{h}</p>
-                  {salas.map((s) => {
-                    const aqui = delDia.filter((c) => c.horaInicio === h && c.sala === s.id);
-                    if (aqui.length > 0)
-                      return (
-                        <div key={s.id} className="flex flex-col gap-3">
-                          {aqui.map((c) => (
-                            <TarjetaClase
-                              key={c.id}
-                              clase={c}
-                              puedeEditar={puedeEditar}
-                              miEquipoId={miEquipoId}
-                              onEditar={() => abrirEdicion(c)}
-                              onQuitar={() => setQuitando(c)}
-                              onReservas={() => setViendo(c.id)}
-                            />
-                          ))}
-                        </div>
-                      );
-                    /* Hueco libre. En móvil solo se enseña si se puede
-                       programar: una tarjeta vacía apilada no dice nada. */
-                    return huecosProgramables && (dia > hoy || h > ahora) ? (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => abrirAlta({ horaInicio: h, sala: s.id })}
-                        aria-label={`Programar una clase en la ${s.nombre.toLowerCase()} a las ${h}`}
-                        className="flex min-h-[64px] items-center justify-center gap-2 rounded-xl border border-dashed border-beige text-sm text-verde-300 transition-colors duration-300 hover:border-dorado hover:bg-arena/50 hover:text-verde"
-                      >
-                        <span aria-hidden="true">+</span>
-                        <span>
-                          Programar aquí<span className="md:hidden"> · {s.nombre}</span>
-                        </span>
-                      </button>
-                    ) : (
-                      <div
-                        key={s.id}
-                        aria-hidden="true"
-                        className="hidden min-h-[64px] items-center justify-center rounded-xl border border-dashed border-beige text-sm text-verde-300 md:flex"
-                      >
-                        Libre
-                      </div>
-                    );
-                  })}
-                </li>
-              ))}
+            <ul className="md:mt-2">
+              {horas.map((h) => {
+                const deLaHora = delDia.filter((c) => c.horaInicio === h);
+                const libre = huecosProgramables && (dia > hoy || h > ahora);
+                return (
+                  <li
+                    key={h}
+                    /* «Todas» en el móvil: una hora sin clases no se pinta. */
+                    className={`${!unaSala && deLaHora.length === 0 ? "hidden md:grid" : "grid"} items-start gap-x-3 border-t border-beige px-4 py-3 sm:px-5 md:gap-4 md:py-4 ${COLS_MOVIL} ${colsEscritorio}`}
+                  >
+                    <p className="pt-2.5 font-cifra text-base text-verde md:pt-3 md:text-lg">{h}</p>
+                    {/* En el móvil las salas se apilan en la segunda columna;
+                        en escritorio `md:contents` las devuelve a la rejilla,
+                        una columna cada una. */}
+                    <div className="flex min-w-0 flex-col gap-3 md:contents">
+                      {salasVisibles.map((s) => {
+                        const aqui = deLaHora.filter((c) => c.sala === s.id);
+                        if (aqui.length > 0)
+                          return (
+                            <div key={s.id} className="flex min-w-0 flex-col gap-3">
+                              {aqui.map((c) => (
+                                <TarjetaClase
+                                  key={c.id}
+                                  clase={c}
+                                  puedeEditar={puedeEditar}
+                                  miEquipoId={miEquipoId}
+                                  onEditar={() => abrirEdicion(c)}
+                                  onQuitar={() => setQuitando(c)}
+                                  onReservas={() => setViendo(c.id)}
+                                />
+                              ))}
+                            </div>
+                          );
+
+                        const etiqueta = `Programar una clase en la ${s.nombre.toLowerCase()} a las ${h}`;
+
+                        /* Con UNA sala, el hueco es una fila fina de 44 px
+                           (decisión del usuario): se lee como «aquí no hay
+                           nada» y no como una tarjeta más que mirar. */
+                        if (unaSala)
+                          return libre ? (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => abrirAlta({ horaInicio: h, sala: s.id })}
+                              aria-label={etiqueta}
+                              className="flex min-h-[44px] w-full items-center justify-between gap-3 rounded-lg border border-dashed border-beige px-3 text-sm text-verde-300 transition-colors duration-300 hover:border-dorado hover:bg-arena/50 hover:text-verde"
+                            >
+                              <span>Libre</span>
+                              <span className="font-medium text-verde-700">
+                                <span aria-hidden="true">+ </span>Programar
+                              </span>
+                            </button>
+                          ) : (
+                            <p
+                              key={s.id}
+                              className="flex min-h-[44px] items-center px-3 text-sm text-verde-300"
+                            >
+                              Libre
+                            </p>
+                          );
+
+                        /* «Todas»: el recuadro de siempre, solo en escritorio. */
+                        return libre ? (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => abrirAlta({ horaInicio: h, sala: s.id })}
+                            aria-label={etiqueta}
+                            className="hidden min-h-[64px] items-center justify-center gap-2 rounded-xl border border-dashed border-beige text-sm text-verde-300 transition-colors duration-300 hover:border-dorado hover:bg-arena/50 hover:text-verde md:flex"
+                          >
+                            <span aria-hidden="true">+</span>
+                            <span>Programar aquí</span>
+                          </button>
+                        ) : (
+                          <div
+                            key={s.id}
+                            aria-hidden="true"
+                            className="hidden min-h-[64px] items-center justify-center rounded-xl border border-dashed border-beige text-sm text-verde-300 md:flex"
+                          >
+                            Libre
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </>
         )}

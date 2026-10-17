@@ -4,10 +4,15 @@ import { puedeMarcarAsistencia, resumenAsistencia } from "@/lib/admin/asistencia
 import { fecha, numero } from "@/lib/admin/format";
 import { cadaSemana, duracionLegible, sumarDias } from "@/lib/admin/horario";
 import type { ClaseEnAgenda } from "@/lib/admin/types";
+import Dropdown, { DropdownItem } from "../Dropdown";
 import EstadoClaseBadge from "./EstadoClaseBadge";
 
 const ACCION =
   "control-fx relative inline-flex min-h-[44px] items-center justify-center overflow-hidden rounded-full border border-beige bg-white px-4 text-sm text-verde-700 transition-colors duration-300 hover:border-dorado hover:text-verde focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dorado";
+/* Editar y Cancelar sueltos solo en escritorio; en el móvil van en «⋯».
+   Sustituye el `display` en vez de añadir `hidden`: dos utilidades de
+   `display` en la misma clase compiten y gana la que Tailwind emita después. */
+const ACCION_ESCRITORIO = ACCION.replace("relative inline-flex", "relative hidden md:inline-flex");
 const PRINCIPAL =
   "inline-flex min-h-[44px] items-center justify-center rounded-full bg-verde px-4 text-sm font-medium text-arena transition-colors duration-300 hover:bg-verde-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dorado";
 
@@ -55,9 +60,19 @@ export default function TarjetaClase({
   const rotulo = marcable ? "Asistencia" : puedeApuntar ? "Reservas" : "Quién reservó";
   const que = `${clase.tipo} de las ${clase.horaInicio}`;
 
+  const ultimaDeSerie = !!clase.serieHasta && clase.fecha >= sumarDias(clase.serieHasta, -6);
+  const sinMarcar = conAsistencia && marcable && asistencia.sinMarcar > 0;
+
+  /* ⚠️ **En el móvil la tarjeta es compacta** (decisión del usuario, oct
+     2026): tipo, instructora y `6/8` en dos líneas, y una fila con el botón
+     principal + «⋯». La barra de cupos, la línea de la serie y «N libres» son
+     `hidden md:…`, salvo lo que pide atención («última de la serie», «▲ sin
+     marcar»). Un solo DOM: lo oculto con `display:none` no llega al lector
+     de pantalla, así que no hay nada leído dos veces. En escritorio, igual
+     que antes. */
   return (
     <article
-      className={`flex h-full flex-col gap-3 rounded-xl border p-3 sm:p-4 ${
+      className={`flex h-full flex-col gap-2 rounded-xl border p-3 sm:p-4 md:gap-3 ${
         anulada ? "border-dashed border-beige bg-white" : "border-beige bg-white shadow-[var(--shadow-card)]"
       }`}
     >
@@ -73,6 +88,12 @@ export default function TarjetaClase({
           {/* La hora de inicio la dice la fila; aquí, quién y hasta cuándo. */}
           <p className="truncate text-sm text-verde-700">
             {clase.instructora}
+            {/* En el móvil los cupos van aquí, en línea: la barra se oculta. */}
+            <span className="font-cifra text-verde md:hidden">
+              {" "}
+              · {numero(clase.reservas)}/{numero(clase.cupos)}
+              <span className="sr-only"> reservas</span>
+            </span>
             <span className="text-verde-300">
               {" "}
               · hasta <span className="font-cifra">{clase.horaFin}</span>
@@ -81,11 +102,11 @@ export default function TarjetaClase({
           </p>
           {/* Saber que se repite cambia lo que se espera al editarla o quitarla. */}
           {clase.franjaId && (
-            <p className="text-xs text-verde-300">
+            <p className="hidden text-xs text-verde-300 md:block">
               <span aria-hidden="true">↻ </span>
               {cadaSemana(clase.fecha).replace(/^t/, "T")}
               {clase.serieHasta &&
-                (clase.fecha >= sumarDias(clase.serieHasta, -6) ? (
+                (ultimaDeSerie ? (
                   /* La última de la serie: es donde se nota que se acaba. */
                   <span className="text-[var(--color-estado-aviso)]"> · última de la serie</span>
                 ) : (
@@ -93,12 +114,26 @@ export default function TarjetaClase({
                 ))}
             </p>
           )}
+          {/* Lo que sí se queda en el móvil: pide atención. */}
+          {clase.franjaId && ultimaDeSerie && (
+            <p className="text-xs text-[var(--color-estado-aviso)] md:hidden">↻ Última de la serie</p>
+          )}
+          {clase.enEspera.length > 0 && (
+            <p className="text-xs text-dorado-dark md:hidden">
+              {numero(clase.enEspera.length)} en lista de espera
+            </p>
+          )}
+          {sinMarcar && (
+            <p className="text-xs text-[var(--color-estado-aviso)] md:hidden">
+              ▲ {numero(asistencia.sinMarcar)} sin marcar asistencia
+            </p>
+          )}
         </div>
         {excepcional && <EstadoClaseBadge estado={clase.estado} />}
       </div>
 
       {/* Cupos: la cifra es la información; la barra solo la refuerza. */}
-      <div>
+      <div className="hidden md:block">
         <div className="flex items-baseline justify-between gap-2 text-sm">
           <span className="font-cifra text-verde">
             {numero(clase.reservas)} / {numero(clase.cupos)}
@@ -118,7 +153,7 @@ export default function TarjetaClase({
           />
         </div>
         {conAsistencia &&
-          (marcable && asistencia.sinMarcar > 0 ? (
+          (sinMarcar ? (
             <p className="mt-1.5 text-xs text-[var(--color-estado-aviso)]">
               ▲ {numero(asistencia.sinMarcar)} sin marcar asistencia
             </p>
@@ -141,19 +176,45 @@ export default function TarjetaClase({
         </button>
         {editable && (
           <>
-            <button type="button" onClick={onEditar} className={ACCION} aria-label={`Editar ${que}`}>
+            <button
+              type="button"
+              onClick={onEditar}
+              className={ACCION_ESCRITORIO}
+              aria-label={`Editar ${que}`}
+            >
               <span className="control-sheen" aria-hidden="true" />
               Editar
             </button>
             <button
               type="button"
               onClick={onQuitar}
-              className={ACCION}
+              className={ACCION_ESCRITORIO}
               aria-label={`${hayReservas ? "Cancelar" : "Eliminar"} ${que}`}
             >
               <span className="control-sheen" aria-hidden="true" />
               {hayReservas ? "Cancelar" : "Eliminar"}
             </button>
+            {/* En el móvil, Editar y Cancelar/Eliminar van en «⋯»: tres
+                botones en una tarjeta estrecha partían la fila en dos. Mismo
+                `Dropdown` que «Acciones» en la ficha del cliente. */}
+            <div className="md:hidden">
+              {/* Se abre HACIA ARRIBA: la tarjeta del día (`Card` plana) lleva
+                  `overflow-hidden` y recortaría el menú de la última clase.
+                  Arriba siempre queda, como mínimo, la cabecera del día. Con
+                  `!` porque `top-full` y `mt-2` vienen de `Dropdown`. */}
+              <Dropdown
+                alineacion="derecha"
+                clasePanel="top-auto! mt-0! bottom-full mb-2"
+                ariaLabel={`Más acciones · ${que}`}
+                claseBoton={`${ACCION} w-11 px-0`}
+                etiqueta={<span aria-hidden="true" className="text-lg leading-none">⋯</span>}
+              >
+                <DropdownItem onClick={onEditar}>Editar</DropdownItem>
+                <DropdownItem onClick={onQuitar} className="text-[var(--color-estado-grave)]">
+                  {hayReservas ? "Cancelar clase" : "Eliminar clase"}
+                </DropdownItem>
+              </Dropdown>
+            </div>
           </>
         )}
       </div>
