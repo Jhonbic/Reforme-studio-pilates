@@ -199,9 +199,12 @@ export default function Home() {
                   key={p.title}
                   delay={i * 120}
                   as="article"
-                  className="group relative flex flex-col items-center overflow-hidden rounded-3xl bg-arena p-9 text-center shadow-soft transition-all duration-500 hover:-translate-y-1 hover:shadow-lift md:items-start md:text-left"
+                  /* Al pasar: borde dorado grueso, sin el dash diagonal
+                     (decisión del usuario). El borde de 2px está SIEMPRE,
+                     transparente en reposo: si apareciera solo al hover, el
+                     contenido se movería 2px y se vería como un temblor. */
+                  className="group relative flex flex-col items-center overflow-hidden rounded-3xl border-2 border-transparent bg-arena p-9 text-center shadow-soft transition-all duration-500 hover:-translate-y-1 hover:border-dorado hover:shadow-lift md:items-start md:text-left"
                 >
-                  <span className="card-sheen" aria-hidden="true" />
                   <span className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full border border-dorado/30 bg-dorado/10 text-dorado-dark transition-all duration-500 group-hover:border-dorado group-hover:bg-dorado group-hover:text-arena">
                     <p.Icon size={30} />
                   </span>
