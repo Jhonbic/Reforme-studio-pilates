@@ -1,12 +1,7 @@
 import { telefonoCO } from "./format";
 import { finDe, sumarDias } from "./horario";
-import { NOTIFICACIONES } from "./mock";
 import { cache } from "react";
-import {
-  DIAS_POR_VENCER,
-  avisoPorVencer,
-  type DatosDashboard,
-} from "./dashboard";
+import type { DatosDashboard } from "./dashboard";
 import type { DatosEstadisticas } from "./estadisticas";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/tipos";
@@ -29,12 +24,13 @@ import type {
   EstadoMembresia,
   MiembroEquipo,
   ModalidadPlan,
-  Notificacion,
   Movimiento,
   PlanConMetricas,
   TipoPlan,
   UsuarioActual,
   PagoPendiente,
+  DatosPersonales,
+  PlanAdquirido,
 } from "./types";
 
 /**
@@ -159,23 +155,15 @@ export async function getClientes(): Promise<Cliente[]> {
 }
 
 /**
- * El equipo del estudio (tabla `equipo`), con si cada persona puede entrar al
- * panel, ordenado alfabéticamente.
- *
- * Tener acceso = su cuenta (`cuenta_id`) tiene fila en `perfiles`. Solo
- * Administración ve los perfiles ajenos (RLS), así que para los demás roles
- * `acceso` va `null`: «no lo sé», no «no tiene».
+ * El equipo del estudio (tabla `equipo`), ordenado alfabéticamente. Desde oct
+ * 2026 todo miembro tiene cuenta desde el alta; lo que se enciende y apaga es
+ * el perfil entero (`activo`), no un «acceso al panel» aparte.
  */
-export async function getEquipo(esAdmin: boolean): Promise<MiembroEquipo[]> {
+export async function getEquipo(): Promise<MiembroEquipo[]> {
   const supabase = await crearClienteServidor();
-  const [equipo, perfiles] = await Promise.all([
-    supabase.from("equipo").select("*"),
-    esAdmin ? supabase.from("perfiles").select("id") : Promise.resolve(null),
-  ]);
+  const equipo = await supabase.from("equipo").select("*");
   if (equipo.error) throw new Error(`No se pudo leer el equipo: ${equipo.error.message}`);
-  if (perfiles?.error) throw new Error(`No se pudieron leer los accesos: ${perfiles.error.message}`);
 
-  const conPerfil = new Set((perfiles?.data ?? []).map((p) => p.id));
   return equipo.data
     .map((m) => ({
       id: m.id,
@@ -187,7 +175,6 @@ export async function getEquipo(esAdmin: boolean): Promise<MiembroEquipo[]> {
       clasesSemana: m.clases_semana,
       activo: m.activo,
       alta: m.alta,
-      acceso: esAdmin ? m.cuenta_id !== null && conPerfil.has(m.cuenta_id) : null,
     }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
@@ -513,6 +500,82 @@ export async function getDatosCliente(id: string): Promise<AltaCliente | undefin
   };
 }
 
+/**
+ * Los datos personales de un cliente para su ficha (nacimiento, dirección,
+ * EPS, emergencia, acudiente, términos). Aparte de `getCliente` porque la
+ * vista `clientes_vigentes` del listado no los lleva, y el listado no los
+ * necesita.
+ */
+export async function getDatosPersonales(id: string): Promise<DatosPersonales | null> {
+  if (!UUID.test(id)) return null;
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase
+    .from("clientes")
+    .select(
+      "fecha_nacimiento, direccion, eps, emergencia_nombre, emergencia_telefono, acudiente_nombre, acudiente_identificacion, acudiente_telefono, acepta_terminos",
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`No se pudieron leer sus datos: ${error.message}`);
+  if (!data) return null;
+  const tel = (t: string | null) => (t ? telefonoCO(t) : null);
+  return {
+    fechaNacimiento: data.fecha_nacimiento,
+    direccion: data.direccion,
+    eps: data.eps,
+    emergencia: { nombre: data.emergencia_nombre, telefono: tel(data.emergencia_telefono) },
+    acudiente: data.acudiente_nombre
+      ? {
+          nombre: data.acudiente_nombre,
+          identificacion: data.acudiente_identificacion,
+          telefono: tel(data.acudiente_telefono),
+        }
+      : null,
+    aceptaTerminos: data.acepta_terminos,
+  };
+}
+
+/**
+ * Los planes que ha comprado un cliente, del más reciente al más antiguo, con
+ * lo que pagó de cada uno.
+ *
+ * ⚠️ Los pagos solo se piden con `conPagos` (el mostrador): RLS no se los da a
+ * las instructoras y la consulta devolvería vacío, no error — saldría «pagó
+ * $0» de todo. Sin ellos, `pagado` va `null` y la ficha no lo pinta.
+ */
+export async function getPlanesAdquiridos(clienteId: string, conPagos: boolean): Promise<PlanAdquirido[]> {
+  if (!UUID.test(clienteId)) return [];
+  const supabase = await crearClienteServidor();
+  const [membresias, pagos] = await Promise.all([
+    supabase
+      .from("membresias")
+      .select("id, inicio, vencimiento, importe, clases_reformer, clases_mat, planes(nombre, modalidad)")
+      .eq("cliente_id", clienteId)
+      .order("inicio", { ascending: false }),
+    conPagos
+      ? supabase.from("pagos").select("membresia_id, importe").eq("cliente_id", clienteId)
+      : Promise.resolve(null),
+  ]);
+  if (membresias.error) throw new Error(`No se pudieron leer sus planes: ${membresias.error.message}`);
+  if (pagos?.error) throw new Error(`No se pudieron leer sus pagos: ${pagos.error.message}`);
+
+  const pagadoPor = new Map<string, number>();
+  for (const p of pagos?.data ?? []) {
+    if (p.membresia_id) pagadoPor.set(p.membresia_id, (pagadoPor.get(p.membresia_id) ?? 0) + p.importe);
+  }
+  return membresias.data.map((m) => ({
+    id: m.id,
+    plan: m.planes?.nombre ?? "Plan",
+    modalidad: m.planes?.modalidad ?? "Mat",
+    inicio: m.inicio,
+    vencimiento: m.vencimiento,
+    importe: m.importe,
+    clasesReformer: m.clases_reformer,
+    clasesMat: m.clases_mat,
+    pagado: conPagos ? (pagadoPor.get(m.id) ?? 0) : null,
+  }));
+}
+
 /** Motivo de la baja de un cliente, o `null`. Solo lo enseña la ficha. */
 export async function getMotivoBaja(id: string): Promise<string | null> {
   if (!UUID.test(id)) return null;
@@ -739,50 +802,6 @@ export async function getDatosDashboard(): Promise<DatosDashboard> {
       vencimiento: m.vencimiento,
     })),
   };
-}
-
-/**
- * Avisos de la campana, del más reciente al más viejo.
- *
- * ⚠️ **El primero se DERIVA de las membresías por vencer de la base**, con la
- * misma función que la cifra «Cartera por vencer» del Dashboard: si fuera un
- * texto suelto podría decir «5 vencen» mientras la cabecera dice otra cosa.
- *
- * Los otros dos siguen siendo de ejemplo (`mock.ts`): no hay ningún sistema
- * de notificaciones detrás todavía, y el propio menú lo dice.
- */
-export async function getNotificaciones(hoy: string): Promise<Notificacion[]> {
-  const supabase = await crearClienteServidor();
-  const { data, error } = await supabase
-    .from("clientes_vigentes")
-    .select("vencimiento, importe_renovacion");
-  if (error) throw new Error(`No se pudieron leer los avisos: ${error.message}`);
-
-  const { cuantos, importe } = avisoPorVencer(
-    {
-      vigentes: data.map((v) => ({
-        vencimiento: v.vencimiento,
-        importeRenovacion: v.importe_renovacion ?? 0,
-      })),
-    },
-    hoy,
-  );
-
-  return [
-    {
-      id: "n1",
-      tipo: "aviso",
-      titulo:
-        cuantos === 1
-          ? `1 membresía vence en ${DIAS_POR_VENCER} días`
-          : `${cuantos} membresías vencen en ${DIAS_POR_VENCER} días`,
-      detalle: `${importe} en renovaciones por confirmar`,
-      cuando: "hoy",
-      leida: false,
-      href: "/admin/usuarios",
-    },
-    ...NOTIFICACIONES,
-  ];
 }
 
 /**

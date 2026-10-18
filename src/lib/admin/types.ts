@@ -318,13 +318,6 @@ export type MiembroEquipo = {
   clasesSemana: number;
   activo: boolean;
   alta: string;
-  /**
-   * ¿Puede entrar al panel? `null` cuando quien mira no lo puede saber: RLS
-   * solo le enseña los perfiles ajenos a Administración, y a los demás les
-   * diría «sin acceso» de todo el mundo. Los miembros de ejemplo de la agenda
-   * (`mock.ts`) no lo traen.
-   */
-  acceso?: boolean | null;
 };
 
 /**
@@ -507,30 +500,6 @@ export type UsuarioActual = {
 };
 
 /**
- * Aviso de la campana de la cabecera.
- *
- * ⚠️ **`tipo` no es el color, es el MOTIVO.** El color lo decide la cabecera a
- * partir de él: si el tipo fuera un color, cambiar la paleta obligaría a tocar
- * los datos. Y nunca va solo — cada aviso lleva también su texto.
- */
-export type TipoNotificacion = "aviso" | "info" | "ok";
-
-export type Notificacion = {
-  id: string;
-  tipo: TipoNotificacion;
-  titulo: string;
-  detalle: string;
-  /** Cuándo pasó, ya redactado («hace 2 h», «ayer»). ⚠️ Texto y no fecha a
-   *  propósito mientras no haya backend: con una fecha habría que calcular el
-   *  «hace tanto» en cliente, y el panel se prerenderiza en el build — el
-   *  servidor y el navegador dirían cosas distintas (error de hidratación). */
-  cuando: string;
-  leida: boolean;
-  /** A dónde lleva al pulsarla. */
-  href: string;
-};
-
-/**
  * Una membresía que no está pagada entera (vista `membresias_pendientes`).
  * Lo pendiente no se guarda: es el importe menos la suma de sus pagos.
  */
@@ -545,4 +514,38 @@ export type PagoPendiente = {
   importe: number;
   pagado: number;
   pendiente: number;
+};
+
+/**
+ * Lo que la ficha del cliente enseña además de `Cliente`: los datos que se
+ * piden en el registro web y en el alta de recepción. Todo opcional (`null`):
+ * los clientes antiguos y las altas de recepción no los tienen todos.
+ * Teléfonos ya formateados («+57 320 907 8814»).
+ */
+export type DatosPersonales = {
+  fechaNacimiento: string | null;
+  direccion: string | null;
+  eps: string | null;
+  emergencia: { nombre: string | null; telefono: string | null };
+  /** Solo los menores. */
+  acudiente: { nombre: string; identificacion: string | null; telefono: string | null } | null;
+  aceptaTerminos: boolean;
+};
+
+/**
+ * Un plan que el cliente compró (una fila de `membresias`), para el historial
+ * de su ficha. El importe es el que pagó entonces: cambiar el precio del plan
+ * después no lo toca.
+ */
+export type PlanAdquirido = {
+  id: string;
+  plan: string;
+  modalidad: ModalidadPlan;
+  inicio: string;
+  vencimiento: string;
+  importe: number;
+  clasesReformer: number;
+  clasesMat: number;
+  /** Suma de sus pagos. `null` para quien no puede ver los pagos (RLS). */
+  pagado: number | null;
 };

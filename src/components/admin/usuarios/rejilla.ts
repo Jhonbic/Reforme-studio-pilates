@@ -22,7 +22,7 @@ const COMUN = "grid items-center gap-x-4 px-4 sm:px-5";
 export const REJILLA_CLIENTE = `${COMUN} grid-cols-[auto_1fr_auto] md:grid-cols-[2.75rem_minmax(0,2.4fr)_minmax(0,1fr)_7rem_5rem_0.75rem]`;
 
 /** Avatar · nombre · rol · estado · alta. Sin chevron: no hay ficha de miembro. */
-export const REJILLA_EQUIPO = `${COMUN} grid-cols-[auto_1fr] md:grid-cols-[2.75rem_minmax(0,2.4fr)_minmax(0,1fr)_7rem_6rem]`;
+export const REJILLA_EQUIPO = `${COMUN} grid-cols-[auto_1fr_auto] md:grid-cols-[2.75rem_minmax(0,2.4fr)_minmax(0,1fr)_7rem_6rem_0.75rem]`;
 
 /**
  * Rótulo de columna. **No usa `.eyebrow`** aunque el resto del panel sí: su

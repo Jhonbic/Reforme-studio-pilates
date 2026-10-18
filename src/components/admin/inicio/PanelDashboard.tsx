@@ -18,16 +18,6 @@ export type FilaPorVencer = {
 
 export type FilaCumpleanos = { id: string; nombre: string; whatsapp: string | null };
 
-export type FilaPendiente = {
-  /** La membresía (un cliente puede deber de dos). */
-  id: string;
-  clienteId: string;
-  nombre: string;
-  /** «Debe $290.000 · Fusión Esencial». */
-  detalle: string;
-  whatsapp: string | null;
-};
-
 type Props = {
   /** «Viernes, 2 de octubre de 2026». */
   fechaTexto: string;
@@ -41,8 +31,6 @@ type Props = {
     variacion: number | null;
     etiquetaAnterior: string;
   } | null;
-  /** Solo el mostrador; `null` para la instructora. */
-  porCobrar: { total: number; clientes: number; filas: FilaPendiente[] } | null;
   clientes: {
     activos: number;
     /** Activos de hoy menos los del cierre del mes pasado; `null` sin mes anterior. */
@@ -92,13 +80,13 @@ const BOTON_VER =
  * - Sin la pestaña «Enviados» de las listas: Jain guarda a quién ya se le
  *   escribió y Reforme no tiene tabla para eso (decisión del usuario).
  * - Encima de las pestañas, la fila que pidió el estudio (paso 6): meta de
- *   clientes, ingresos del mes y por cobrar. Tres cifras y ninguna gráfica.
+ *   clientes e ingresos del mes. Sin gráfica. «Por cobrar» y la lista de
+ *   pagos pendientes se quitaron (decisión del usuario, 18 oct 2026).
  */
 export default function PanelDashboard({
   fechaTexto,
   meta,
   ingresos,
-  porCobrar,
   clientes,
   clases,
   hoy,
@@ -113,7 +101,7 @@ export default function PanelDashboard({
         <p className="mt-1 text-verde-300">{fechaTexto}</p>
       </div>
 
-      <FilaMeta meta={meta} ingresos={ingresos} porCobrar={porCobrar} />
+      <FilaMeta meta={meta} ingresos={ingresos} />
 
       {/* Dos pestañas y solo dos. El detalle del dinero sigue en Finanzas,
           que tiene su propio selector de periodo. */}
@@ -147,7 +135,7 @@ export default function PanelDashboard({
       </div>
 
       {tab === "clientes" ? (
-        <BloqueClientes d={clientes} pendientes={porCobrar?.filas ?? null} />
+        <BloqueClientes d={clientes} />
       ) : (
         <BloqueClases d={clases} hoy={hoy} />
       )}
@@ -155,17 +143,14 @@ export default function PanelDashboard({
   );
 }
 
-// ═══════════ FILA: META, INGRESOS, POR COBRAR ═══════════
+// ═══════════ FILA: META E INGRESOS ═══════════
 
 function FilaMeta({
   meta,
   ingresos,
-  porCobrar,
-}: Pick<Props, "meta" | "ingresos" | "porCobrar">) {
-  const cuantas = 1 + (ingresos ? 1 : 0) + (porCobrar ? 1 : 0);
-  const columnas = cuantas === 3 ? "lg:grid-cols-3" : cuantas === 2 ? "sm:grid-cols-2" : "";
+}: Pick<Props, "meta" | "ingresos">) {
   return (
-    <div className={`mb-8 grid grid-cols-1 gap-4 ${cuantas === 3 ? "sm:grid-cols-2" : ""} ${columnas}`}>
+    <div className={`mb-8 grid grid-cols-1 gap-4 ${ingresos ? "sm:grid-cols-2" : ""}`}>
       <div className={TARJETA}>
         <p className={ROTULO}>Meta de clientes</p>
         <p className="flex items-baseline gap-2">
@@ -204,31 +189,13 @@ function FilaMeta({
         </div>
       )}
 
-      {porCobrar && (
-        <div className={`${TARJETA} ${cuantas === 3 ? "sm:col-span-2 lg:col-span-1" : ""}`}>
-          <p className={ROTULO}>Por cobrar</p>
-          <p className={CIFRA}>{moneda(porCobrar.total)}</p>
-          <p className={NOTA}>
-            {porCobrar.clientes === 0
-              ? "Todo cobrado"
-              : `${numero(porCobrar.clientes)} ${porCobrar.clientes === 1 ? "cliente debe" : "clientes deben"} parte de su plan`}
-          </p>
-        </div>
-      )}
     </div>
   );
 }
 
 // ═══════════ BLOQUE: CLIENTES ═══════════
 
-function BloqueClientes({
-  d,
-  pendientes,
-}: {
-  d: Props["clientes"];
-  /** `null` = quien mira no cobra: la lista no se pinta. */
-  pendientes: FilaPendiente[] | null;
-}) {
+function BloqueClientes({ d }: { d: Props["clientes"] }) {
   const { deltaActivos: delta, renovacion } = d;
   return (
     <section className="mb-10">
@@ -283,7 +250,7 @@ function BloqueClientes({
         </div>
       </div>
 
-      <div className={`grid grid-cols-1 gap-4 lg:grid-cols-2 ${pendientes ? "2xl:grid-cols-3" : ""}`}>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Cumpleaños de hoy */}
         <Lista
           icono={<IconoPastel />}
@@ -339,31 +306,6 @@ function BloqueClientes({
           ))}
         </Lista>
 
-        {/* Lo que deben (planes asignados con abono o sin cobrar). Se cobra
-            en la ficha: «Cobrar» lleva allí. */}
-        {pendientes && (
-          <Lista
-            titulo="Pagos pendientes"
-            cuantos={pendientes.length}
-            alto="14rem"
-            vacio={{ icono: <IconoCampana />, texto: "Nadie debe nada" }}
-          >
-            {pendientes.map((p) => (
-              <Fila
-                key={p.id}
-                nombre={p.nombre}
-                detalle={<p className="text-xs text-[var(--color-estado-aviso)]">{p.detalle}</p>}
-              >
-                {p.whatsapp && (
-                  <BotonWhatsApp href={p.whatsapp} texto="Recordar" quien={p.nombre} icono={false} />
-                )}
-                <Link href={`/admin/usuarios/${p.clienteId}`} className={BOTON_VER}>
-                  Cobrar
-                </Link>
-              </Fila>
-            ))}
-          </Lista>
-        )}
       </div>
 
       {/* Evolución de clientes activos, al pie del bloque: arriba van las

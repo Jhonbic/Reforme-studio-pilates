@@ -7,6 +7,7 @@ import CampoTexto from "@/components/admin/campos/CampoTexto";
 import { useToast } from "@/context/ToastContext";
 import { crearMiembro } from "@/lib/admin/acciones";
 import type { RolEquipo } from "@/lib/admin/types";
+import ContrasenaTemporal from "./ContrasenaTemporal";
 import {
   esCorreo,
   esMovilCO,
@@ -24,13 +25,11 @@ const BOTON_PRIMARIO =
 const VACIO = { nombre: "", correo: "", telefono: "", rol: "Instructora" };
 
 /**
- * Alta de una persona en el equipo. **Sin acceso al panel**: eso se da después
- * desde su fila, a propósito. No todo el equipo necesita entrar (una
- * instructora puede limitarse a dar clase), y dar acceso crea una cuenta con
- * contraseña, que merece su propio paso consciente.
+ * Alta de una persona en el equipo **con su cuenta** (decisión del usuario,
+ * oct 2026): al guardar, el diálogo enseña su contraseña temporal para
+ * entregársela, y la primera vez que entre tendrá que elegir la suya.
  *
- * El correo es obligatorio aunque no vaya a entrar: es lo que identifica a la
- * persona y será su usuario si un día se le da acceso.
+ * El correo es obligatorio: es su usuario para entrar al panel.
  */
 export default function NuevoMiembro({ className }: { className: string }) {
   const { mostrarAviso } = useToast();
@@ -38,6 +37,8 @@ export default function NuevoMiembro({ className }: { className: string }) {
   const [v, setV] = useState(VACIO);
   const [errores, setErrores] = useState<Partial<Record<keyof typeof VACIO, string>>>({});
   const [errorEnvio, setErrorEnvio] = useState("");
+  /** Tras guardar: a quién y qué contraseña temporal enseñar. */
+  const [creada, setCreada] = useState<{ nombre: string; correo: string; contrasena: string } | null>(null);
   const [guardando, iniciar] = useTransition();
 
   function cerrar() {
@@ -45,6 +46,7 @@ export default function NuevoMiembro({ className }: { className: string }) {
     setV(VACIO);
     setErrores({});
     setErrorEnvio("");
+    setCreada(null);
   }
 
   function set(campo: keyof typeof VACIO, valor: string) {
@@ -69,8 +71,12 @@ export default function NuevoMiembro({ className }: { className: string }) {
         return setErrorEnvio(r.error);
       }
       const nombre = v.nombre.trim();
+      if (r.contrasena) {
+        setCreada({ nombre, correo: v.correo.trim().toLowerCase(), contrasena: r.contrasena });
+        return;
+      }
       cerrar();
-      mostrarAviso(`${nombre} ya está en el equipo. Dale acceso desde su fila si lo necesita.`, "success");
+      mostrarAviso(r.aviso ?? `${nombre} ya está en el equipo.`, "success");
     });
   }
 
@@ -82,7 +88,21 @@ export default function NuevoMiembro({ className }: { className: string }) {
         Nuevo miembro
       </button>
 
-      <Modal abierto={abierto} onCerrar={cerrar} cerrable={!guardando} titulo="Nuevo miembro del equipo" tamano="md">
+      <Modal
+        abierto={abierto}
+        onCerrar={cerrar}
+        cerrable={!guardando}
+        titulo={creada ? `${creada.nombre} ya está en el equipo` : "Nuevo miembro del equipo"}
+        tamano="md"
+      >
+        {creada ? (
+          <ContrasenaTemporal
+            nombre={creada.nombre}
+            correo={creada.correo}
+            contrasena={creada.contrasena}
+            onHecho={cerrar}
+          />
+        ) : (
         <form onSubmit={enviar} noValidate className="space-y-4">
           <CampoTexto
             nombre="miembro-nombre"
@@ -100,7 +120,7 @@ export default function NuevoMiembro({ className }: { className: string }) {
             value={v.correo}
             onChange={(e) => set("correo", e.target.value)}
             error={errores.correo}
-            ayuda="Será su usuario si le das acceso al panel."
+            ayuda="Será su usuario para entrar al panel."
             autoComplete="off"
             ancho
           />
@@ -143,10 +163,11 @@ export default function NuevoMiembro({ className }: { className: string }) {
               Cancelar
             </button>
             <button type="submit" disabled={guardando} className={BOTON_PRIMARIO}>
-              {guardando ? "Guardando…" : "Añadir al equipo"}
+              {guardando ? "Creando su cuenta…" : "Añadir al equipo"}
             </button>
           </div>
         </form>
+        )}
       </Modal>
     </>
   );

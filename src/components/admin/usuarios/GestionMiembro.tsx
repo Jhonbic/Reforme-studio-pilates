@@ -6,12 +6,13 @@ import CampoSelect from "@/components/admin/campos/CampoSelect";
 import { useToast } from "@/context/ToastContext";
 import {
   cambiarRol,
-  darAcceso,
+  desactivarMiembro,
   nuevaContrasenaTemporal,
-  quitarAcceso,
+  reactivarMiembro,
   type ResultadoEquipo,
 } from "@/lib/admin/acciones";
 import type { MiembroEquipo, RolEquipo } from "@/lib/admin/types";
+import ContrasenaTemporal from "./ContrasenaTemporal";
 
 const ROLES: RolEquipo[] = ["Administración", "Recepción", "Instructora"];
 
@@ -31,22 +32,22 @@ type Props = {
 };
 
 /**
- * Gestión de una persona del equipo: su rol y su acceso al panel.
+ * Gestión de una persona del equipo: su rol, una contraseña temporal nueva y
+ * desactivar (o reactivar) su perfil.
  *
- * ⚠️ **La contraseña temporal se enseña UNA vez.** No se guarda en ningún
- * sitio que se pueda volver a leer (Supabase solo guarda su hash), así que el
- * diálogo no se cierra solo tras crearla: se queda enseñándola hasta que
- * Administración la copie y pulse «Hecho». Si se pierde, se genera otra.
+ * ⚠️ **No hay «acceso al panel» aparte** (decisión del usuario, oct 2026):
+ * todo miembro tiene cuenta desde el alta, y lo único que se apaga es el
+ * perfil entero. Desactivado, no entra al panel ni sale entre las
+ * instructoras; reactivado, entra con la contraseña que tenía.
  *
  * Mientras una acción está en vuelo el diálogo no se puede cerrar
- * (`cerrable`): cerrarlo a medias dejaría sin saber si la cuenta se creó.
+ * (`cerrable`): cerrarlo a medias dejaría sin saber si se aplicó.
  */
 export default function GestionMiembro({ miembro, correoActual, onCerrar }: Props) {
   const { mostrarAviso } = useToast();
   const [contrasena, setContrasena] = useState("");
   const [error, setError] = useState("");
-  const [copiada, setCopiada] = useState(false);
-  const [confirmarQuitar, setConfirmarQuitar] = useState(false);
+  const [confirmarDesactivar, setConfirmarDesactivar] = useState(false);
   const [enCurso, iniciar] = useTransition();
 
   const esYo = miembro?.correo.toLowerCase() === correoActual.toLowerCase();
@@ -54,8 +55,7 @@ export default function GestionMiembro({ miembro, correoActual, onCerrar }: Prop
   function cerrar() {
     setContrasena("");
     setError("");
-    setCopiada(false);
-    setConfirmarQuitar(false);
+    setConfirmarDesactivar(false);
     onCerrar();
   }
 
@@ -66,7 +66,7 @@ export default function GestionMiembro({ miembro, correoActual, onCerrar }: Prop
     iniciar(async () => {
       const r = await accion();
       if (!r.ok) return setError(r.error);
-      setConfirmarQuitar(false);
+      setConfirmarDesactivar(false);
       if (r.contrasena) {
         setContrasena(r.contrasena);
         return;
@@ -74,17 +74,6 @@ export default function GestionMiembro({ miembro, correoActual, onCerrar }: Prop
       mostrarAviso(r.aviso ?? exito, "success");
       cerrar();
     });
-  }
-
-  async function copiar() {
-    try {
-      await navigator.clipboard.writeText(contrasena);
-      setCopiada(true);
-    } catch {
-      // Sin permiso de portapapeles (http, navegador viejo): queda a la vista
-      // y seleccionable, que es lo que importa.
-      setCopiada(false);
-    }
   }
 
   if (!miembro) return null;
@@ -98,31 +87,12 @@ export default function GestionMiembro({ miembro, correoActual, onCerrar }: Prop
       tamano="md"
     >
       {contrasena ? (
-        <div className="space-y-4">
-          <p className="text-sm text-verde-700">
-            Contraseña temporal de <strong>{miembro.nombre}</strong>. Entra con
-            su correo <strong>{miembro.correo}</strong> y esta contraseña, y la
-            cambia desde su menú de cuenta.
-          </p>
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dorado/50 bg-dorado/10 px-4 py-3">
-            <code className="select-all font-cifra text-xl font-normal tracking-wider text-verde">
-              {contrasena}
-            </code>
-            <button type="button" onClick={copiar} className={BOTON}>
-              <span className="control-sheen" aria-hidden="true" />
-              {copiada ? "Copiada ✓" : "Copiar"}
-            </button>
-          </div>
-          <p className="text-xs text-verde-300">
-            ⚠️ No se volverá a enseñar: guárdala o entrégala ahora. Si se
-            pierde, genera otra.
-          </p>
-          <div className="flex justify-end">
-            <button type="button" onClick={cerrar} className={BOTON_PRIMARIO}>
-              Hecho
-            </button>
-          </div>
-        </div>
+        <ContrasenaTemporal
+          nombre={miembro.nombre}
+          correo={miembro.correo}
+          contrasena={contrasena}
+          onHecho={cerrar}
+        />
       ) : (
         <div className="space-y-5">
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
@@ -131,20 +101,18 @@ export default function GestionMiembro({ miembro, correoActual, onCerrar }: Prop
               <dd className="break-all text-verde-700">{miembro.correo}</dd>
             </div>
             <div>
-              <dt className="text-xs text-verde-300">Acceso al panel</dt>
-              <dd className="text-verde-700">
-                {miembro.acceso ? "Puede entrar" : "No puede entrar"}
-              </dd>
+              <dt className="text-xs text-verde-300">Perfil</dt>
+              <dd className="text-verde-700">{miembro.activo ? "Activo" : "Desactivado"}</dd>
             </div>
           </dl>
 
           {esYo ? (
             <p className="rounded-xl border border-beige bg-arena/50 px-4 py-3 text-sm text-verde-700">
-              Eres tú. Tu rol y tu acceso los cambia otra persona de
-              Administración, y tu contraseña, tu menú de cuenta: así nadie se
-              queda fuera por un clic.
+              Eres tú. Tu rol y tu perfil los cambia otra persona de
+              Administración, y tu contraseña, Configuración → Mi perfil: así
+              nadie se queda fuera por un clic.
             </p>
-          ) : (
+          ) : miembro.activo ? (
             <>
               <CampoSelect
                 nombre="rol"
@@ -168,72 +136,71 @@ export default function GestionMiembro({ miembro, correoActual, onCerrar }: Prop
               </CampoSelect>
 
               <div className="flex flex-wrap gap-3">
-                {miembro.acceso ? (
-                  <>
-                    <button
-                      type="button"
-                      disabled={enCurso}
-                      onClick={() =>
-                        ejecutar(
-                          () => nuevaContrasenaTemporal(miembro.id),
-                          "Contraseña cambiada.",
-                        )
-                      }
-                      className={BOTON}
-                    >
-                      <span className="control-sheen" aria-hidden="true" />
-                      Nueva contraseña temporal
-                    </button>
-                    {/* Quitar el acceso pide una segunda pulsación: es lo único
-                        de este diálogo que deja a alguien fuera. */}
-                    {confirmarQuitar ? (
-                      <button
-                        type="button"
-                        disabled={enCurso}
-                        onClick={() =>
-                          ejecutar(
-                            () => quitarAcceso(miembro.id),
-                            `${miembro.nombre} ya no puede entrar al panel.`,
-                          )
-                        }
-                        className={BOTON_PELIGRO}
-                      >
-                        Sí, quitar el acceso
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={enCurso}
-                        onClick={() => setConfirmarQuitar(true)}
-                        className={BOTON_PELIGRO}
-                      >
-                        Quitar acceso
-                      </button>
-                    )}
-                  </>
-                ) : (
+                <button
+                  type="button"
+                  disabled={enCurso}
+                  onClick={() =>
+                    ejecutar(() => nuevaContrasenaTemporal(miembro.id), "Contraseña cambiada.")
+                  }
+                  className={BOTON}
+                >
+                  <span className="control-sheen" aria-hidden="true" />
+                  Nueva contraseña temporal
+                </button>
+                {/* Desactivar pide una segunda pulsación: es lo único de este
+                    diálogo que deja a alguien fuera. */}
+                {confirmarDesactivar ? (
                   <button
                     type="button"
                     disabled={enCurso}
                     onClick={() =>
                       ejecutar(
-                        () => darAcceso(miembro.id),
-                        `${miembro.nombre} ya puede entrar al panel.`,
+                        () => desactivarMiembro(miembro.id),
+                        `Perfil de ${miembro.nombre} desactivado.`,
                       )
                     }
-                    className={BOTON_PRIMARIO}
+                    className={BOTON_PELIGRO}
                   >
-                    {enCurso ? "Creando la cuenta…" : "Dar acceso al panel"}
+                    Sí, desactivar
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={enCurso}
+                    onClick={() => setConfirmarDesactivar(true)}
+                    className={BOTON_PELIGRO}
+                  >
+                    Desactivar perfil
                   </button>
                 )}
               </div>
-              {confirmarQuitar && (
+              {confirmarDesactivar && (
                 <p className="text-xs text-verde-300">
-                  Su cuenta se conserva: si le devuelves el acceso, entra con la
-                  misma contraseña.
+                  No podrá entrar al panel ni se le podrán asignar clases. Su
+                  historial se conserva y puedes reactivarla cuando quieras.
                 </p>
               )}
             </>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-verde-700">
+                Su perfil está desactivado: no entra al panel ni se le asignan
+                clases. Al reactivarlo entra con la contraseña que tenía.
+              </p>
+              <button
+                type="button"
+                disabled={enCurso}
+                onClick={() =>
+                  ejecutar(
+                    () => reactivarMiembro(miembro.id),
+                    `${miembro.nombre} vuelve a estar activa.`,
+                  )
+                }
+                className={BOTON_PRIMARIO}
+              >
+                {enCurso ? "Reactivando…" : "Reactivar perfil"}
+              </button>
+            </div>
           )}
 
           {error && (

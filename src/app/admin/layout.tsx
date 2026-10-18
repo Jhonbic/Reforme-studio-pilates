@@ -5,8 +5,7 @@ import AdminTopbar from "@/components/admin/AdminTopbar";
 import AppSidebar from "@/components/admin/AppSidebar";
 import { SidebarProvider } from "@/context/SidebarContext";
 import { ToastProvider } from "@/context/ToastContext";
-import { hoyEnBogota } from "@/lib/admin/horario";
-import { getNotificaciones, getUsuarioActual } from "@/lib/admin/queries";
+import { getUsuarioActual } from "@/lib/admin/queries";
 
 export const metadata: Metadata = {
   title: "Panel administrativo · Reforme Studio Pilates",
@@ -23,8 +22,7 @@ export const metadata: Metadata = {
  * tipografías, verde y dorado.
  *
  * ⚠️ **Este componente es de SERVIDOR y es donde se piden los datos de sesión.**
- * La cuenta y los avisos se leen aquí y bajan como props a `AdminTopbar`, que sí
- * es de cliente.
+ * La cuenta se lee aquí y baja como prop a `AppSidebar`, que sí es de cliente.
  *
  * ⚠️ **Es la segunda puerta, no la única.** `proxy.ts` ya echa a quien no tiene
  * sesión; aquí se echa además a quien tiene sesión pero no perfil del estudio.
@@ -40,13 +38,12 @@ export default async function AdminLayout(props: LayoutProps<"/admin">) {
     // a su área. A cualquier otro, al login.
     redirect((await getMiCuenta()) ? "/mi-cuenta" : "/login?error=sin-acceso");
   }
-  const avisos = await getNotificaciones(hoyEnBogota());
 
   return (
     <SidebarProvider>
       <ToastProvider>
         <div className="flex min-h-[100svh] flex-col bg-arena lg:flex-row">
-          <AppSidebar />
+          <AppSidebar usuario={usuario} />
 
           {/* ⚠️ `min-w-0` es obligatorio, no cosmético: un hijo flex tiene
               `min-width: auto` y no se encoge por debajo de su contenido. Sin
@@ -54,10 +51,7 @@ export default async function AdminLayout(props: LayoutProps<"/admin">) {
               ResizeObserver de los gráficos mediría un ancho inflado, que es
               justo el bug del estiramiento de las gráficas. */}
           <div className="flex min-w-0 flex-1 flex-col">
-            <AdminTopbar
-              usuario={usuario}
-              avisos={avisos}
-            />
+            <AdminTopbar />
 
             <main className="flex-1 px-4 py-5 sm:px-6 lg:px-6 lg:py-6 xl:px-8">
               {props.children}

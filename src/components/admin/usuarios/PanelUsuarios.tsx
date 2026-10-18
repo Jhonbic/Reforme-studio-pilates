@@ -43,7 +43,7 @@ type Props = {
   clientes: Cliente[];
   equipo: MiembroEquipo[];
   conteos: Record<FiltroEstado, number>;
-  /** Solo Administración gestiona el equipo y ve quién tiene acceso. */
+  /** Solo Administración gestiona el equipo. */
   esAdmin: boolean;
   /** Para no ofrecerle a nadie las acciones que le dejarían fuera a sí mismo. */
   correoActual: string;

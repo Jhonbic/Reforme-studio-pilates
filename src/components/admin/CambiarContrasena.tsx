@@ -12,9 +12,9 @@ const BOTON_PRIMARIO =
   "inline-flex min-h-[44px] items-center justify-center rounded-full bg-dorado px-5 text-sm font-medium text-verde-900 transition-colors duration-300 hover:bg-dorado-dark disabled:opacity-60";
 
 /**
- * Cambiar la propia contraseña. Existe sobre todo para la contraseña temporal
- * que entrega Administración al dar acceso: la primera vez que se entra, se
- * cambia aquí.
+ * Cambiar la propia contraseña, desde Configuración → Mi perfil. (La temporal
+ * que entrega el estudio se cambia antes, obligatoriamente, en
+ * `/cambiar-contrasena`.)
  *
  * Pide la actual (ver `cambiarMiContrasena`) y la nueva DOS veces: un error al
  * teclear una contraseña que no se ve dejaría a la persona fuera.

@@ -10,20 +10,17 @@ import {
   resumenClientes,
 } from "@/lib/admin/dashboard";
 import { horaEnBogota, hoyEnBogota, sumarDias } from "@/lib/admin/horario";
-import { moneda } from "@/lib/admin/format";
 import { mesAnterior } from "@/lib/admin/periodo";
 import {
   getClases,
   getDatosDashboard,
   getMetaClientes,
   getPagosDesde,
-  getPagosPendientes,
   getUsuarioActual,
 } from "@/lib/admin/queries";
 import {
   enlaceWhatsApp,
   mensajeCumpleanos,
-  mensajePendiente,
   mensajeRecordatorio,
 } from "@/lib/admin/whatsapp";
 
@@ -48,22 +45,24 @@ function textoVence(dias: number): string {
  * Se calcula entero aquí, en el servidor, con funciones puras
  * (`lib/admin/dashboard.ts`), y baja ya resuelto.
  *
- * Arriba, la fila del paso 6: meta de clientes (todo el equipo), ingresos del
- * mes (solo Administración) y por cobrar (el mostrador, que es quien cobra).
- * Lo que un rol no ve ni se pide: RLS devolvería vacío y saldría «$0».
+ * Arriba, la fila del paso 6: meta de clientes (todo el equipo) e ingresos del
+ * mes (solo Administración). Lo que un rol no ve ni se pide: RLS devolvería
+ * vacío y saldría «$0».
+ *
+ * ⚠️ Sin pagos pendientes (ni «Por cobrar» ni la lista): se quitaron del
+ * dashboard por decisión del usuario (18 oct 2026). Lo que debe cada cliente
+ * se ve y se cobra en su ficha.
  */
 export default async function DashboardPage() {
   const hoy = hoyEnBogota();
   const usuario = await getUsuarioActual();
   const esAdmin = usuario?.rol === "Administración";
-  const esMostrador = esAdmin || usuario?.rol === "Recepción";
-  const [datos, agenda, meta, pagos, pendientes] = await Promise.all([
+  const [datos, agenda, meta, pagos] = await Promise.all([
     getDatosDashboard(),
     getClases(hoy, horaEnBogota()),
     getMetaClientes(),
     // Desde el 1 del mes pasado: lo justo para comparar con el mismo tramo.
     esAdmin ? getPagosDesde(mesAnterior(hoy).desde) : null,
-    esMostrador ? getPagosPendientes() : null,
   ]);
 
   const resumen = resumenClientes(datos, hoy);
@@ -99,24 +98,6 @@ export default async function DashboardPage() {
         hoy={hoy}
         meta={avanceMeta(resumen.activos, meta)}
         ingresos={pagos ? ingresosDelMes(pagos, hoy) : null}
-        porCobrar={
-          pendientes
-            ? {
-                total: pendientes.reduce((t, p) => t + p.pendiente, 0),
-                clientes: new Set(pendientes.map((p) => p.clienteId)).size,
-                filas: pendientes.map((p) => ({
-                  id: p.membresiaId,
-                  clienteId: p.clienteId,
-                  nombre: p.nombre,
-                  detalle: `Debe ${moneda(p.pendiente)} · ${p.plan}`,
-                  whatsapp: enlaceWhatsApp(
-                    p.telefono,
-                    mensajePendiente(p.nombre, p.plan, moneda(p.pendiente)),
-                  ),
-                })),
-              }
-            : null
-        }
         clientes={{
           activos: resumen.activos,
           // Contra el cierre del mes pasado, de la misma serie que dibuja la

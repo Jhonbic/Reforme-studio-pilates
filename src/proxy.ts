@@ -1,11 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { debeCambiarContrasena } from "@/lib/auth/temporal";
 
 /**
  * Portero del panel y del área de cliente: sin sesión no se entra a `/admin`
  * ni a `/mi-cuenta`.
  *
- * Hace dos cosas en cada petición al panel:
+ * Hace tres cosas en cada petición al panel:
  * 1. **Refresca la sesión.** El token de Supabase caduca cada hora; si nadie lo
  *    renueva aquí, los Server Components (que no pueden escribir cookies) lo
  *    verían caducado y echarían a la persona en mitad del trabajo.
@@ -55,6 +56,19 @@ export async function proxy(request: NextRequest) {
       request.nextUrl.pathname + request.nextUrl.search,
     );
     return NextResponse.redirect(destino);
+  }
+
+  // 3. **Contraseña temporal**: hasta que elija la suya no pasa de
+  //    `/cambiar-contrasena`. La marca viaja en el JWT (`app_metadata`), así
+  //    que esto no cuesta ningún viaje a Supabase.
+  if (debeCambiarContrasena(data.claims)) {
+    const destino = request.nextUrl.clone();
+    destino.pathname = "/cambiar-contrasena";
+    destino.search = "";
+    const redireccion = NextResponse.redirect(destino);
+    // Con la sesión recién renovada, si la hubo: sin esto se perdería.
+    respuesta.cookies.getAll().forEach((c) => redireccion.cookies.set(c));
+    return redireccion;
   }
 
   return respuesta;

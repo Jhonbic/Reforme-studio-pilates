@@ -5,9 +5,20 @@ import { usePathname } from "next/navigation";
 import { useSidebar } from "@/context/SidebarContext";
 import Logo from "@/components/Logo";
 import HeroFX from "@/components/fx/HeroFX";
+import { iniciales } from "@/lib/admin/format";
+import type { UsuarioActual } from "@/lib/admin/types";
 import { SECCIONES, esSeccionActiva } from "./secciones";
 
-export default function AppSidebar() {
+/**
+ * ⚠️ **Quién ha entrado va aquí, encima de las secciones, no en la cabecera**
+ * (decisión del usuario, oct 2026). Antes era una pastilla dorada con
+ * desplegable en la esquina de la topbar, junto a una campana de avisos que
+ * se quitó: dos de sus tres avisos eran de ejemplo.
+ *
+ * Cambiar la contraseña y cerrar sesión NO están aquí: viven en
+ * Configuración → Mi perfil, que tiene cada rol. Pulsar el nombre lleva ahí.
+ */
+export default function AppSidebar({ usuario }: { usuario: UsuarioActual }) {
   const { isExpanded, isMobileOpen, closeMobileSidebar } = useSidebar();
   const pathname = usePathname();
 
@@ -112,8 +123,30 @@ export default function AppSidebar() {
           </button>
         </div>
 
+        {/* Quién ha entrado. El círculo de iniciales es el mismo lenguaje que
+            el avatar de las filas de Usuarios. Es un enlace a su perfil. */}
+        <Link
+          href="/admin/configuracion"
+          onClick={handleNavigation}
+          aria-label={`Mi perfil: ${usuario.nombre}, ${usuario.rol}`}
+          className="flex items-center gap-3 border-b border-verde-700/70 px-6 py-4 transition-colors hover:bg-verde-700/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-dorado"
+        >
+          <span
+            aria-hidden="true"
+            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-dorado/20 font-display text-base text-dorado-light"
+          >
+            {iniciales(usuario.nombre)}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-arena" title={usuario.nombre}>
+              {usuario.nombre}
+            </p>
+            <p className="mt-0.5 truncate text-xs text-dorado-light">{usuario.rol}</p>
+          </div>
+        </Link>
+
         {/* Navegación */}
-        <nav className="flex-1 overflow-y-auto px-4 py-6">
+        <nav aria-label="Secciones del panel" className="flex-1 overflow-y-auto px-4 py-6">
           <div className="space-y-1.5">
             {SECCIONES.map((seccion) => {
               const activa = esSeccionActiva(seccion.href, pathname);

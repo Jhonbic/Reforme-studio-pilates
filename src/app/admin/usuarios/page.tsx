@@ -17,7 +17,7 @@ export default async function UsuariosPage({ searchParams }: PageProps<"/admin/u
   const esAdmin = usuario?.rol === "Administración";
   const [clientes, equipo] = await Promise.all([
     getClientes(),
-    getEquipo(esAdmin),
+    getEquipo(),
   ]);
 
   return (

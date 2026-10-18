@@ -1,4 +1,4 @@
-import { calcularVariacion, moneda } from "./format";
+import { calcularVariacion } from "./format";
 import { diasEntre, lunesDe, sumarDias } from "./horario";
 import { MESES_LARGOS, enPeriodo, esteMes, etiquetaPeriodo, periodoAnterior, type Periodo } from "./periodo";
 import type {
@@ -289,25 +289,6 @@ export function resumenClases(clases: ClaseEnAgenda[], hoy: string, activos: Set
     personasSemana,
     /** De los clientes activos, qué parte reservó esta semana. */
     participacion: activos.size ? Math.round((personasSemana / activos.size) * 100) : null,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Campana
-// ---------------------------------------------------------------------------
-
-/** El primer aviso de la campana: las mismas personas que «Por vencer». */
-export function avisoPorVencer(
-  d: { vigentes: { vencimiento: string | null; importeRenovacion: number }[] },
-  hoy: string,
-) {
-  const limite = sumarDias(hoy, DIAS_POR_VENCER);
-  const lista = d.vigentes.filter(
-    (v) => v.vencimiento !== null && v.vencimiento >= hoy && v.vencimiento <= limite,
-  );
-  return {
-    cuantos: lista.length,
-    importe: moneda(suma(lista, (v) => v.importeRenovacion)),
   };
 }
 

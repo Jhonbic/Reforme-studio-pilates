@@ -31,18 +31,19 @@ export default function Pastilla({
   );
 }
 
-/* Los cuatro pares de color de estado del panel, en un solo sitio. `color-mix`
-   en vez de `/10` y `/30` porque los estados son variables CSS, no colores del
-   tema de Tailwind: la sintaxis de opacidad con barra solo funciona con estos
-   últimos.
+/* Los cuatro tonos de estado del panel, en un solo sitio. **Solo borde, viñeta
+   y texto, sin relleno** (decisión del usuario, oct 2026): el borde sube al
+   45 % para que la pastilla se siga leyendo sin el fondo. `color-mix` en vez
+   de `/45` porque los estados son variables CSS, no colores del tema de
+   Tailwind: la sintaxis de opacidad con barra solo funciona con estos últimos.
 
    `neutro` NO es una alarma: es para lo que ya pasó o dejó de moverse
    («Inactiva», «Finalizada»). */
 export const TONO_ESTADO = {
-  ok: "border-[color-mix(in_srgb,var(--color-estado-ok)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-ok)_10%,transparent)] text-[var(--color-estado-ok)]",
+  ok: "border-[color-mix(in_srgb,var(--color-estado-ok)_45%,transparent)] text-[var(--color-estado-ok)]",
   aviso:
-    "border-[color-mix(in_srgb,var(--color-estado-aviso)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-aviso)_10%,transparent)] text-[var(--color-estado-aviso)]",
+    "border-[color-mix(in_srgb,var(--color-estado-aviso)_45%,transparent)] text-[var(--color-estado-aviso)]",
   grave:
-    "border-[color-mix(in_srgb,var(--color-estado-grave)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-grave)_10%,transparent)] text-[var(--color-estado-grave)]",
-  neutro: "border-beige bg-beige/40 text-verde-300",
+    "border-[color-mix(in_srgb,var(--color-estado-grave)_45%,transparent)] text-[var(--color-estado-grave)]",
+  neutro: "border-verde-300/45 text-verde-300",
 } as const;

@@ -74,13 +74,12 @@ export default function AccionesCliente({
 
   return (
     <>
-      {/* Hasta `xl` el botón va a la IZQUIERDA (los botones bajan a su propia
-          fila en la ficha) y el menú se abre hacia la derecha; alineado a la
-          derecha se salía de la pantalla por la izquierda en móvil. En `xl` el
-          botón vuelve a la esquina derecha y el menú también. */}
+      {/* Alineado a la DERECHA del botón: en la ficha (oct 2026, estilo Jain)
+          los botones van centrados y «Acciones» es el último, así que queda en
+          la mitad derecha. Abierto hacia la derecha se salía de la pantalla en
+          el móvil (medido: hasta 437 px en 390). */}
       <Dropdown
-        alineacion="izquierda"
-        clasePanel="xl:left-auto xl:right-0"
+        alineacion="derecha"
         claseBoton={BOTON}
         etiqueta={
           <>

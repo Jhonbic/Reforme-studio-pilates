@@ -3,19 +3,14 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import Logo from "@/components/Logo";
+import HeroFX from "@/components/fx/HeroFX";
 import { useSidebar } from "@/context/SidebarContext";
-import type { Notificacion, UsuarioActual } from "@/lib/admin/types";
-import Campana from "./Campana";
-import MenuCuenta from "./MenuCuenta";
 import { seccionActual, subseccionDe } from "./secciones";
 
-type Props = {
-  usuario: UsuarioActual;
-  avisos: Notificacion[];
-};
-
 /**
- * Cabecera del panel: título, avisos y cuenta.
+ * Cabecera del panel: navegación, «Volver» y título. La cuenta está en la
+ * barra lateral (`AppSidebar`).
  *
  * El título de cada página vivía dentro de la propia página; al subirlo aquí se
  * gana altura útil (en móvil eran ~120px de scroll antes de ver un solo dato) y
@@ -23,16 +18,21 @@ type Props = {
  *
  * Es cliente por `usePathname`: el título sale del MISMO listado que pinta la
  * navegación (`secciones.tsx`), así que menú y título no se pueden
- * desincronizar. Los datos de cuenta y avisos, en cambio, llegan **como props
- * desde el layout**, que es servidor: así el panel no tiene que pedirlos desde
- * el navegador y las rutas siguen prerenderizándose.
+ * desincronizar.
  *
  * ⚠️ **Esta es la ÚNICA barra superior del panel.** Hubo un `AppHeader` aparte
  * durante una fase; se retiró porque una franja entera para dos controles se
- * come ~64px de alto en todas las pantallas, y aquí el hueco a la derecha del
- * título ya estaba vacío. El botón de la navegación se mudó a esta misma fila.
+ * come ~64px de alto en todas las pantallas. El botón de la navegación se
+ * mudó a esta misma fila.
  */
-export default function AdminTopbar({ usuario, avisos }: Props) {
+/** Botón redondo de la cabecera. El ☰ (solo móvil) va sin borde sobre el
+ *  verde; «Volver» (solo escritorio) con borde sobre arena.
+ *  ⚠️ Sin `display` aquí: va en cada botón. `hidden` + `inline-flex` en la
+ *  misma clase hacía ganar a `inline-flex` y el botón no se ocultaba. */
+const BOTON =
+  "h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dorado";
+
+export default function AdminTopbar() {
   const pathname = usePathname();
   const router = useRouter();
   const seccion = seccionActual(pathname);
@@ -83,86 +83,94 @@ export default function AdminTopbar({ usuario, avisos }: Props) {
   return (
     /* `sticky top-0` también en móvil, no solo en `lg`: aquí vive el botón que
        abre la navegación, y si se fuera con el scroll habría que subir del todo
-       para cambiar de sección. */
-    <div className="sticky top-0 z-30 border-b border-beige/70 bg-arena/85 backdrop-blur">
+       para cambiar de sección.
+
+       ⚠️ **Dos caras** (decisión del usuario, oct 2026): en MÓVIL es una barra
+       de marca, verde como la lateral y con sus motas: ☰ a la izquierda (sin
+       borde) y el logo a la derecha; sin «Volver» (está el del navegador).
+       Sin «Panel administrativo» ni título visible (el `<h1>` sigue, solo para
+       lectores de pantalla). En ESCRITORIO, «Volver» y el título sobre arena.
+       Un solo DOM: cambia con clases, como el resto del panel. */
+    <div className="sticky top-0 z-30 isolate overflow-hidden border-b border-verde-700 bg-verde lg:border-beige/70 lg:bg-arena/85 lg:backdrop-blur">
+      {/* Las motas de la lateral, solo en móvil. `goteo={false}`: aquí casi
+          todo clic va a un control. */}
+      <HeroFX className="-z-10 lg:hidden" goteo={false} />
       {/* Mismo ancho máximo que el contenido: el título queda a plomo con la
-          primera tarjeta de la rejilla.
-          `min-w-0` en el bloque del título para que un título largo se recorte
-          él en vez de empujar el menú fuera de la pantalla. */}
-      <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-5 xl:px-8">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          {/* ☰ SOLO en móvil: allí la navegación es un cajón y este botón es
-              la única forma de abrirlo. En escritorio la barra lateral ya no
-              se pliega: su sitio lo ocupa «Volver». `aria-expanded` porque el
-              estado del cajón solo lo ve quien mira la pantalla. */}
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            aria-label={visible ? "Cerrar navegación" : "Abrir navegación"}
-            aria-expanded={visible}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-beige text-verde transition-colors duration-300 hover:border-dorado focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dorado lg:hidden"
+          primera tarjeta de la rejilla. */}
+      <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:justify-start lg:px-6 lg:py-5 xl:px-8">
+        {/* ☰ SOLO en móvil: allí la navegación es un cajón y este botón es
+            la única forma de abrirlo. `aria-expanded` porque el estado del
+            cajón solo lo ve quien mira la pantalla. */}
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label={visible ? "Cerrar navegación" : "Abrir navegación"}
+          aria-expanded={visible}
+          className={`${BOTON} -ml-2 inline-flex text-arena hover:text-dorado-light lg:hidden`}
+        >
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
           >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.8}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
 
-          <button
-            type="button"
-            onClick={volver}
-            aria-label="Volver a la página anterior"
-            title="Volver"
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-beige text-verde transition-colors duration-300 hover:border-dorado focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dorado"
+        {/* Logo solo en móvil, a la derecha: en escritorio ya está en la lateral. */}
+        <Logo size={24} layout="horizontal" href="/admin" className="text-arena lg:hidden" />
+
+        {/* Solo escritorio: en el móvil la barra es de marca y basta el
+            «atrás» del sistema. */}
+        <button
+          type="button"
+          onClick={volver}
+          aria-label="Volver a la página anterior"
+          title="Volver"
+          className={`${BOTON} hidden border border-beige text-verde hover:border-dorado lg:inline-flex`}
+        >
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
           >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.8}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+            <path d="M19 12H5M11 18l-6-6 6-6" />
+          </svg>
+        </button>
+
+        {/* `min-w-0` para que un título largo se recorte en vez de desbordar.
+            ⚠️ En móvil es `sr-only` el bloque entero, no solo el `<h1>`: así
+            sale del flujo flex. Si ocupara su hueco (aunque vacío), el
+            `justify-between` dejaría el logo en medio y no en la esquina. */}
+        <div className="sr-only lg:not-sr-only lg:min-w-0">
+          {/* En una subsección el eyebrow deja de ser decorativo y pasa a ser
+              la salida en escritorio. En móvil sobra: está «Volver». */}
+          {sub ? (
+            <Link
+              href={sub.volverA}
+              className="eyebrow hidden items-center gap-1.5 text-dorado-dark transition-colors duration-300 hover:text-verde lg:inline-flex"
             >
-              <path d="M19 12H5M11 18l-6-6 6-6" />
-            </svg>
-          </button>
-
-          <div className="min-w-0">
-            {/* En una subsección el eyebrow deja de ser decorativo y pasa a ser
-                la salida: es el único «volver» que hay, porque el panel no
-                tiene migas de pan. */}
-            {sub ? (
-              <Link
-                href={sub.volverA}
-                className="eyebrow inline-flex items-center gap-1.5 text-dorado-dark transition-colors duration-300 hover:text-verde"
-              >
-                <span aria-hidden="true">←</span>
-                {sub.volverLabel}
-              </Link>
-            ) : (
-              <p className="eyebrow text-dorado-dark">Panel administrativo</p>
-            )}
-            <h1 className="mt-1.5 truncate font-display text-2xl text-verde sm:text-3xl">
-              {sub ? sub.label : seccion.label}
-            </h1>
-          </div>
-        </div>
-
-        {/* Campana y cuenta forman un solo bloque en la esquina: son «quién
-            soy y qué me ha pasado», no dos herramientas distintas. */}
-        <div className="flex shrink-0 items-center gap-2">
-          <Campana avisos={avisos} />
-          <MenuCuenta usuario={usuario} />
+              <span aria-hidden="true">←</span>
+              {sub.volverLabel}
+            </Link>
+          ) : (
+            <p className="eyebrow hidden text-dorado-dark lg:block">Panel administrativo</p>
+          )}
+          {/* El bloque es `sr-only` en móvil y no `hidden`: el árbol de
+              encabezados de cada página cuelga de este `<h1>`. */}
+          <h1 className="truncate font-display text-3xl text-verde lg:mt-1.5">
+            {sub ? sub.label : seccion.label}
+          </h1>
         </div>
       </div>
     </div>

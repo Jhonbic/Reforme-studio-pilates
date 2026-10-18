@@ -37,8 +37,9 @@ export default function CabeceraLista({
       <span className={`${ROTULO} text-right`}>
         {esClientes ? "Vence" : "Desde"}
       </span>
-      {/* Columna del chevron, solo en clientes. */}
-      {esClientes && <span />}
+      {/* Columna del chevron: en las dos (en el equipo va vacía para quien
+          no puede abrir la fila, pero la columna sigue ahí para cuadrar). */}
+      <span />
     </div>
   );
 }

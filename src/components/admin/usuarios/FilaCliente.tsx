@@ -32,16 +32,23 @@ export default function FilaCliente({ cliente }: { cliente: Cliente }) {
           <span className="block truncate text-base font-bold leading-tight text-verde">
             {cliente.nombre}
           </span>
-          {/* La cédula y no el correo: es el campo por el que se busca, y un
-              resultado de búsqueda que no muestra lo que buscaste no se puede
-              verificar de un vistazo. El correo vive en la ficha. */}
-          <span className="block truncate text-xs tabular-nums text-verde-300">
+          {/* Escritorio: la cédula, que es el campo por el que se busca (un
+              resultado que no muestra lo que buscaste no se verifica de un
+              vistazo). Móvil: el contacto (decisión del usuario: en el móvil,
+              solo nombre, contacto y estado). `hidden` y no `sr-only`: así
+              cada tamaño anuncia solo lo que enseña. */}
+          <span className="hidden truncate text-xs tabular-nums text-verde-300 md:block">
             {cliente.tipoIdentificacion ?? "C.C."}{" "}
             {documento(cliente.identificacion)}
           </span>
+          <span className="block truncate text-xs tabular-nums text-verde-300 md:hidden">
+            {cliente.telefono || cliente.correo || "Sin contacto"}
+          </span>
         </span>
 
-        <span className="min-w-0 text-sm text-verde-700">
+        {/* Plan y vencimiento, solo en escritorio: en el móvil se amontonaba
+            todo (están en la ficha). */}
+        <span className="hidden min-w-0 text-sm text-verde-700 md:block">
           {/* Sin plan no hay ni plan ni importe: una raya, no «$0», que se
               leería como «renueva gratis». */}
           <span className="block truncate">{cliente.plan || "—"}</span>
@@ -54,7 +61,7 @@ export default function FilaCliente({ cliente }: { cliente: Cliente }) {
 
         {/* Sin ancho propio: el de la columna lo fija `REJILLA_CLIENTE`, para
             que cuadre con el rótulo de la cabecera. */}
-        <span className="whitespace-nowrap text-sm tabular-nums text-verde-300 md:text-right">
+        <span className="hidden whitespace-nowrap text-sm tabular-nums text-verde-300 md:block md:text-right">
           {/* `sr-only` y no `hidden`: en escritorio la columna ya dice qué es
               por su posición, pero un lector de pantalla no ve columnas y leería
               una fecha suelta. `sr-only` es absoluto, así que no ocupa. */}

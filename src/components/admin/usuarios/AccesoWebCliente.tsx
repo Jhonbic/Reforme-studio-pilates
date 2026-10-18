@@ -74,8 +74,8 @@ export default function AccesoWebCliente({
           <div className="space-y-4">
             <p className="text-sm text-verde-700">
               {nombre.split(" ")[0]} entra en <strong>/login</strong> con su correo{" "}
-              <strong>{correo}</strong> y esta contraseña, y la cambia cuando
-              quiera.
+              <strong>{correo}</strong> y esta contraseña. La primera vez que
+              entre tendrá que elegir una suya.
             </p>
             <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dorado/50 bg-dorado/10 px-4 py-3">
               <code className="select-all font-cifra text-xl font-normal tracking-wider text-verde">{contrasena}</code>

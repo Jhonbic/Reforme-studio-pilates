@@ -98,7 +98,7 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
   desde que hay auth (oct 2026): leen la sesión en cookies. Vercel lo sirve igual,
   no hace falta un contenedor tipo Railway.
 - ⚠️ **Variables de entorno**: ver la tabla de §7. Sin las dos `NEXT_PUBLIC_…`
-  `/admin` da 500; sin `SUPABASE_SERVICE_ROLE_KEY` solo falla «Dar acceso».
+  `/admin` da 500; sin `SUPABASE_SERVICE_ROLE_KEY` fallan el alta de miembros, las contraseñas temporales y el registro.
 - Para ver en el móvil sin desplegar: `npx next dev -H 0.0.0.0` y abrir
   `http://<IP-del-PC>:3000`.
 - ⚠️ **Supabase local usa los puertos 443xx, no los 543xx de fábrica** (oct
@@ -300,31 +300,47 @@ En `src/components/`:
     (`components/admin/secciones.tsx`) que pinta la navegación: así el menú y el
     título no se pueden desincronizar. Por eso `SeccionPendiente` ya no lleva
     `titulo` — salían dos encabezados iguales, uno encima de otro.
-  - **La cuenta (`MenuCuenta.tsx`) vive en la esquina derecha de esa misma
-    cabecera**, a la altura del título (decisión del usuario). ⚠️ **No en una
-    franja propia arriba del todo:** una barra entera para dos datos se come
-    ~64px de alto en todas las pantallas del panel, y en móvil ya hay cabecera
-    de marca y pastillas de navegación por encima. Aquí ocupa un hueco vacío.
-    - **Sigue sin haber buscador global**: el usuario pidió quitarlo, y no hay
-      backend al que buscar. Hubo un buscador decorativo en la cabecera durante
-      una fase y se retiró por eso mismo.
-    - **La campana SÍ existe** (`Campana.tsx`), y es la excepción razonada a lo
-      anterior: su primer aviso se **deriva** de las membresías por vencer, así
-      que cuenta algo real. Los otros dos son de ejemplo y el propio menú lo
-      dice. Un punto rojo que nunca cambia sería una mentira pequeña; este
-      cambia con los datos.
-    - Desplegable con el mismo patrón que `MenuExportar`: `absolute` para no
-      empujar el título, cierre al pulsar fuera y con `Escape`, foco de vuelta
-      al botón. Dentro: nombre, correo, rol, «Ver la web pública» y «Cerrar
-      sesión».
+  - ⚠️ **La cuenta vive en la BARRA LATERAL, no en la cabecera** (decisión del
+    usuario, 18 oct 2026): iniciales + nombre + rol **encima de las secciones**,
+    y el bloque es un enlace a **Configuración → Mi perfil**. En el pie, solo
+    «Ver web pública». Antes era una pastilla dorada con desplegable
+    (`MenuCuenta.tsx`) en la esquina de la topbar; se borró. En móvil se ve al
+    abrir el cajón.
+    - ⚠️ **«Cambiar contraseña» y «Cerrar sesión» viven en Configuración → Mi
+      perfil** (`configuracion/MiPerfil.tsx`), que tiene CADA rol. Estuvieron
+      un momento en el pie de la barra y el usuario los quiso allí.
+    - ⚠️ **Sin campana de avisos** (misma decisión): `Campana.tsx`,
+      `getNotificaciones()`, el tipo `Notificacion` y `mock.ts` (solo guardaba
+      sus dos avisos de ejemplo) se borraron. Las membresías por vencer ya
+      salen en el dashboard («Por vencer · 7 días»). Además, la campana
+      pedía `clientes_vigentes` entera en cada carga del panel.
+    - **Sigue sin haber buscador global**: el usuario pidió quitarlo.
     - **«Cerrar sesión» es un `<form>` con la server action `cerrarSesion`**,
       no un enlace: un GET que cierra sesión lo dispararía cualquier precarga.
-    - El usuario sale de **`getUsuarioActual()`** (`queries.ts`), que ya es
-      `async` y lee la sesión de Supabase y la fila de `perfiles`. Se resuelve
-      en el **layout, que es servidor**, y baja como prop: `AdminTopbar` es
-      cliente por `usePathname` y no puede esperar a una función `async`.
-    - El bloque del título lleva `min-w-0` + `truncate`: un título largo se
-      recorta él en vez de empujar el menú fuera de la pantalla.
+    - El usuario sale de **`getUsuarioActual()`** (`queries.ts`). Se resuelve
+      en el **layout, que es servidor**, y baja como prop a `AppSidebar`.
+    - ⚠️ **La topbar tiene dos caras** (decisión del usuario, 18 oct 2026):
+      en **móvil** es una barra de marca **verde con las motas** de la
+      lateral (`HeroFX`, sin goteo): ☰ sin borde a la izquierda y el logo
+      (24 px) a la derecha. Sin «Volver», sin «Panel administrativo» ni
+      título visible (el `<h1>` sigue `sr-only` para el árbol de
+      encabezados). En **escritorio**, «Volver», «Panel administrativo» y el
+      título sobre arena. Un solo DOM: cambia con clases.
+      - Se probó quitar la barra de escritorio y poner en cada página un
+        título con descripción (al estilo de JainSportBox); el usuario se
+        arrepintió y se volvió a esta. No repetirlo sin preguntar.
+      - ⚠️ Gotchas: `hidden` + `inline-flex` en la misma clase base → gana
+        `inline-flex` y el botón no se oculta; el `display` va en cada botón,
+        no en la constante `BOTON`. Y el bloque del título es `sr-only`
+        ENTERO en móvil (no solo el `<h1>`): si ocupara su hueco vacío, el
+        `justify-between` dejaba el logo en medio.
+    - **Pastillas de estado sin relleno** (18 oct 2026, decisión del
+      usuario): solo borde (al 45 %), viñeta y texto, en todo el panel
+      (`TONO_ESTADO` en `Pastilla.tsx`; `FilaMiembro` también lo usa ya).
+    - **Filas de Usuarios en el móvil** (Clientes y Equipo): solo nombre,
+      contacto (teléfono, si no el correo, si no «Sin contacto»; en el
+      equipo, el correo) y la pastilla de estado. Plan, vencimiento, rol y
+      fecha de alta, solo en escritorio (`hidden md:block`).
 - **Acceso por rol desde el `/login` existente** (decisión del usuario, frente a
   un `/admin/login` aparte). **Auth real desde oct 2026**, con dos puertas:
   `src/proxy.ts` echa a quien no tiene sesión (a `/login?siguiente=…`), y el
@@ -1721,8 +1737,11 @@ del usuario: **serie con fecha de fin**. Migración `20261016120000_series_con_f
 
 #### Configuración (`/admin/configuracion`) — oct 2026, paso 4
 
-Migración `20261011120000_configuracion`. Solo Administración (RLS y la
-página, que a los demás les dice que es de Administración). Última entrada
+Migración `20261011120000_configuracion`. ⚠️ **Desde el 18 oct 2026 la
+página la abre todo el equipo**: arriba, **Mi perfil** (nombre, correo, rol,
+«Cambiar contraseña» y «Cerrar sesión»), para cada rol. Debajo, «Del
+estudio», solo Administración (RLS y la página: a los demás ni se les pide
+`getConfiguracion()`). Última entrada
 del menú, con engranaje. Cada bloque guarda por separado y avisa de lo que
 pasó en la agenda.
 
@@ -1813,7 +1832,7 @@ pendientes**; hasta aquí todo plan se cobraba entero al asignarlo, así que
 - **Ficha**: en «Membresía», «▲ Debe $X · pagó $Y de $Z» con **«Registrar
   pago»** (arranca en todo lo que falta; se puede bajar para otro abono).
   Solo el mostrador. Server action `registrarPago`.
-- **Dashboard**: fila nueva encima de las pestañas con tres cifras y
+- **Dashboard**: fila nueva encima de las pestañas con dos cifras y
   ninguna gráfica:
   - **Meta de clientes** (todo el equipo): activos (membresía vigente, la
     misma cifra que «Activos») de la meta, barra, «Faltan N» o «Meta
@@ -1821,11 +1840,13 @@ pendientes**; hasta aquí todo plan se cobraba entero al asignarlo, así que
     (`ajustes.meta_clientes`, 60 por defecto).
   - **Ingresos del mes** (solo Administración): cobros del 1 a hoy frente al
     mismo tramo del mes anterior, como Finanzas.
-  - **Por cobrar** (Administración y Recepción): total pendiente y cuántos
-    clientes deben. En la pestaña Clientes, lista **«Pagos pendientes»** con
-    «Recordar» (WhatsApp con el mensaje escrito) y «Cobrar» (a la ficha).
-  - La tarjeta «Pendientes» (clientes sin plan) pasó a **«Sin plan»**: con
-    «Pagos pendientes» al lado, el nombre confundía.
+  - ~~**Por cobrar** y la lista **«Pagos pendientes»**~~: ⚠️ **se quitaron
+    del dashboard el 18 oct 2026** (decisión del usuario), junto con
+    `mensajePendiente` (WhatsApp). La fila queda con Meta e Ingresos. Lo que
+    debe cada cliente se sigue viendo y cobrando en su ficha
+    (`getPagosPendientes(clienteId)`); la vista `membresias_pendientes` sigue
+    en la base.
+  - La tarjeta «Pendientes» (clientes sin plan) pasó a **«Sin plan»**.
 - Producción: al aplicarla no había ninguna membresía con pagos de menos.
 - Semilla: dos membresías vigentes quedan debiendo (una con la mitad, otra
   sin pagar) para probar en local.
@@ -1863,45 +1884,66 @@ pendientes**; hasta aquí todo plan se cobraba entero al asignarlo, así que
 - Verificado contra un cálculo SQL independiente: mismos clientes y mismo
   cobrado por plan, como Administración y como Instructora.
 
-#### Equipo y acceso al panel (`/admin/usuarios`, pestaña Equipo) — oct 2026
+#### Equipo (`/admin/usuarios`, pestaña Equipo) — oct 2026
 
-La pestaña Equipo lee la tabla `equipo` (antes, `mock.ts`). Administración
-añade personas y les da o quita acceso al panel desde su fila; el resto del
-equipo la ve en solo lectura y sin saber quién tiene acceso.
+La pestaña Equipo lee la tabla `equipo`. Administración añade personas y
+gestiona cada una desde su fila; el resto del equipo la ve en solo lectura.
 
-- ⚠️ **Dos tablas, ahora unidas** (migración `20261001160000`): `equipo`
-  (quién trabaja) y `perfiles` (quién entra). `equipo.cuenta_id` apunta a la
-  cuenta; **tener acceso = esa cuenta tiene fila en `perfiles`**. Quitar el
-  acceso borra el perfil y CONSERVA la cuenta: devolverlo no crea otra ni
-  cambia la contraseña. Las cuentas que ya tenían acceso sin estar en el
-  equipo (la del dueño) se añadieron al equipo, y la semilla lo repite al
-  final porque su `truncate` las borraría.
-- ⚠️ **«Dar acceso» crea la cuenta con una contraseña temporal** que se enseña
-  UNA vez (12 caracteres sin 0/O/1/l/I, con `crypto`). No hay invitación por
-  correo: el SMTP gratuito de Supabase solo llega a los miembros del proyecto
-  de Supabase. El diálogo no se cierra solo hasta pulsar «Hecho», y no se
-  puede cerrar mientras la acción está en vuelo.
+> ✅ **Reglas nuevas (18 oct 2026, decisión del usuario).** Ya no existe
+> «acceso al panel» como paso aparte ni la línea «Entra al panel / Sin
+> acceso al panel» bajo el rol:
+> 1. **Crear un miembro crea su cuenta** con una contraseña temporal, que el
+>    diálogo de alta enseña UNA vez (`ContrasenaTemporal.tsx`). `crearMiembro`
+>    va en orden cuenta → fila de `equipo` → perfil, y si un paso falla
+>    deshace los anteriores. Un correo que ya tenía cuenta (un cliente que
+>    pasa a trabajar aquí) se enlaza sin temporal.
+> 2. **Toda contraseña temporal obliga a elegir una propia al entrar**, del
+>    equipo y de los clientes («Crear contraseña web»). La marca es
+>    `app_metadata.debe_cambiar_contrasena` en Supabase Auth: la escribe solo
+>    el servidor (`service_role`) y viaja en el JWT, así que `proxy.ts` la lee
+>    sin ir a la base y manda cualquier ruta de `/admin` o `/mi-cuenta` a
+>    **`/cambiar-contrasena`** (también `iniciarSesion`). Allí
+>    `cambiarContrasenaInicial` pone la nueva, quita la marca y ⚠️ **refresca
+>    la sesión**: con el JWT viejo el proxy seguiría viendo la marca y la
+>    devolvería en bucle. No pide la actual (acaba de entrar con ella). Sin
+>    migración: es metadato de Auth. La regla vive en `lib/auth/temporal.ts`.
+> 3. **«Desactivar perfil»** (con segunda pulsación) en vez de quitar acceso:
+>    `equipo.activo = false` + se borra su fila de `perfiles` → en su siguiente
+>    clic queda fuera y deja de salir entre las instructoras. La cuenta se
+>    conserva: **«Reactivar perfil»** la devuelve con la misma contraseña. Si
+>    es instructora con clases próximas, el aviso dice cuántas (no se tocan).
+>    En el login, una cuenta desactivada lee «Esta cuenta no está activa…».
+> - Miembros antiguos sin cuenta: «Nueva contraseña temporal» o «Reactivar»
+>   se la crean.
+> - Probado de punta a punta contra Supabase local (build con las variables
+>   de local, sin tocar `.env.local`): alta → temporal → primer inicio
+>   obligado (también escribiendo `/admin` a mano) → la temporal deja de
+>   valer → desactivar (fuera al siguiente clic, no puede volver a entrar) →
+>   reactivar (misma contraseña) → cliente con contraseña web → cambio
+>   obligado → `/mi-cuenta`. A 1280 y 390 px.
+
+- ⚠️ **Dos tablas unidas** (migración `20261001160000`): `equipo` (quién
+  trabaja) y `perfiles` (quién entra). `equipo.cuenta_id` apunta a la
+  cuenta; entrar al panel = esa cuenta tiene fila en `perfiles`. Las cuentas
+  que ya entraban sin estar en el equipo (la del dueño) se añadieron al
+  equipo, y la semilla lo repite al final porque su `truncate` las borraría.
+- La contraseña temporal: 12 caracteres sin 0/O/1/l/I, con `crypto`. No hay
+  invitación por correo: el SMTP gratuito de Supabase solo llega a los
+  miembros del proyecto de Supabase. El diálogo no se cierra solo hasta
+  pulsar «Hecho», y no se puede cerrar mientras la acción está en vuelo.
 - ⚠️ **Necesita `SUPABASE_SERVICE_ROLE_KEY`** (solo servidor). La lee
   `lib/supabase/admin.ts`, que lleva `import "server-only"`: si un componente
-  de cliente lo importara, la compilación falla. Verificado que la clave no
-  aparece en `.next/static`. Sin la variable, «Dar acceso» lo dice en vez de
-  romperse; todo lo demás va con la sesión y RLS.
+  de cliente lo importara, la compilación falla. Sin la variable, el alta de
+  miembro, las temporales y el cambio obligatorio lo dicen en vez de romperse.
 - **El rol vive en dos sitios** (`equipo.rol` y `perfiles.rol`) y se cambia
   con la función `cambiar_rol_equipo`, en una transacción.
 - ⚠️ **Nadie puede dejarse fuera a sí mismo**: sobre la propia fila no se
-  ofrecen rol ni acceso («Eres tú»), y el servidor lo vuelve a impedir. Y el
-  estudio **nunca se queda sin Administración**: lo comprueban la acción y la
-  función de base.
-- **«Cambiar contraseña»** en el menú de cuenta: pide la actual (una sesión
-  olvidada en el ordenador de recepción no basta para cambiarla) y la nueva
-  dos veces.
-- Probado de punta a punta: alta → acceso → entra con la temporal → la cambia
-  (la vieja deja de valer) → se le quita el acceso (queda fuera en el
-  siguiente clic) → se le devuelve (misma contraseña) → cambio de rol (las
-  dos tablas iguales).
-- ⚠️ La **agenda de clases sigue con el equipo de ejemplo** de `mock.ts`
-  (`getInstructoras`): sus clases apuntan a esos ids. Pasa a la tabla con la
-  agenda (paso 9).
+  ofrecen rol ni desactivar («Eres tú»), y el servidor lo vuelve a impedir. Y
+  el estudio **nunca se queda sin Administración**: lo comprueban la acción y
+  la función de base.
+- **«Cambiar contraseña»** en Configuración → Mi perfil: pide la actual (una
+  sesión olvidada en el ordenador de recepción no basta para cambiarla) y la
+  nueva dos veces.
 
 #### Editar datos y dar de baja (ficha del cliente) — oct 2026
 
@@ -1940,14 +1982,49 @@ en la transacción que lo crea) y `20261017120100_dar_de_baja`.
 - Se quitaron también los textos de ayuda del formulario de clase y los
   párrafos explicativos de Configuración (decisión del usuario).
 
-#### Cabecera de la ficha del cliente
+#### Ficha del cliente — estilo JainSportBox (18 oct 2026)
 
-- ⚠️ Estado + «Renovar» + «Acceso web» + «Acciones» van en **fila propia con
-  `flex-wrap` hasta `xl`**: en móvil «Acciones» se salía de la tarjeta (la
-  página se desplazaba de lado) y en 1024px aplastaban el nombre. El menú de
-  «Acciones» se abre hacia la derecha mientras el botón está a la izquierda
-  (`clasePanel="xl:left-auto xl:right-0"`); alineado a la derecha se salía
-  de la pantalla en móvil.
+Decisión del usuario: la ficha enseña **todos los datos del registro**, con la
+organización de `UsuarioPerfilView.vue` de JainSportBox y la marca de Reforme.
+
+- **Cabecera verde de marca** (`bg-verde` + `HeroFX` sin goteo): iniciales en
+  círculo, nombre en Cormorant y documento. Debajo, en blanco, el estado y los
+  botones (Renovar · Reservar clase · Contraseña web · Acciones), centrados y
+  con `flex-wrap`.
+- **Rejilla de casillas** (`<dl>`, dos columnas ya en el móvil, tres en
+  `lg`): Correo · Teléfono · Nacimiento (con la edad) · Dirección · EPS ·
+  Cliente desde · Contacto de emergencia · **Acudiente** (solo si es menor,
+  en dorado) · Términos · y la **Membresía** a lo ancho (plan, vence,
+  renovación, clases que le quedan y lo que debe, con «Registrar pago»). Sin
+  dato: una raya gris. Correo y teléfonos son enlaces `mailto:`/`tel:`.
+- Los datos nuevos los trae **`getDatosPersonales(id)`** (`queries.ts`,
+  tipo `DatosPersonales`): la vista `clientes_vigentes` del listado no los
+  lleva.
+- ⚠️ La tarjeta de arriba **no lleva `overflow-hidden`** (solo la banda
+  verde, para las motas): el menú «Acciones» se despliega por fuera y se
+  recortaría. El menú se abre **alineado a la derecha** del botón: con los
+  botones centrados, abierto hacia la derecha llegaba a 437 px en un móvil
+  de 390.
+- **«Historial de planes»** (tarjeta propia, debajo de los datos;
+  `HistorialPlanes.tsx` + `getPlanesAdquiridos(id, conPagos)`): cada
+  membresía comprada, de la más reciente a la más antigua, con plan,
+  modalidad y clases, fechas, importe (el que se cobró entonces) y estado
+  (● Vigente · ◇ Próximo · ○ Terminado, neutro: lo que terminó es historia,
+  no alarma). Arriba, «N planes comprados · $X en total».
+  - ⚠️ **«Pagado» / «Debe $X» solo para el mostrador**: los pagos solo se
+    piden con `conPagos`, porque RLS no se los da a la instructora y la
+    consulta devolvería vacío (saldría «debe» de todo). Para ella, `pagado`
+    va `null` y no se pinta.
+  - La pastilla va en una caja de ancho fijo (`w-28`): «Próximo» y
+    «Terminado» no miden igual y las columnas bailaban.
+  - La consulta arranca en paralelo con el resto de la ficha (promesa creada
+    antes del segundo `await`), sin sumar un viaje a la base.
+- Debajo, la tarjeta «Clases» de siempre (última asistencia e historial).
+  Se quitó su nota «Los pagos todavía no se muestran aquí».
+- Probado contra Supabase local con un adulto y un menor con acudiente, a
+  1280 y 390 px, sin desplazamiento lateral.
+- Pendiente: el formulario de **Editar datos** no tiene el campo Dirección
+  (la conserva al guardar, pero no la deja cambiar).
 - ⚠️ **Gotcha de desarrollo**: si después de un `npm run build` el servidor de
   desarrollo da 404 en `/admin/usuarios/[id]` con un id que existe, es la
   caché: borrar `.next` y arrancar de nuevo. En producción no pasa.
@@ -2021,10 +2098,13 @@ antes**.
     - **`clientes.direccion`** es columna nueva (migración
       `20261017130000_direccion_cliente`): admite NULL (clientes antiguos y
       altas de recepción) con `check` de 5–200 caracteres. La ficha del panel
-      aún no la enseña (tampoco enseña emergencia ni acudiente).
+      la enseña desde el 18 oct 2026, con emergencia y acudiente (ver «Ficha
+      del cliente — estilo JainSportBox»).
 - **«Acceso web»** en la ficha del cliente (recepción y administración): el
   único camino para los clientes que ya existen. Contraseña temporal mostrada
-  una vez, como con el equipo; si ya tiene acceso, genera otra.
+  una vez, como con el equipo; si ya tiene acceso, genera otra. ⚠️ **Desde
+  el 18 oct 2026, al entrar con ella por primera vez tiene que elegir la
+  suya** (`/cambiar-contrasena`, ver «Equipo»).
   ⚠️ **Desde oct 2026 el botón se llama «Crear contraseña web»** («Nueva
   contraseña web» si ya tiene cuenta): «Dar acceso web» no decía qué hacía
   (feedback del usuario). La solución de fondo —que el cliente se registre
@@ -2136,7 +2216,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto | `.env.local` y Vercel ✅ |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave pública (RLS manda) | `.env.local` y Vercel ✅ |
-| `SUPABASE_SERVICE_ROLE_KEY` | Crear cuentas: registro de clientes, «Dar acceso», contraseñas temporales | `.env.local` ✅ · **Vercel: pendiente** |
+| `SUPABASE_SERVICE_ROLE_KEY` | Crear cuentas: registro de clientes, alta de miembros, contraseñas temporales y quitar la marca de «debe cambiarla» | `.env.local` ✅ · **Vercel: pendiente** |
 | `NEXT_PUBLIC_SITE_URL` | Opcional. URL pública para `sitemap`, `robots` y la imagen al compartir | Sin ella: `https://reforme-studio-pilates.vercel.app`. Fijarla al pasar al dominio propio |
 
 ⚠️ `SUPABASE_SERVICE_ROLE_KEY` se salta toda la seguridad de la base: nunca con
@@ -2153,14 +2233,15 @@ prefijo `NEXT_PUBLIC_`. Solo la lee `src/lib/supabase/admin.ts` (`server-only`).
 | `/mi-cuenta` | Supabase (RLS del cliente) | ✅ reservar, cancelar, contraseña | Clientes con cuenta |
 | `/admin` | Supabase | — | Equipo. Dinero solo Administración |
 | `/admin/usuarios` (Clientes) | Supabase | — | Equipo. Filtros, paginación, CSV |
-| `/admin/usuarios` (Equipo) | Supabase | ✅ alta de miembro, dar/quitar acceso, rol, contraseña temporal | Gestión: solo Administración |
+| `/admin/usuarios` (Equipo) | Supabase | ✅ alta de miembro (con su cuenta y temporal), rol, nueva temporal, desactivar/reactivar perfil | Gestión: solo Administración |
+| `/cambiar-contrasena` | Supabase Auth | ✅ contraseña propia tras una temporal | Quien entró con una temporal (equipo o cliente) |
 | `/admin/usuarios/nuevo` | Supabase | ✅ alta de cliente (sin plan) | Administración y Recepción |
 | `/admin/usuarios/[id]` | Supabase | ✅ asignar plan y cobrar / renovar · acceso web | Administración y Recepción |
 | `/admin/clases` | Supabase | ✅ programar, editar, cancelar, eliminar; apuntar y quitar reservas | Cambios: Administración y Recepción |
 | `/admin/planes` | Supabase | ✅ crear, editar, retirar, borrar | Cambios: solo Administración |
 | `/admin/finanzas` | Supabase | ✅ registrar gasto con comprobante | Solo Administración |
 | `/admin/estadisticas` | Supabase | — | Solo Administración. Copia de `admingymdemo` + bloque de clases |
-| Menú de cuenta | Sesión | ✅ cambiar contraseña, cerrar sesión | Todo el equipo |
+| `/admin/configuracion` → Mi perfil | Sesión | ✅ cambiar contraseña, cerrar sesión | Todo el equipo (lo del estudio, solo Administración) |
 
 Todas las escrituras son **server actions** en `src/lib/admin/acciones.ts` (y
 `src/lib/auth/acciones.ts` para entrar y salir). Cada una vuelve a validar los
@@ -2289,10 +2370,10 @@ de repetir:
       probada contra `ngjy…`.
 - [ ] **Añadir `SUPABASE_SERVICE_ROLE_KEY` en Vercel** (Production y Preview) y
       volver a desplegar. **Sin ella, en producción no funcionan ni el registro
-      de clientes ni «Dar acceso» / «Acceso web».** Valor: Supabase → Project
+      de clientes, ni el alta de miembros, ni las contraseñas temporales (equipo y «Crear contraseña web»), ni el cambio obligatorio al primer inicio.** Valor: Supabase → Project
       Settings → API → `service_role`.
 - [ ] **Cambiar la contraseña de la cuenta de administración** del remoto: la
-      temporal se compartió por chat. Menú de cuenta → «Cambiar contraseña».
+      temporal se compartió por chat. Configuración → Mi perfil → «Cambiar contraseña».
 - [ ] **Quitar el equipo de ejemplo del remoto** (Juliana Cardona, Daniela
       Ospina, Mariana Restrepo, Carolina Muñoz, Alejandra Torres) y añadir al
       equipo real. Si se les da acceso, se crean cuentas con correos falsos.
@@ -2403,8 +2484,10 @@ y el aviso de «pocas clases» del 7.
       (el gratuito solo envía a los miembros del proyecto de Supabase).
 - [x] ~~Ficha del cliente: editar datos y dar de baja~~ — hecho (ver §6,
       «Editar datos y dar de baja»).
-- [ ] **Ficha del cliente**: historial de pagos y membresías (hoy los cobros
-      solo se ven en Finanzas).
+- [x] ~~Ficha del cliente: historial de membresías~~ — «Historial de planes»
+      (18 oct 2026), con lo pagado y lo que debe de cada una.
+- [ ] **Ficha del cliente: detalle de cada pago** (fecha y método de cada
+      abono): hoy se ve en Finanzas.
 - [ ] **Borrar un gasto** (la base lo permite a Administración; no hay botón) y
       **devoluciones** (los pagos no se editan ni se borran, por diseño).
 - [ ] **Presupuestos**: se leen en Finanzas pero no hay pantalla para
@@ -2416,8 +2499,9 @@ y el aviso de «pocas clases» del 7.
       Usuarios, menú agrupado y títulos con descripción.
 - [ ] **Género del cliente** en el alta y el registro, si se quiere el bloque
       «Género» de Estadísticas como en la demo.
-- [ ] **Notificaciones de la campana**: el primer aviso es real (membresías por
-      vencer); los otros dos son de ejemplo (`mock.ts`).
+- [x] ~~Notificaciones de la campana~~ — la campana se quitó (18 oct 2026,
+      decisión del usuario). Las notificaciones al CLIENTE (WhatsApp/correo)
+      siguen pendientes en la lista del estudio.
 
 ### Calidad
 

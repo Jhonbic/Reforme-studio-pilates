@@ -1,5 +1,5 @@
 import Avatar from "./Avatar";
-import { Pastilla } from "./EstadoBadge";
+import Pastilla, { TONO_ESTADO } from "@/components/admin/Pastilla";
 import { fechaCompacta } from "@/lib/admin/format";
 import { REJILLA_EQUIPO } from "./rejilla";
 import type { MiembroEquipo } from "@/lib/admin/types";
@@ -7,8 +7,8 @@ import type { MiembroEquipo } from "@/lib/admin/types";
 /**
  * Fila del equipo del estudio. Misma anatomía que `FilaCliente`.
  *
- * Para Administración es un **botón** que abre la gestión de esa persona (rol
- * y acceso al panel); para el resto, una fila de solo lectura. Botón y no
+ * Para Administración es un **botón** que abre la gestión de esa persona (rol,
+ * contraseña temporal y desactivar su perfil); para el resto, una fila de solo lectura. Botón y no
  * enlace: no lleva a otra página, abre un diálogo.
  */
 export default function FilaMiembro({
@@ -37,32 +37,21 @@ export default function FilaMiembro({
           </span>
         </span>
 
-        <span className="min-w-0 text-sm text-verde-700">
-          <span className="block truncate">{miembro.rol}</span>
-          <span className="block text-xs tabular-nums text-verde-300">
-            {/* El acceso solo lo sabe Administración (`null` para el resto):
-                sin dato no se afirma nada. */}
-            {miembro.acceso === true
-              ? "Entra al panel"
-              : miembro.acceso === false
-                ? "Sin acceso al panel"
-                : miembro.clasesSemana > 0
-                  ? `${miembro.clasesSemana} clases/semana`
-                  : "Sin clases asignadas"}
-          </span>
-        </span>
+        {/* Rol y fecha, solo en escritorio: en el móvil, nombre, contacto y
+            estado (decisión del usuario). */}
+        <span className="hidden min-w-0 truncate text-sm text-verde-700 md:block">{miembro.rol}</span>
 
         {miembro.activo ? (
           <Pastilla
             simbolo="●"
             texto="Activa"
-            clase="border-[color-mix(in_srgb,var(--color-estado-ok)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-ok)_10%,transparent)] text-[var(--color-estado-ok)]"
+            clase={TONO_ESTADO.ok}
           />
         ) : (
           <Pastilla
             simbolo="○"
             texto="Inactiva"
-            clase="border-beige bg-beige/40 text-verde-300"
+            clase={TONO_ESTADO.neutro}
           />
         )}
 
@@ -73,10 +62,16 @@ export default function FilaMiembro({
             es por su posición, y repetir la palabra en las seis filas es ruido —
             pero va `sr-only` y no `hidden`, porque un lector de pantalla no ve
             columnas y leería una fecha suelta sin saber de qué. */}
-        <span className="whitespace-nowrap text-sm tabular-nums text-verde-300 md:text-right">
+        <span className="hidden whitespace-nowrap text-sm tabular-nums text-verde-300 md:block md:text-right">
           <span className="md:sr-only">Desde </span>
           {fechaCompacta(miembro.alta)}
         </span>
+      </span>
+
+      {/* Como en Clientes: la flecha dice que la fila se abre. Solo para
+          quien puede abrirla (Administración); si no, la columna va vacía. */}
+      <span aria-hidden="true" className="text-xl leading-none text-verde-300">
+        {onAbrir ? "›" : ""}
       </span>
     </Contenedor>
   );

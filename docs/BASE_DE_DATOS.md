@@ -219,10 +219,10 @@ Hecho:
 5. ✅ **Lecturas** en `src/lib/admin/queries.ts`: `getClientes`,
    `getCliente`, `getEquipo`, `getMovimientos` (pagos + gastos),
    `getPresupuestos`, `getPlanes`, `getPlanesALaVenta`, `getDatosDashboard`
-   (el cálculo, en `lib/admin/dashboard.ts`) y `getNotificaciones`. Tipos
+   (el cálculo, en `lib/admin/dashboard.ts`). Tipos
    generados en `src/lib/supabase/tipos.ts`.
    y `getClases`, `getInstructoras`, `getReservasPorDiaSemana` (agenda).
-   **Sigue en `mock.ts`**: solo dos avisos de ejemplo de la campana.
+   `mock.ts` ya no existe (se borró con la campana, 18 oct 2026).
 6. ✅ **Escrituras** (server actions) en `src/lib/admin/acciones.ts`:
    `crearCliente`,
    `registrarGasto` (con subida del comprobante al bucket `comprobantes`),
