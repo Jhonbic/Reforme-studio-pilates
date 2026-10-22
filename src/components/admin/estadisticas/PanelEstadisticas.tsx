@@ -233,7 +233,7 @@ export default function PanelEstadisticas(props: Props) {
             </button>
 
             {detalleAbierto && (
-              <div className="-mx-5 mt-3 overflow-x-auto px-5">
+              <div className="relative -mx-5 mt-3 overflow-x-auto px-5">
                 <table className="w-full text-xs sm:text-sm">
                   <thead>
                     <tr className="border-b border-beige text-verde-300">
@@ -502,7 +502,7 @@ function BloqueClases({ clases }: { clases: Props["clases"] }) {
           <div>
             <p className="mb-1 text-sm font-semibold text-verde-700">Ocupación por horario</p>
             <p className="mb-3 text-xs text-verde-300">Reservas sobre cupos de cada franja, de media</p>
-            <div className="overflow-x-auto">
+            <div className="relative overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-1 text-xs">
                 <thead>
                   <tr>

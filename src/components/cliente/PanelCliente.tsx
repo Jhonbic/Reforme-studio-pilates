@@ -405,7 +405,7 @@ export default function PanelCliente({
             <div
               role="group"
               aria-label="Elegir día"
-              className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden"
+              className="relative -mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden"
             >
               {dias.map((d) => {
                 const activo = d === dia;

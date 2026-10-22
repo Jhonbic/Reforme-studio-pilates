@@ -103,7 +103,7 @@ export default function ReservarClaseCliente({
           </p>
         ) : (
           <div className="space-y-4">
-            <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Día">
+            <div className="relative flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Día">
               {dias.map((d) => {
                 const activo = d === dia;
                 const n = reservables(d);

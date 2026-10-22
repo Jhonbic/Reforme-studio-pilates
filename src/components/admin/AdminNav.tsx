@@ -21,7 +21,7 @@ export default function AdminNav({
   if (variante === "movil") {
     return (
       <nav aria-label="Secciones del panel">
-        <ul className="flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <ul className="relative flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {SECCIONES.map((s) => {
             const activa = esActiva(s.href);
             return (

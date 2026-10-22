@@ -97,7 +97,7 @@ export default function BarraFiltros({
           <div
             role="group"
             aria-label="Filtrar por estado de membresía"
-            className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:-mx-5 sm:px-5 lg:mx-0 lg:flex-wrap lg:px-0 [&::-webkit-scrollbar]:hidden"
+            className="relative -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:-mx-5 sm:px-5 lg:mx-0 lg:flex-wrap lg:px-0 [&::-webkit-scrollbar]:hidden"
           >
             {/* «Sin plan» y «De baja» solo aparecen si hay alguien así (o si
                 están elegidas): una pastilla «… 0» fija sería una más en móvil

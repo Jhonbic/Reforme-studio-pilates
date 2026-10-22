@@ -313,7 +313,10 @@ export default function LibroMovimientos({
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
+          {/* `relative`: sin él, los `sr-only` de la tabla (posición absoluta)
+              se escapan de esta caja y ensanchan la PÁGINA entera a ~830px en
+              el móvil, que se alejaba para que cupiera todo. */}
           <table className="min-w-full divide-y divide-beige">
             <thead className="bg-arena/60">
               <tr>

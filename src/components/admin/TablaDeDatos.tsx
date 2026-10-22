@@ -46,7 +46,7 @@ export default function TablaDeDatos({ tabla, tono = "claro" }: Props) {
       </summary>
 
       {/* La tabla puede desbordar en móvil: scrollea ella, nunca la página */}
-      <div className="mt-3 overflow-x-auto">
+      <div className="relative mt-3 overflow-x-auto">
         <table className="w-full min-w-[380px] border-collapse text-left text-sm">
           <thead>
             <tr className={oscuro ? "border-b border-verde-700" : "border-b border-beige"}>
