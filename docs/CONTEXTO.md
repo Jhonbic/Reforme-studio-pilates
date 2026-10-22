@@ -2346,6 +2346,11 @@ de repetir:
   web usa) → 16.4.0. `npm audit --omit=dev`: 0 vulnerabilidades. Lo que queda
   en `npm audit` a secas es del lint (`eslint-config-next`) y no llega a
   producción.
+  ⚠️ **22 oct 2026: otra vez** — 16.0–16.4.0 con ejecución remota de código en
+  la optimización de imágenes con SVG (GHSA-2464-fhr4-w9xw) y caída por
+  server actions (GHSA-p3m5-59mp-jv5r) → **16.4.2**. `next build` lo detectó
+  solo y se paró con un `SecurityFatalError` (al reintentar sigue). Si vuelve
+  a pasar: `npm audit --omit=dev` y subir a la versión de parche.
 - **Cabeceras de seguridad** en `next.config.ts` para todas las rutas: CSP
   mínimo (`frame-ancestors 'none'`, `object-src`, `base-uri`, `form-action`),
   `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy` y `Permissions-Policy`
