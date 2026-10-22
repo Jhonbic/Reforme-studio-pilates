@@ -747,8 +747,10 @@ select throws_ok(
   '23514', 'Un menor de edad necesita los datos de su acudiente.',
   'un menor con cuenta web sin acudiente no entra');
 select lives_ok(
-  $$insert into clientes (nombre, identificacion) values ('Alta de mostrador', 'TEST007')$$,
-  'el alta de recepción (sin cuenta) sigue pudiendo ir sin correo ni dirección');
+  $$insert into clientes (nombre, identificacion, correo) values ('Alta de mostrador', 'TEST007', 'mostrador@reforme.local')$$,
+  -- Desde `20261018120000_correo_obligatorio` el correo es obligatorio también
+  -- en recepción; la dirección sigue siendo solo del registro web.
+  'el alta de recepción (sin cuenta) puede ir sin dirección, pero con correo');
 
 select * from finish();
 rollback;
