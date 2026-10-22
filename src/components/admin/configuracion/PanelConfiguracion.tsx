@@ -7,7 +7,6 @@ import CampoSelect from "@/components/admin/campos/CampoSelect";
 import CampoTexto from "@/components/admin/campos/CampoTexto";
 import { useToast } from "@/context/ToastContext";
 import { abrirDia, cerrarDia, guardarAforoSala, guardarAjustes, guardarMeta } from "@/lib/admin/acciones";
-import { METODOS_PAGO } from "@/lib/admin/catalogos";
 import { numero } from "@/lib/admin/format";
 import { diaLargo, diaRelativo } from "@/lib/admin/horario";
 import type { Configuracion, Sala } from "@/lib/admin/types";
@@ -21,6 +20,8 @@ const BOTON =
 /** «sábado, 17 de octubre» → «Sábado, 17 de octubre» (para empezar una frase). */
 const mayuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const HORAS = [0, 1, 2, 3, 4, 6, 12, 24, 48];
+/** Campo + «Guardar» en una fila. */
+const FILA = "mt-4 flex items-end gap-3";
 
 /**
  * Configuración del estudio: lo que se cambia sin el desarrollador.
@@ -31,21 +32,15 @@ const HORAS = [0, 1, 2, 3, 4, 6, 12, 24, 48];
  */
 export default function PanelConfiguracion({ config, hoy }: { config: Configuracion; hoy: string }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    // Reservas y Meta, cortas, emparejadas; Salas a lo ancho con sus dos salas
+    // lado a lado, y Días cerrados, que es una lista que crece, debajo.
+    // ⚠️ Se probó Salas como tercera columna en `xl`: con dos filas era más
+    // alta y estiraba a las otras dos, que quedaban medio vacías.
+    <div className="grid gap-4 md:grid-cols-2">
       <AgendaYReservas config={config} />
-      <Salas salas={config.salas} />
       <MetaClientes meta={config.metaClientes} />
+      <Salas salas={config.salas} />
       <DiasCerrados config={config} hoy={hoy} />
-      <Card>
-        <CardHeader titulo="Formas de pago" />
-        <ul className="mt-4 flex flex-wrap gap-2">
-          {METODOS_PAGO.map((m) => (
-            <li key={m} className="rounded-full border border-beige px-3 py-1 text-sm text-verde-700">
-              {m}
-            </li>
-          ))}
-        </ul>
-      </Card>
     </div>
   );
 }
@@ -80,21 +75,22 @@ function AgendaYReservas({ config }: { config: Configuracion }) {
   return (
     <Card>
       <CardHeader titulo="Reservas" />
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <CampoSelect
-          nombre="horas"
-          etiqueta="Cancelar desde la web hasta"
-          value={String(horas)}
-          onChange={(e) => setHoras(Number(e.target.value))}
-        >
-          {HORAS.map((n) => (
-            <option key={n} value={n}>
-              {n === 0 ? "Hasta que empiece" : `${n} ${n === 1 ? "hora" : "horas"} antes`}
-            </option>
-          ))}
-        </CampoSelect>
-      </div>
-      <div className="mt-4 flex justify-end">
+      <div className={FILA}>
+        <div className="min-w-0 flex-1">
+          <CampoSelect
+            nombre="horas"
+            etiqueta="Cancelar desde la web hasta"
+            value={String(horas)}
+            onChange={(e) => setHoras(Number(e.target.value))}
+            ancho
+          >
+            {HORAS.map((n) => (
+              <option key={n} value={n}>
+                {n === 0 ? "Hasta que empiece" : `${n} ${n === 1 ? "hora" : "horas"} antes`}
+              </option>
+            ))}
+          </CampoSelect>
+        </div>
         <button
           type="button"
           disabled={!cambiado || enCurso}
@@ -118,8 +114,8 @@ function MetaClientes({ meta }: { meta: number }) {
   return (
     <Card>
       <CardHeader titulo="Meta de clientes" />
-      <div className="mt-4 flex flex-wrap items-end gap-3">
-        <div className="w-40">
+      <div className={FILA}>
+        <div className="min-w-0 flex-1">
           <CampoTexto
             nombre="meta-clientes"
             etiqueta="Clientes activos"
@@ -134,7 +130,7 @@ function MetaClientes({ meta }: { meta: number }) {
           type="button"
           disabled={!valida || valor === meta || enCurso}
           onClick={() => guardar(() => guardarMeta(valor), `Meta: ${numero(valor)} clientes.`)}
-          className={`${BOTON_PRIMARIO} mb-[1px]`}
+          className={BOTON_PRIMARIO}
         >
           {enCurso ? "Guardando…" : "Guardar"}
         </button>
@@ -145,9 +141,9 @@ function MetaClientes({ meta }: { meta: number }) {
 
 function Salas({ salas }: { salas: Sala[] }) {
   return (
-    <Card>
+    <Card className="md:col-span-2">
       <CardHeader titulo="Salas" />
-      <ul className="mt-4 space-y-3">
+      <ul className="mt-4 grid gap-4 md:grid-cols-2">
         {salas.map((s) => (
           <FilaSala key={s.id} sala={s} />
         ))}
@@ -161,7 +157,7 @@ function FilaSala({ sala }: { sala: Sala }) {
   const { enCurso, guardar } = useGuardar();
   const opciones = Array.from({ length: Math.max(20, sala.capacidad) }, (_, i) => i + 1);
   return (
-    <li className="flex flex-wrap items-end gap-3 rounded-xl border border-beige p-3">
+    <li className="flex items-end gap-3">
       <div className="min-w-0 flex-1">
         <CampoSelect
           nombre={`capacidad-${sala.id}`}
@@ -209,7 +205,7 @@ function DiasCerrados({ config, hoy }: { config: Configuracion; hoy: string }) {
   }
 
   return (
-    <Card className="lg:col-span-2">
+    <Card className="md:col-span-2">
       <CardHeader titulo="Días cerrados" />
 
       <form onSubmit={cerrar} noValidate className="mt-4 grid gap-3 sm:grid-cols-[12rem_minmax(0,1fr)_auto] sm:items-end">

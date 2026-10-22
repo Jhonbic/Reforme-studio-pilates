@@ -1760,6 +1760,13 @@ pasó en la agenda.
   abrir devuelve las del horario (trigger `dias_cerrados_sincronizan_agenda`).
 - **Formas de pago**: **Daviplata** y **Otro** añadidas al enum
   `metodo_pago` y a `METODOS_PAGO` (y a la lista de «Asignar plan»).
+  ⚠️ La tarjeta que las listaba en Configuración **se quitó** (oct 2026,
+  decisión del usuario: no se podía cambiar nada en ella).
+- **Reparto** (oct 2026, «se ven vacías y sin orden»): Reservas y Meta de
+  clientes emparejadas, cada una con su campo y «Guardar» en una fila; Salas
+  a lo ancho con las dos salas lado a lado; Días cerrados debajo. ⚠️ Se
+  probó Salas como tercera columna en `xl`: era más alta y dejaba medio
+  vacías a las otras dos.
 - ⚠️ **Arreglo importante que salió aquí**: Supabase tiene **`pg_safeupdate`**,
   que por la API rechaza todo `UPDATE`/`DELETE` sin `WHERE`, **también dentro
   de una función**. `extender_agenda_interna` hacía `update ajustes set …` a
