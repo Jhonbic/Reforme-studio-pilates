@@ -14,6 +14,7 @@ import CampoCheck from "@/components/admin/campos/CampoCheck";
 import CampoSelect from "@/components/admin/campos/CampoSelect";
 import CampoTexto from "@/components/admin/campos/CampoTexto";
 import Seccion from "@/components/admin/campos/Seccion";
+import AccesoWebCliente from "./AccesoWebCliente";
 import ResumenErrores from "./ResumenErrores";
 import {
   EPS,
@@ -166,6 +167,8 @@ type Contexto = {
   documentosExistentes: Record<string, string>;
   /** nombre normalizado → nombre tal cual está escrito en la base. */
   nombresExistentes: Record<string, string>;
+  /** correo en minúsculas → nombre del cliente que ya lo tiene. */
+  correosExistentes: Record<string, string>;
   tutorNombre: string;
   tutorTelefono: string;
   /** Al EDITAR: los campos que la ficha ya tenía vacíos (clientes de la web o
@@ -177,6 +180,7 @@ type Contexto = {
 const OPCIONALES_AL_EDITAR: { campo: Campo; vacio: (a: AltaCliente) => boolean }[] = [
   { campo: "fechaNacimiento", vacio: (a) => !a.fechaNacimiento },
   { campo: "telefono", vacio: (a) => !a.telefono },
+  // El correo NO: es obligatorio también al editar (sin él no hay contraseña).
   { campo: "eps", vacio: (a) => !a.eps },
   { campo: "emergenciaNombre", vacio: (a) => !a.emergenciaNombre },
   { campo: "emergenciaTelefono", vacio: (a) => !a.emergenciaTelefono },
@@ -243,12 +247,15 @@ function errorDe(campo: Campo, v: Valores, ctx: Contexto): string | undefined {
       if (!v.telefono) return "Indica el teléfono.";
       return esMovilCO(v.telefono) ? undefined : MSJ_MOVIL;
 
-    // El correo es OPCIONAL: vacío es válido. Solo se valida con contenido.
-    case "correo":
-      if (!v.correo.trim()) return undefined;
-      return esCorreo(v.correo)
-        ? undefined
-        : "Revisa el correo: le falta el @ o el punto.";
+    /* ⚠️ Obligatorio (oct 2026, decisión del usuario): es su usuario para
+       entrar a la web, y sin él no se le puede crear contraseña. */
+    case "correo": {
+      const c = v.correo.trim().toLowerCase();
+      if (!c) return "Indica el correo: es su usuario para reservar en la web.";
+      if (!esCorreo(c)) return "Revisa el correo: le falta el @ o el punto.";
+      const duenio = ctx.correosExistentes[c];
+      return duenio ? `Ese correo ya es de otro cliente: ${duenio}.` : undefined;
+    }
 
     case "eps":
       return v.eps ? undefined : "Selecciona la EPS.";
@@ -337,10 +344,13 @@ const enServidor = () => "";
 export default function FormularioAlta({
   documentosExistentes,
   nombresExistentes,
+  correosExistentes,
   editar,
 }: {
   documentosExistentes: Record<string, string>;
   nombresExistentes: Record<string, string>;
+  /** correo en minúsculas → nombre: dos clientes no comparten correo. */
+  correosExistentes: Record<string, string>;
   /**
    * Editar un cliente que ya existe: sus datos de partida. Las listas de
    * existentes tienen que llegar SIN él, o su propio documento saldría como
@@ -404,6 +414,7 @@ export default function FormularioAlta({
     hoy,
     documentosExistentes,
     nombresExistentes,
+    correosExistentes,
     tutorNombre,
     tutorTelefono,
     opcionales: editar
@@ -533,6 +544,13 @@ export default function FormularioAlta({
           </p>
         </div>
         <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+          {/* Su contraseña para reservar desde el móvil, ya que está delante. */}
+          <AccesoWebCliente
+            clienteId={creado.id}
+            nombre={creado.nombre}
+            correo={v.correo.trim().toLowerCase()}
+            tieneAcceso={false}
+          />
           <Link
             href={`/admin/usuarios/${creado.id}`}
             className="control-fx relative inline-flex min-h-[44px] items-center gap-2 overflow-hidden rounded-full bg-verde px-5 text-sm text-arena transition-colors duration-300 hover:bg-verde-700"
@@ -717,7 +735,7 @@ export default function FormularioAlta({
 
         <CampoTexto
           nombre="correo"
-          etiqueta="Correo electrónico (opcional)"
+          etiqueta="Correo electrónico"
           type="email"
           value={v.correo}
           onChange={(e) => set("correo", e.target.value)}

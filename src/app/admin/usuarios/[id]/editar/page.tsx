@@ -26,10 +26,12 @@ export default async function EditarClientePage({
   // no, su documento saldría como repetido.
   const documentosExistentes: Record<string, string> = {};
   const nombresExistentes: Record<string, string> = {};
+  const correosExistentes: Record<string, string> = {};
   for (const c of await getClientes()) {
     if (c.id === id) continue;
     documentosExistentes[c.identificacion] = c.nombre;
     nombresExistentes[claveNombre(c.nombre)] = c.nombre;
+    if (c.correo) correosExistentes[c.correo.toLowerCase()] = c.nombre;
   }
 
   return (
@@ -38,6 +40,7 @@ export default async function EditarClientePage({
       <FormularioAlta
         documentosExistentes={documentosExistentes}
         nombresExistentes={nombresExistentes}
+        correosExistentes={correosExistentes}
         editar={{ id, datos }}
       />
     </div>

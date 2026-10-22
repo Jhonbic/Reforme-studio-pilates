@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(95);
+select plan(97);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -336,6 +336,9 @@ insert into horario_semanal (dia, hora_inicio, sala)
   on conflict do nothing;
 delete from reservas where clase_id in (select id from clases where fecha >= current_date);
 delete from clases where fecha >= current_date;
+-- Las clases PASADAS de otras series (en local quedan de pruebas a mano) no
+-- deben contar en los recuentos de «clases con franja» de este bloque.
+update clases set franja_id = null where franja_id is not null;
 update ajustes set agenda_generada_hasta = current_date + 13;
 
 set local role authenticated;
@@ -697,6 +700,17 @@ select throws_ok(
   '42501', null,
   'un cliente no se da de baja (ni a sí mismo) desde la API');
 reset role;
+
+-- Correo obligatorio y único ---------------------------------------------------
+select throws_ok(
+  $$insert into clientes (nombre, identificacion, acepta_terminos) values ('Sin correo', 'TEST099', true)$$,
+  'P0001', 'El correo del cliente es obligatorio.',
+  'un cliente nuevo no se crea sin correo');
+select throws_ok(
+  $$insert into clientes (nombre, identificacion, correo, acepta_terminos)
+    values ('Correo repetido', 'TEST098', 'Cliente-Con-Plan@Reforme.Local', true)$$,
+  '23505', null,
+  'dos clientes no comparten correo (sin distinguir mayúsculas)');
 
 -- Registro: la tabla de intentos solo la usa el servidor (service_role).
 set local role authenticated;

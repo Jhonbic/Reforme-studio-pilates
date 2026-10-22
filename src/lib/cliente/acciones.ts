@@ -147,7 +147,19 @@ export async function registrarCliente(d: DatosRegistro): Promise<Resultado> {
       campo: "identificacion",
       error: existente.cuenta_id
         ? "Ya tienes cuenta con ese documento. Entra desde «Iniciar sesión»."
-        : "Ya eres cliente del estudio. Pide en recepción que te activen el acceso a la web.",
+        : "Ya eres cliente del estudio. Pide en recepción tu contraseña para la web.",
+    };
+  }
+
+  // El correo es único entre clientes: si ya es de una ficha, esa persona ya
+  // está en el estudio (aunque con otro documento) y su contraseña la crea
+  // recepción.
+  const { data: conCorreo } = await admin.from("clientes").select("id").eq("correo", correo).maybeSingle();
+  if (conCorreo) {
+    return {
+      ok: false,
+      campo: "correo",
+      error: "Ese correo ya está en el estudio. Pide en recepción tu contraseña para la web.",
     };
   }
 

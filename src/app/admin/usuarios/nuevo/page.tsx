@@ -35,9 +35,11 @@ export default async function NuevoClientePage() {
   // (documento único) y el formulario lo enseña en el campo.
   const documentosExistentes: Record<string, string> = {};
   const nombresExistentes: Record<string, string> = {};
+  const correosExistentes: Record<string, string> = {};
   for (const c of await getClientes()) {
     documentosExistentes[c.identificacion] = c.nombre;
     nombresExistentes[claveNombre(c.nombre)] = c.nombre;
+    if (c.correo) correosExistentes[c.correo.toLowerCase()] = c.nombre;
   }
 
   return (
@@ -47,6 +49,7 @@ export default async function NuevoClientePage() {
       <FormularioAlta
         documentosExistentes={documentosExistentes}
         nombresExistentes={nombresExistentes}
+        correosExistentes={correosExistentes}
       />
     </div>
   );

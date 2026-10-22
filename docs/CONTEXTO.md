@@ -70,7 +70,7 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
 | `npm test` | **Vitest**, 63 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 90 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm run test:db` | **pgTAP**, 92 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -2109,6 +2109,27 @@ antes**.
   contraseña web» si ya tiene cuenta): «Dar acceso web» no decía qué hacía
   (feedback del usuario). La solución de fondo —que el cliente se registre
   solo y confirme su correo— necesita SMTP propio (ver §8).
+- ⚠️ **El correo es OBLIGATORIO y único** (oct 2026, decisión del usuario:
+  «no tiene sentido un cliente sin correo»; migración
+  `20261018120000_correo_obligatorio`). Es su usuario para la web.
+  - La base lo exige con un **trigger** al crear la ficha o al cambiar el
+    correo (`clientes_exigen_correo`, que además lo guarda en minúsculas), y
+    no con un `check … not valid`: ese salta en cualquier update de una ficha
+    antigua sin correo (marcar asistencia, dar de baja) y la rompería.
+  - Índice único `clientes_correo_unico` sobre `lower(correo)`. Un 23505 en
+    el alta o la edición se traduce al campo que chocó (`repetido()`).
+  - El alta avisa en vivo si el correo ya es de otro cliente
+    (`correosExistentes`), y la edición lo pide también a las fichas viejas
+    sin correo (no está entre los campos que pueden seguir vacíos).
+  - **Tras el alta, «Crear contraseña web» sale en la misma pantalla de
+    éxito**: recepción le da la contraseña con la persona delante, sin ir a
+    la ficha.
+  - El registro web ya dejaba al cliente como «Sin plan» con su cuenta (no
+    hace falta activarlo); ahora, si el correo ya es de una ficha, le dice
+    que pida su contraseña en recepción.
+  - 2 tests de base (92). Probado en el navegador: alta sin correo
+    (bloquea), con correo → contraseña → el cliente entra a `/mi-cuenta`;
+    registro web → aparece en «Sin plan».
 - **`/login`** es una sola puerta: perfil del equipo → `/admin`; ficha de
   cliente → `/mi-cuenta`; ninguna → se cierra la sesión. `?siguiente=` solo
   vale dentro de la zona de cada uno. Un cliente que escribe `/admin` va a su
@@ -2208,7 +2229,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **25 migraciones (las dos `20261017…` de la baja, aún solo en local)** |
+| Esquema | `supabase/migrations/` — **26 migraciones (`20261018120000_correo_obligatorio`, aún solo en local)** |
 
 ### Variables de entorno
 

@@ -50,7 +50,7 @@ export type AltaCliente = {
 
 export type ResultadoAlta =
   | { ok: true; id: string }
-  | { ok: false; error: string; campo?: "identificacion" };
+  | { ok: false; error: string; campo?: "identificacion" | "correo" };
 
 /**
  * El primer problema que se encuentre, o `null`.
@@ -79,7 +79,8 @@ function problemaDe(
   )
     return "Fecha de nacimiento no válida.";
   if (!vacio("telefono") && !esMovilCO(a.telefono)) return "Teléfono no válido.";
-  if (a.correo && !esCorreo(a.correo)) return "Correo no válido.";
+  // Obligatorio (oct 2026): es su usuario para la web, y sin él no hay contraseña.
+  if (!esCorreo(a.correo.trim().toLowerCase())) return "Falta el correo o no es válido.";
   if (!vacio("eps") && !a.eps.trim()) return "Falta la EPS.";
   if (!vacio("emergenciaNombre") && a.emergenciaNombre.trim().length < 3)
     return "Falta el contacto de emergencia.";
@@ -97,6 +98,13 @@ function problemaDe(
 
   if (!a.aceptaTerminos) return "Faltan los términos y condiciones.";
   return null;
+}
+
+/** 23505 en `clientes`: dice si chocó el correo o el documento, y en qué campo. */
+function repetido(mensaje: string): ResultadoAlta {
+  return mensaje.includes("correo")
+    ? { ok: false, campo: "correo", error: "Ese correo ya es de otro cliente." }
+    : { ok: false, campo: "identificacion", error: "Ya hay otro cliente con ese tipo y número de documento." };
 }
 
 /**
@@ -143,13 +151,7 @@ export async function crearCliente(a: AltaCliente): Promise<ResultadoAlta> {
     // 23505 = clave única. El formulario ya avisa de documentos repetidos,
     // pero con la lista que había al ABRIR la página: otra recepcionista
     // pudo dar de alta a la misma persona entre medias.
-    if (error.code === "23505") {
-      return {
-        ok: false,
-        campo: "identificacion",
-        error: "Ya hay un cliente con ese tipo y número de documento.",
-      };
-    }
+    if (error.code === "23505") return repetido(error.message);
     return { ok: false, error: `No se pudo guardar: ${error.message}` };
   }
 
@@ -216,13 +218,7 @@ export async function editarCliente(id: string, a: AltaCliente): Promise<Resulta
     .eq("id", id);
 
   if (error) {
-    if (error.code === "23505") {
-      return {
-        ok: false,
-        campo: "identificacion",
-        error: "Ya hay otro cliente con ese tipo y número de documento.",
-      };
-    }
+    if (error.code === "23505") return repetido(error.message);
     return { ok: false, error: `No se pudo guardar: ${error.message}` };
   }
   if (count === 0) return { ok: false, error: "Ese cliente ya no existe." };
