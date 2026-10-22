@@ -2138,6 +2138,25 @@ antes**.
   próximas clases (3 a la vista + «Ver todas») con «Cancelar», y la agenda de
   los próximos 14 días por día, con «Reservar». Cabecera verde con motas, sin
   goteo; «Contraseña» reutiliza el diálogo del panel.
+  ⚠️ **Desde oct 2026 va en cuatro pestañas** (decisión del usuario;
+  `NavCliente` bajo la cabecera, enlaces con `aria-current`):
+  - **Inicio** (`/mi-cuenta`): saludo, plan, próximas clases y lista de
+    espera, más «Reservar una clase».
+  - **Reservar** (`/mi-cuenta/reservar`): lo que le queda del plan y la
+    agenda. Es el mismo `PanelCliente` con `vista="reservar"`: comparten las
+    reglas (qué día cubre el plan, qué se puede cancelar) y el aviso.
+  - **Planes** (`/mi-cuenta/planes`): catálogo a la venta por modalidad, con
+    precio por clase, «Tu plan» marcado y **«Lo quiero · WhatsApp»** que abre
+    el chat del estudio con el plan ya escrito («Hola, soy X (correo). Me
+    interesa el plan Origen de Mat (8 de Mat, $260.000)…»). Aquí no se paga:
+    lo activa recepción al cobrar. Sin plan, Inicio y Reservar llevan aquí.
+  - **Mi cuenta** (`/mi-cuenta/configuracion`): sus datos en SOLO LECTURA
+    (`getMisDatos()`; los corrige recepción, y el correo es su usuario) y
+    «Cambiar contraseña». La contraseña salió de la cabecera.
+- **El panel de la instructora** ya no tiene Planes, Finanzas ni
+  Estadísticas (decisión del usuario, oct 2026): `Seccion.ocultaA` en
+  `secciones.tsx` + `seccionesDe(rol)` en la lateral, y las tres páginas la
+  devuelven a `/admin` si entra por la dirección.
 - ⚠️ **Las reglas viven en la BASE** (migración `20261002130000`), no en la
   página: el cliente puede llamar a la API con su sesión.
   - `reservar_mi_clase`: plan vigente **el día de la clase** (no hoy), clase

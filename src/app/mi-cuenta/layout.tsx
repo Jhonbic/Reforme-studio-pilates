@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import Logo from "@/components/Logo";
 import HeroFX from "@/components/fx/HeroFX";
-import BotonContrasena from "@/components/cliente/BotonContrasena";
+import NavCliente from "@/components/cliente/NavCliente";
 import { ToastProvider } from "@/context/ToastContext";
 import { cerrarSesion } from "@/lib/auth/acciones";
 import { getUsuarioActual } from "@/lib/admin/queries";
@@ -50,7 +50,6 @@ export default async function LayoutMiCuenta({ children }: { children: React.Rea
             >
               Ver la web
             </Link>
-            <BotonContrasena />
             {/* `<form>` con server action y no un enlace: un GET que cierra
                 sesión lo dispararía cualquier precarga de enlaces. */}
             <form action={cerrarSesion}>
@@ -63,6 +62,9 @@ export default async function LayoutMiCuenta({ children }: { children: React.Rea
             </form>
           </div>
         </div>
+        {/* Inicio · Reservar · Planes · Mi cuenta. La contraseña vive en «Mi
+            cuenta», no en la cabecera. */}
+        <NavCliente />
       </header>
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">{children}</main>
     </div>

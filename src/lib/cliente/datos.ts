@@ -134,3 +134,49 @@ export async function getAgendaCliente(hoy: string): Promise<ClaseParaCliente[]>
     };
   });
 }
+
+/** Lo que el cliente ve de su propia ficha en «Mi cuenta». */
+export type MisDatos = {
+  nombre: string;
+  documento: string;
+  correo: string | null;
+  telefono: string | null;
+  fechaNacimiento: string | null;
+  direccion: string | null;
+  eps: string | null;
+  emergenciaNombre: string | null;
+  emergenciaTelefono: string | null;
+  alta: string;
+};
+
+/**
+ * Su ficha, con su sesión (RLS solo le deja leer la suya). Solo lectura: los
+ * datos los corrige recepción, que comprueba quién es.
+ */
+export async function getMisDatos(): Promise<MisDatos | null> {
+  const supabase = await crearClienteServidor();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase
+    .from("clientes")
+    .select(
+      "nombre, tipo_identificacion, identificacion, correo, telefono, fecha_nacimiento, direccion, eps, emergencia_nombre, emergencia_telefono, alta",
+    )
+    .eq("cuenta_id", user.id)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    nombre: data.nombre,
+    documento: `${data.tipo_identificacion} ${data.identificacion}`,
+    correo: data.correo,
+    telefono: data.telefono,
+    fechaNacimiento: data.fecha_nacimiento,
+    direccion: data.direccion,
+    eps: data.eps,
+    emergenciaNombre: data.emergencia_nombre,
+    emergenciaTelefono: data.emergencia_telefono,
+    alta: data.alta,
+  };
+}

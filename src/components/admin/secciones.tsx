@@ -1,3 +1,4 @@
+import type { RolEquipo } from "@/lib/admin/types";
 /**
  * Las secciones del panel, en un solo sitio.
  *
@@ -96,6 +97,8 @@ export type Seccion = {
   href: string;
   label: string;
   icono: () => React.ReactElement;
+  /** Roles que NO la ven en el menú (y a los que la página devuelve al panel). */
+  ocultaA?: RolEquipo[];
 };
 
 /* El orden es el del día de trabajo, no el alfabético: Clases va detrás de
@@ -105,12 +108,19 @@ export const SECCIONES: Seccion[] = [
   { href: "/admin", label: "Dashboard", icono: IconoDashboard },
   { href: "/admin/usuarios", label: "Usuarios", icono: IconoUsuarios },
   { href: "/admin/clases", label: "Clases", icono: IconoClases },
-  { href: "/admin/planes", label: "Planes", icono: IconoPlanes },
-  { href: "/admin/finanzas", label: "Finanzas", icono: IconoFinanzas },
+  // La instructora no ve dinero ni catálogo (decisión del usuario, oct 2026):
+  // su trabajo es la agenda y sus clientes.
+  { href: "/admin/planes", label: "Planes", icono: IconoPlanes, ocultaA: ["Instructora"] },
+  { href: "/admin/finanzas", label: "Finanzas", icono: IconoFinanzas, ocultaA: ["Instructora"] },
   // Después de Finanzas, como en la demo: se mira de vez en cuando.
-  { href: "/admin/estadisticas", label: "Estadísticas", icono: IconoEstadisticas },
+  { href: "/admin/estadisticas", label: "Estadísticas", icono: IconoEstadisticas, ocultaA: ["Instructora"] },
   { href: "/admin/configuracion", label: "Configuración", icono: IconoConfiguracion },
 ];
+
+/** Las secciones que ve un rol, en el orden del menú. */
+export function seccionesDe(rol: string | undefined): Seccion[] {
+  return SECCIONES.filter((s) => !rol || !s.ocultaA?.includes(rol as RolEquipo));
+}
 
 /**
  * Rutas hijas con título propio.

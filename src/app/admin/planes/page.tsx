@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import PanelPlanes from "@/components/admin/planes/PanelPlanes";
 import { hoyEnBogota } from "@/lib/admin/horario";
 import { getPlanes, getUsuarioActual } from "@/lib/admin/queries";
@@ -19,6 +20,8 @@ import { getPlanes, getUsuarioActual } from "@/lib/admin/queries";
  */
 export default async function PlanesPage() {
   const usuario = await getUsuarioActual();
+  // La instructora no tiene esta sección (ni en el menú): vuelve al panel.
+  if (usuario?.rol === "Instructora") redirect("/admin");
   const puedeVerCobros =
     usuario?.rol === "Administración" || usuario?.rol === "Recepción";
 

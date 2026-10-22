@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { fecha as fechaCorta } from "@/lib/admin/format";
 import { cuandoEs, diaCorto, diaRelativo, diasEntre, numeroDia } from "@/lib/admin/horario";
@@ -44,18 +45,25 @@ function cancelable(c: ClaseParaCliente, hoy: string, ahoraMin: number, horas: n
 /**
  * El área de cliente: plan, próximas clases y reservar.
  *
+ * Dos vistas (oct 2026, el área se partió en pestañas): `inicio` (saludo,
+ * plan, próximas clases y lista de espera) y `reservar` (la agenda). Un solo
+ * componente porque comparten las mismas reglas (qué día cubre el plan, qué
+ * se puede cancelar) y el mismo aviso.
+ *
  * Mobile-first: quien reserva lo hace casi siempre desde el móvil, camino del
  * estudio. Por eso la agenda es una tira de días que se desliza con el dedo
  * más una lista del día, como la agenda del panel, y no un calendario mensual
  * en el que no cabe ni la hora.
  */
 export default function PanelCliente({
+  vista,
   cuenta,
   agenda,
   hoy,
   ahora: ahoraHHMM,
   horasParaCancelar,
 }: {
+  vista: "inicio" | "reservar";
   cuenta: MiCuenta;
   agenda: ClaseParaCliente[];
   hoy: string;
@@ -126,6 +134,7 @@ export default function PanelCliente({
   return (
     <div className="space-y-8">
       {/* Saludo + plan */}
+      {vista === "inicio" && (
       <section className="grid gap-4 md:grid-cols-[1fr_minmax(0,22rem)] md:items-end">
         <div className="text-center md:text-left">
           <p className="eyebrow text-dorado-dark">Mi cuenta</p>
@@ -179,17 +188,58 @@ export default function PanelCliente({
                 ? "Escríbenos o pasa por recepción y la volvemos a activar."
                 : "Para reservar necesitas un plan vigente. Actívalo en recepción o escríbenos y te ayudamos."}
             </p>
-            <a
-              href={WHATSAPP}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`${BOTON} mt-4 bg-verde text-arena hover:bg-verde-900`}
-            >
-              Escribir por WhatsApp
-            </a>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {cuenta.estado !== "De baja" && (
+                <Link href="/mi-cuenta/planes" className={`${BOTON} bg-verde text-arena hover:bg-verde-900`}>
+                  Ver los planes
+                </Link>
+              )}
+              <a
+                href={WHATSAPP}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${BOTON} border border-verde/30 text-verde hover:border-dorado`}
+              >
+                Escribir por WhatsApp
+              </a>
+            </div>
           </div>
         )}
       </section>
+      )}
+
+      {/* En «Reservar», arriba: lo que le queda, para decidir antes de mirar
+          la agenda. Sin plan, el porqué y adónde ir. */}
+      {vista === "reservar" && (
+        <section>
+          <h1 className="font-display text-3xl text-verde sm:text-4xl">Reservar una clase</h1>
+          {conPlan ? (
+            cuenta.saldo.length > 0 && (
+              <p className="mt-2 text-sm text-verde-700">
+                Te quedan{" "}
+                {cuenta.saldo.map((s, i) => (
+                  <span key={s.tipo}>
+                    {i > 0 && " · "}
+                    <strong className="font-cifra text-verde">{s.quedan}</strong> de {s.tipo}
+                  </span>
+                ))}
+                {cuenta.vencimiento && <> · hasta el {fechaCorta(cuenta.vencimiento, true)}</>}
+              </p>
+            )
+          ) : (
+            <p className="mt-3 rounded-2xl border border-dorado/50 bg-dorado/10 p-4 text-sm text-verde-700">
+              {cuenta.estado === "De baja"
+                ? "Tu cuenta está inactiva: escríbenos o pasa por recepción y la volvemos a activar."
+                : "Para reservar necesitas un plan vigente. "}
+              {cuenta.estado !== "De baja" && (
+                <Link href="/mi-cuenta/planes" className="font-medium text-dorado-dark underline underline-offset-4">
+                  Ver los planes
+                </Link>
+              )}
+            </p>
+          )}
+        </section>
+      )}
 
       {/* Un solo mensaje para las dos acciones, leído por lectores de pantalla:
           nunca hay dos avisos a la vez. */}
@@ -208,7 +258,7 @@ export default function PanelCliente({
       </div>
 
       {/* Mis próximas clases */}
-      {mias.length > 0 && (
+      {vista === "inicio" && mias.length > 0 && (
         <section>
           <h2 className="font-display text-2xl text-verde">Tus próximas clases</h2>
           <ul className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -346,7 +396,7 @@ export default function PanelCliente({
       )}
 
       {/* En lista de espera: dónde está y cómo salir. */}
-      {esperando.length > 0 && (
+      {vista === "inicio" && esperando.length > 0 && (
         <section>
           <h2 className="font-display text-2xl text-verde">Esperando cupo</h2>
           <p className="mt-1 text-sm text-verde-700">
@@ -391,9 +441,16 @@ export default function PanelCliente({
         </section>
       )}
 
+      {/* Desde Inicio, el atajo a reservar (la agenda vive en su pestaña). */}
+      {vista === "inicio" && conPlan && (
+        <Link href="/mi-cuenta/reservar" className={`${BOTON} w-full bg-dorado text-verde-900 hover:bg-dorado-dark sm:w-auto`}>
+          Reservar una clase
+        </Link>
+      )}
+
       {/* Reservar */}
+      {vista === "reservar" && (
       <section>
-        <h2 className="font-display text-2xl text-verde">Reservar una clase</h2>
 
         {dias.length === 0 ? (
           <p className="mt-4 rounded-2xl border border-beige bg-white p-6 text-center text-verde-700">
@@ -538,6 +595,7 @@ export default function PanelCliente({
           </>
         )}
       </section>
+      )}
     </div>
   );
 }

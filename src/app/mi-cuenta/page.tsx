@@ -4,7 +4,8 @@ import { horaEnBogota, hoyEnBogota } from "@/lib/admin/horario";
 import { getAgendaCliente, getHorasParaCancelar, getMiCuenta } from "@/lib/cliente/datos";
 
 /**
- * Área de cliente: su plan, sus próximas clases y la agenda para reservar.
+ * Área de cliente → Inicio: su plan y sus próximas clases. La agenda para
+ * reservar está en `/mi-cuenta/reservar`.
  *
  * Todo lo que se pinta lo deja leer RLS con la sesión del propio cliente, y
  * las reglas de reservar y cancelar las aplica la base (`reservar_mi_clase`,
@@ -20,6 +21,7 @@ export default async function MiCuentaPage() {
 
   return (
     <PanelCliente
+      vista="inicio"
       cuenta={cuenta}
       agenda={agenda}
       hoy={hoy}

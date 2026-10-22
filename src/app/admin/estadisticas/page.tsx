@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import Card from "@/components/admin/Card";
 import PanelEstadisticas from "@/components/admin/estadisticas/PanelEstadisticas";
 import {
@@ -27,6 +28,8 @@ import { getClases, getDatosEstadisticas, getUsuarioActual } from "@/lib/admin/q
  */
 export default async function EstadisticasPage() {
   const usuario = await getUsuarioActual();
+  // La instructora no tiene esta sección (ni en el menú): vuelve al panel.
+  if (usuario?.rol === "Instructora") redirect("/admin");
   if (usuario?.rol !== "Administración") {
     return (
       <div className="mx-auto w-full max-w-3xl">

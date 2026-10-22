@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import Card from "@/components/admin/Card";
 import PanelFinanzas from "@/components/admin/finanzas/PanelFinanzas";
 import { hoyEnBogota } from "@/lib/admin/horario";
@@ -24,6 +25,8 @@ import {
  */
 export default async function FinanzasPage() {
   const usuario = await getUsuarioActual();
+  // La instructora no tiene esta sección (ni en el menú): vuelve al panel.
+  if (usuario?.rol === "Instructora") redirect("/admin");
 
   if (usuario?.rol !== "Administración") {
     return (

@@ -7,7 +7,7 @@ import Logo from "@/components/Logo";
 import HeroFX from "@/components/fx/HeroFX";
 import { iniciales } from "@/lib/admin/format";
 import type { UsuarioActual } from "@/lib/admin/types";
-import { SECCIONES, esSeccionActiva } from "./secciones";
+import { esSeccionActiva, seccionesDe } from "./secciones";
 
 /**
  * ⚠️ **Quién ha entrado va aquí, encima de las secciones, no en la cabecera**
@@ -148,7 +148,7 @@ export default function AppSidebar({ usuario }: { usuario: UsuarioActual }) {
         {/* Navegación */}
         <nav aria-label="Secciones del panel" className="flex-1 overflow-y-auto px-4 py-6">
           <div className="space-y-1.5">
-            {SECCIONES.map((seccion) => {
+            {seccionesDe(usuario.rol).map((seccion) => {
               const activa = esSeccionActiva(seccion.href, pathname);
               return (
                 <Link
