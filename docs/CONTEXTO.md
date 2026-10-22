@@ -2138,8 +2138,13 @@ antes**.
   próximas clases (3 a la vista + «Ver todas») con «Cancelar», y la agenda de
   los próximos 14 días por día, con «Reservar». Cabecera verde con motas, sin
   goteo; «Contraseña» reutiliza el diálogo del panel.
-  ⚠️ **Desde oct 2026 va en cuatro pestañas** (decisión del usuario;
-  `NavCliente` bajo la cabecera, enlaces con `aria-current`):
+  ⚠️ **Desde oct 2026 va en cuatro secciones, con el MISMO armazón que el
+  panel** (decisión del usuario): `ClienteSidebar` (barra lateral verde con
+  motas, nombre y plan arriba, «Ver la web» y «Cerrar sesión» abajo; cajón
+  con ☰ en móvil, con el `SidebarContext` del panel) y `ClienteTopbar` (en
+  escritorio titula la sección desde la ruta, `seccionesCliente.tsx`; el
+  título es un `<p>` porque cada página tiene su `<h1>`). Hubo un día unas
+  pestañas bajo la cabecera (`NavCliente`), retiradas por esto.
   - **Inicio** (`/mi-cuenta`): saludo, plan, próximas clases y lista de
     espera, más «Reservar una clase».
   - **Reservar** (`/mi-cuenta/reservar`): lo que le queda del plan y la

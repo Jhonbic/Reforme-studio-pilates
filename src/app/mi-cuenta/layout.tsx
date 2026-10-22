@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import Logo from "@/components/Logo";
-import HeroFX from "@/components/fx/HeroFX";
-import NavCliente from "@/components/cliente/NavCliente";
+import ClienteSidebar from "@/components/cliente/ClienteSidebar";
+import ClienteTopbar from "@/components/cliente/ClienteTopbar";
+import { SidebarProvider } from "@/context/SidebarContext";
 import { ToastProvider } from "@/context/ToastContext";
-import { cerrarSesion } from "@/lib/auth/acciones";
 import { getUsuarioActual } from "@/lib/admin/queries";
 import { getMiCuenta } from "@/lib/cliente/datos";
 
@@ -22,11 +20,11 @@ export const metadata: Metadata = {
  * además que la cuenta sea de un CLIENTE. Alguien del equipo que llega aquí
  * va a su panel, no a un área vacía.
  *
- * ⚠️ No usa el armazón del panel ni la Navbar de la web: es la tercera cara del
- * producto. Mantiene la marca de la web pública (verde, Cormorant, motas
- * doradas) porque quien entra aquí es un cliente, no alguien trabajando; pero
- * sin goteo al clic, como el panel: casi todo clic aquí es un botón de
- * reservar, y una onda encima siembra la duda de si se registró.
+ * ⚠️ **El mismo armazón que el panel** (decisión del usuario, oct 2026): barra
+ * lateral verde con las secciones y cabecera que titula desde la ruta. Antes
+ * era una cabecera verde con pestañas debajo. Sin goteo al clic, como el
+ * panel: casi todo clic aquí es reservar, y una onda encima siembra la duda
+ * de si se registró.
  */
 export default async function LayoutMiCuenta({ children }: { children: React.ReactNode }) {
   const cuenta = await getMiCuenta();
@@ -34,40 +32,29 @@ export default async function LayoutMiCuenta({ children }: { children: React.Rea
     redirect((await getUsuarioActual()) ? "/admin" : "/login?error=sin-acceso");
   }
 
+  // Bajo el nombre, como el rol en el panel: su plan, o que no tiene.
+  const detalle =
+    cuenta.estado === "De baja"
+      ? "Cuenta inactiva"
+      : cuenta.plan && cuenta.estado !== "Vencida" && cuenta.estado !== "Sin plan"
+        ? `Plan ${cuenta.plan}`
+        : "Sin plan";
+
   return (
-    // `ToastProvider`: el diálogo de contraseña (compartido con el panel)
-    // avisa con el mismo sistema de avisos flotantes.
-    <ToastProvider>
-    <div className="min-h-[100svh] bg-arena">
-      <header className="relative isolate overflow-hidden bg-verde text-arena">
-        <HeroFX className="-z-10" goteo={false} />
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <Logo size={34} layout="horizontal" href="/" />
-          <div className="flex items-center gap-2">
-            <Link
-              href="/"
-              className="hidden min-h-[44px] items-center rounded-full px-4 text-sm text-beige/85 transition-colors hover:text-arena sm:inline-flex"
-            >
-              Ver la web
-            </Link>
-            {/* `<form>` con server action y no un enlace: un GET que cierra
-                sesión lo dispararía cualquier precarga de enlaces. */}
-            <form action={cerrarSesion}>
-              <button
-                type="submit"
-                className="inline-flex min-h-[44px] items-center whitespace-nowrap rounded-full border border-arena/40 px-4 text-sm text-arena transition-colors hover:border-dorado hover:text-dorado-light"
-              >
-                Cerrar sesión
-              </button>
-            </form>
+    <SidebarProvider>
+      {/* `ToastProvider`: el diálogo de contraseña (compartido con el panel)
+          avisa con el mismo sistema de avisos flotantes. */}
+      <ToastProvider>
+        <div className="flex min-h-[100svh] flex-col bg-arena lg:flex-row">
+          <ClienteSidebar nombre={cuenta.nombre} detalle={detalle} />
+          {/* `min-w-0`: sin él, un hijo flex no se encoge por debajo de su
+              contenido y la tira de días ensancharía la página. */}
+          <div className="flex min-w-0 flex-1 flex-col">
+            <ClienteTopbar />
+            <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 sm:py-8">{children}</main>
           </div>
         </div>
-        {/* Inicio · Reservar · Planes · Mi cuenta. La contraseña vive en «Mi
-            cuenta», no en la cabecera. */}
-        <NavCliente />
-      </header>
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">{children}</main>
-    </div>
-    </ToastProvider>
+      </ToastProvider>
+    </SidebarProvider>
   );
 }

@@ -35,8 +35,7 @@ export default async function PlanesClientePage() {
   return (
     <div className="space-y-8">
       <section className="text-center md:text-left">
-        <p className="eyebrow text-dorado-dark">Planes</p>
-        <h1 className="mt-2 font-display text-3xl text-verde sm:text-4xl">Elige tu plan</h1>
+        <h1 className="font-display text-3xl text-verde sm:text-4xl">Elige tu plan</h1>
         <p className="mt-2 text-verde-700">
           Escríbenos por WhatsApp con el que quieras y te lo activamos en recepción.
         </p>

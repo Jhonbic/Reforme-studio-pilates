@@ -137,8 +137,7 @@ export default function PanelCliente({
       {vista === "inicio" && (
       <section className="grid gap-4 md:grid-cols-[1fr_minmax(0,22rem)] md:items-end">
         <div className="text-center md:text-left">
-          <p className="eyebrow text-dorado-dark">Mi cuenta</p>
-          <h1 className="mt-2 font-display text-4xl text-verde sm:text-5xl">Hola, {nombre}</h1>
+          <h1 className="font-display text-4xl text-verde sm:text-5xl">Hola, {nombre}</h1>
           <p className="mt-2 text-verde-700">
             {mias.length === 0
               ? "No tienes clases reservadas en los próximos días."

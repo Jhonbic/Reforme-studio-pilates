@@ -32,8 +32,7 @@ export default async function MiCuentaConfiguracionPage() {
   return (
     <div className="space-y-8">
       <section className="text-center md:text-left">
-        <p className="eyebrow text-dorado-dark">Mi cuenta</p>
-        <h1 className="mt-2 font-display text-3xl text-verde sm:text-4xl">{datos.nombre}</h1>
+        <h1 className="font-display text-3xl text-verde sm:text-4xl">{datos.nombre}</h1>
       </section>
 
       <section className="rounded-2xl border border-beige bg-white p-5 sm:p-6">
