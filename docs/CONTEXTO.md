@@ -90,8 +90,15 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 
 - Repo: `github.com/Jhonbic/Reforme-studio-pilates`, rama **`main`**.
 - Hospedaje: **Vercel** (plan Hobby). Push a `main` → redespliegue automático.
-- ⚠️ **Usar siempre la URL de producción:** https://reforme-studio-pilates.vercel.app
-  Las otras dos (`…-git-main-…` y la del hash) están tras la *Deployment
+- **Dominio propio desde el 23 oct 2026: https://www.reformestudiopilates.com**
+  (la versión sin `www` redirige ahí con un 308). El dominio está registrado en
+  **Hostinger** (cuenta del desarrollador de la web anterior; pendiente pasarlo
+  al estudio) y su zona DNS apunta a Vercel: `A @ → 216.198.79.1` y
+  `CNAME www → fba548c7f1a96306.vercel-dns-017.com`, sin `AAAA` (el que había
+  mandaba parte de las visitas IPv6 a la web vieja). No tiene correo (sin MX).
+  La web vieja no se sube a ningún hosting: el estudio solo conserva el nombre.
+- ⚠️ La URL de Vercel https://reforme-studio-pilates.vercel.app sigue
+  funcionando. Las otras dos (`…-git-main-…` y la del hash) están tras la *Deployment
   Protection* de Vercel y **piden iniciar sesión** — en el móvil no hay sesión, así
   que parecen rotas. Se desactivaría en Settings → Deployment Protection.
 - La web pública es estática (`○ Static`). **`/admin` y `/login` son dinámicas**
@@ -2257,7 +2264,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Pieza | Dónde |
 |---|---|
 | Código | `github.com/Jhonbic/Reforme-studio-pilates`, rama `main` |
-| Web | Vercel, https://reforme-studio-pilates.vercel.app (push a `main` → despliegue) |
+| Web | Vercel, **https://www.reformestudiopilates.com** (y `reforme-studio-pilates.vercel.app`); push a `main` → despliegue |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
 | Esquema | `supabase/migrations/` — **26 migraciones (`20261018120000_correo_obligatorio`, aún solo en local)** |
@@ -2269,7 +2276,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto | `.env.local` y Vercel ✅ |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave pública (RLS manda) | `.env.local` y Vercel ✅ |
 | `SUPABASE_SERVICE_ROLE_KEY` | Crear cuentas: registro de clientes, alta de miembros, contraseñas temporales y quitar la marca de «debe cambiarla» | `.env.local` ✅ · **Vercel: pendiente** |
-| `NEXT_PUBLIC_SITE_URL` | Opcional. URL pública para `sitemap`, `robots` y la imagen al compartir | Sin ella: `https://reforme-studio-pilates.vercel.app`. Fijarla al pasar al dominio propio |
+| `NEXT_PUBLIC_SITE_URL` | Opcional. URL pública para `sitemap`, `robots` y la imagen al compartir | Sin ella: `https://www.reformestudiopilates.com` (`src/lib/sitio.ts`) |
 
 ⚠️ `SUPABASE_SERVICE_ROLE_KEY` se salta toda la seguridad de la base: nunca con
 prefijo `NEXT_PUBLIC_`. Solo la lee `src/lib/supabase/admin.ts` (`server-only`).
@@ -2571,7 +2578,11 @@ y el aviso de «pocas clases» del 7.
       ahora la letra sigue al ancho entre 24 y 36 px (`StatTile`).
 - [x] ~~Sin `robots`, `sitemap` ni imagen Open Graph~~ — hechos. La imagen
       usa el logo oficial, Cormorant y Lato (`assets/fonts/`, OFL).
-- [ ] **Cuando haya dominio propio**: fijar `NEXT_PUBLIC_SITE_URL`.
+- [x] ~~Dominio propio~~ — conectado el 23 oct 2026 (ver §3, Despliegue).
+- [ ] **Pasar el dominio a una cuenta del estudio** (hoy en la Hostinger del
+      desarrollador anterior) y anotar la fecha de vencimiento.
+- [ ] **Supabase → Authentication → URL Configuration**: Site URL
+      `https://www.reformestudiopilates.com` y añadirla a Redirect URLs.
 - [x] ~~Tres «hoy» distintos~~ — `getHoy()` desapareció en el paso 9. Quedan
       `hoyEnBogota()` / `horaEnBogota()` (servidor) y `hoyLocalIso()`
       (formularios en el navegador).
