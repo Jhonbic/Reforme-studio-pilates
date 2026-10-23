@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(97);
+select plan(106);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -751,6 +751,78 @@ select lives_ok(
   -- Desde `20261018120000_correo_obligatorio` el correo es obligatorio también
   -- en recepción; la dirección sigue siendo solo del registro web.
   'el alta de recepción (sin cuenta) puede ir sin dirección, pero con correo');
+
+-- Descuentos de los planes (oct 2026) -----------------------------------------
+-- Un porcentaje y, opcional, hasta cuándo. `registrar_membresia` cobra el
+-- precio con descuento mientras esté vigente; el de siempre cuando caduca.
+insert into planes (id, nombre, precio, vigencia_dias, modalidad, clases_reformer, clases_mat, descuento_pct)
+  values ('00000000-0000-0000-0000-0000000000b5', 'Plan con descuento', 100000, 30, 'Mat', 0, 2, 20);
+insert into planes (id, nombre, precio, vigencia_dias, modalidad, clases_reformer, clases_mat, descuento_pct, descuento_hasta)
+  values ('00000000-0000-0000-0000-0000000000b6', 'Descuento caducado', 100000, 30, 'Mat', 0, 2, 20, current_date - 1);
+insert into clientes (id, nombre, identificacion, correo, telefono) values
+  ('00000000-0000-0000-0000-0000000000d5', 'Cliente descuento', 'TEST020', 'descuento@reforme.local', '3000000020'),
+  ('00000000-0000-0000-0000-0000000000d6', 'Cliente caducado', 'TEST021', 'caducado@reforme.local', '3000000021');
+
+select throws_ok(
+  $$update planes set descuento_pct = null, descuento_hasta = current_date + 5
+    where id = '00000000-0000-0000-0000-0000000000b5'$$,
+  '23514', null,
+  'una fecha de fin sin porcentaje no se guarda');
+select throws_ok(
+  $$update planes set descuento_pct = 95 where id = '00000000-0000-0000-0000-0000000000b5'$$,
+  '23514', null,
+  'un descuento de más del 90 % no se guarda');
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok(
+  $$select registrar_membresia('00000000-0000-0000-0000-0000000000d5',
+      '00000000-0000-0000-0000-0000000000b5', 'Efectivo')$$,
+  'Administración vende un plan con descuento');
+select lives_ok(
+  $$select registrar_membresia('00000000-0000-0000-0000-0000000000d6',
+      '00000000-0000-0000-0000-0000000000b6', 'Efectivo')$$,
+  'y uno cuyo descuento ya caducó');
+reset role;
+select is(
+  (select importe from membresias where cliente_id = '00000000-0000-0000-0000-0000000000d5'),
+  80000,
+  'con el descuento vigente se cobra el precio rebajado (y es lo que queda escrito)');
+select is(
+  (select importe from membresias where cliente_id = '00000000-0000-0000-0000-0000000000d6'),
+  100000,
+  'con el descuento caducado se cobra el precio de siempre');
+
+-- Pocas clases (oct 2026) ------------------------------------------------------
+-- El cliente del descuento tiene hoy un plan Mat de 2 clases sin usar: sale.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(
+  (select quedan_reformer + quedan_mat from clientes_pocas_clases(2)
+   where cliente_id = '00000000-0000-0000-0000-0000000000d5'),
+  2,
+  'a quien le quedan 2 clases sale en «Pocas clases», con cuántas le quedan');
+reset role;
+-- Ya renovó (otra membresía que empieza después): avisarle sobra.
+insert into membresias (cliente_id, plan_id, inicio, vencimiento, importe)
+  values ('00000000-0000-0000-0000-0000000000d5', '00000000-0000-0000-0000-0000000000b5',
+          current_date + 31, current_date + 61, 80000);
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(
+  (select count(*)::integer from clientes_pocas_clases(2)
+   where cliente_id = '00000000-0000-0000-0000-0000000000d5'),
+  0,
+  'quien ya renovó no sale en «Pocas clases»');
+reset role;
+-- Un cliente con sesión no ve la lista (devuelve vacío, no la de nadie).
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select is(
+  (select count(*)::integer from clientes_pocas_clases(90)),
+  0,
+  'un cliente no ve a quién le quedan pocas clases');
+reset role;
 
 select * from finish();
 rollback;

@@ -47,7 +47,8 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 
 **Contacto / ubicación:**
 - Dirección: Carrera 1 #27-50, Multiplaza Chaira, Florencia.
-- Teléfono/WhatsApp: +57 320 9078814.
+- Teléfono/WhatsApp: **+57 313 2077686** (desde el 23 oct 2026; antes 320 9078814).
+  Vive en un solo sitio: `src/lib/contacto.ts`.
 - Redes (handle `reformestudiopilates`): Instagram, Facebook, TikTok, WhatsApp.
 - Web de referencia actual: https://reformestudiopilates.com/
 
@@ -1865,6 +1866,45 @@ pendientes**; hasta aquí todo plan se cobraba entero al asignarlo, así que
 - Semilla: dos membresías vigentes quedan debiendo (una con la mitad, otra
   sin pagar) para probar en local.
 - 3 tests Vitest (62 en total) y 6 de base (71).
+
+#### Descuentos y «Pocas clases» (23 oct 2026)
+
+Pedidos del estudio en la reunión del 22 oct. Migración
+`20261023120000_descuentos_y_pocas_clases`.
+
+**Descuentos en los planes**
+- `planes.descuento_pct` (1–90) y `descuento_hasta` (opcional, incluido). El
+  **precio no se toca**: el descuento va aparte, así se enseña «antes $X» y se
+  quita sin recordar el precio. Sin porcentaje no hay fecha (`check`).
+- ⚠️ **Se COBRA con descuento**: `registrar_membresia` usa
+  `precio_vigente(plan)` y la membresía guarda ese importe. Quitar el
+  descuento después no cambia lo que debe nadie. La misma cuenta está en
+  `lib/admin/descuento.ts` (para enseñar el precio antes de cobrar; manda la
+  base), redondeada al peso en los dos lados.
+- Formulario de plan: bloque «Descuento» (`<select>` de %, fecha opcional y
+  eco «los clientes lo verán a $X»). Tarjeta del panel: pastilla «−20 % $X ·
+  hasta el …», o «El descuento terminó el …» si caducó.
+- «Asignar plan» ya cobra el precio rebajado y lo dice.
+- **Cliente**: el diseño de oferta SOLO aparece si hay un descuento vigente
+  (decisión del usuario). En Planes, banda verde «Precio especial» arriba y
+  la tarjeta en oferta con borde dorado, fondo cálido, etiqueta «−20 % ·
+  hasta el …» y el precio de antes tachado; el WhatsApp «Lo quiero» dice
+  «con el 20 % de descuento». En Inicio, un aviso que lleva a Planes.
+  `getPlanesALaVenta()` devuelve `precio` (el de hoy), `precioLista` y
+  `descuento`.
+
+**«Pocas clases · 1 o 2»** (tercera lista del dashboard, pestaña Clientes)
+- A quién le quedan 1 o 2 clases del plan vigente (Reformer + Mat), con
+  **«Avisar»**: abre WhatsApp con el mensaje escrito («te queda 1 clase de tu
+  plan Origen…»). ⚠️ **No se envía solo**: mandar mensajes automáticos
+  necesita la API de WhatsApp Business (Meta, de pago y con número
+  verificado). Mismo criterio que «Recordar» y «Felicitar».
+- Lo calcula la base: `clientes_pocas_clases(p_max)` (`security definer`,
+  vacío para quien no es del equipo). Fuera: los de baja, los que tienen 0
+  (eso ya es «se acabó») y **quien ya renovó** (tiene otra membresía por
+  empezar).
+- Tres listas en `xl`; en `lg` la tercera baja a otra fila.
+- 9 tests de base (106) y 6 de Vitest (88).
 
 #### Planes (`/admin/planes`) — desde Supabase, oct 2026
 

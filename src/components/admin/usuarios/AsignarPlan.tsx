@@ -161,6 +161,7 @@ export default function AsignarPlan({ clienteId, nombre, vencimiento, planes, ho
                             ? `${p.clasesReformer} Reformer + ${p.clasesMat} Mat`
                             : `${p.clasesReformer + p.clasesMat} clases`}{" "}
                           · {moneda(p.precio)}
+                          {p.descuento ? ` (−${p.descuento.pct} %)` : ""}
                         </option>
                       ))}
                     </optgroup>
@@ -264,6 +265,12 @@ export default function AsignarPlan({ clienteId, nombre, vencimiento, planes, ho
                       </dd>
                     </div>
                   </dl>
+                )}
+                {plan?.descuento && (
+                  <p className="mt-2 text-xs text-dorado-dark">
+                    Con el descuento del {plan.descuento.pct} %: {moneda(plan.precio)} en vez de{" "}
+                    {moneda(plan.precioLista)}.
+                  </p>
                 )}
                 {plan && inicio > hoy && (
                   <p className="mt-2 text-xs text-verde-300">

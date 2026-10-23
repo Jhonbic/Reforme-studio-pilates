@@ -24,7 +24,7 @@ const BOTON =
  */
 const MODALIDADES: ModalidadPlan[] = ["Mat", "Reformer", "Fusión"];
 
-export default function PanelPlanes({ planes }: { planes: PlanConMetricas[] }) {
+export default function PanelPlanes({ planes, hoy }: { planes: PlanConMetricas[]; hoy: string }) {
   const { mostrarAviso } = useToast();
   const [formAbierto, setFormAbierto] = useState(false);
   /* `undefined` = alta. El plan concreto = edición. */
@@ -97,6 +97,7 @@ export default function PanelPlanes({ planes }: { planes: PlanConMetricas[] }) {
                   <TarjetaPlan
                     plan={p}
                     destacado={p.id === masContratado?.id}
+                    hoy={hoy}
                     onEditar={() => abrirEdicion(p)}
                     onEliminar={() => setBorrando(p)}
                   />

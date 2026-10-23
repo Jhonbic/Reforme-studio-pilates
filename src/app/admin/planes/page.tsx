@@ -28,7 +28,7 @@ export default async function PlanesPage() {
   return (
     <div className="mx-auto w-full max-w-[1440px]">
       <h1 className="sr-only">Planes</h1>
-      <PanelPlanes planes={await getPlanes(hoyEnBogota(), puedeVerCobros)} />
+      <PanelPlanes planes={await getPlanes(hoyEnBogota(), puedeVerCobros)} hoy={hoyEnBogota()} />
     </div>
   );
 }

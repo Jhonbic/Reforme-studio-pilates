@@ -18,6 +18,14 @@ export type FilaPorVencer = {
 
 export type FilaCumpleanos = { id: string; nombre: string; whatsapp: string | null };
 
+export type FilaPocasClases = {
+  id: string;
+  nombre: string;
+  plan: string;
+  quedan: number;
+  whatsapp: string | null;
+};
+
 type Props = {
   /** «Viernes, 2 de octubre de 2026». */
   fechaTexto: string;
@@ -40,6 +48,7 @@ type Props = {
     renovacion: { porcentaje: number | null; renovaron: number; vencieron: number };
     porVencer: FilaPorVencer[];
     cumpleanos: FilaCumpleanos[];
+    pocasClases: FilaPocasClases[];
     activosPorMes: { mes: string; anio: number; activos: number }[];
   };
   clases: {
@@ -250,7 +259,9 @@ function BloqueClientes({ d }: { d: Props["clientes"] }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* Tres listas en `xl`; en `lg` la lateral deja ~700px y la tercera
+          baja a su propia fila. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {/* Cumpleaños de hoy */}
         <Lista
           icono={<IconoPastel />}
@@ -306,6 +317,43 @@ function BloqueClientes({ d }: { d: Props["clientes"] }) {
           ))}
         </Lista>
 
+        {/* Pocas clases (pedido del estudio, oct 2026): a quien le quedan 1 o 2
+            clases del plan, para avisarle por WhatsApp antes de que se le
+            acaben. El mensaje sale escrito; lo envía quien atiende. Quien ya
+            renovó no sale (lo filtra la base). */}
+        <Lista
+          titulo="Pocas clases · 1 o 2"
+          cuantos={d.pocasClases.length}
+          alto="14rem"
+          vacio={{ icono: <IconoCampana />, texto: "Nadie está por terminar sus clases" }}
+        >
+          {d.pocasClases.map((a) => (
+            <Fila
+              key={a.id}
+              nombre={a.nombre}
+              detalle={
+                <p
+                  className={`text-xs ${
+                    a.quedan === 1 ? "font-semibold text-[var(--color-estado-aviso)]" : "text-verde-300"
+                  }`}
+                >
+                  {a.quedan === 1 ? "Le queda 1 clase" : `Le quedan ${a.quedan} clases`} · {a.plan}
+                </p>
+              }
+            >
+              {a.whatsapp ? (
+                <BotonWhatsApp href={a.whatsapp} texto="Avisar" quien={a.nombre} icono={false} />
+              ) : (
+                <span className="rounded-full bg-arena px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-verde-300">
+                  Sin teléfono
+                </span>
+              )}
+              <Link href={`/admin/usuarios/${a.id}`} className={BOTON_VER}>
+                Ver
+              </Link>
+            </Fila>
+          ))}
+        </Lista>
       </div>
 
       {/* Evolución de clientes activos, al pie del bloque: arriba van las

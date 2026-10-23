@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Logo from "./Logo";
 import { ButtonLink } from "./ui/Button";
+import { TEL_ESTUDIO, TELEFONO_ESTUDIO_TEXTO, WHATSAPP_ESTUDIO } from "@/lib/contacto";
 
 const links = [
   { href: "/#estudio", label: "El estudio" },
@@ -16,7 +17,7 @@ const social = [
   { label: "Instagram", href: "https://instagram.com/reformestudiopilates" },
   { label: "Facebook", href: "https://facebook.com/reformestudiopilates" },
   { label: "TikTok", href: "https://tiktok.com/@reformestudiopilates" },
-  { label: "WhatsApp", href: "https://wa.me/573209078814" },
+  { label: "WhatsApp", href: WHATSAPP_ESTUDIO },
 ];
 
 export default function Navbar() {
@@ -259,10 +260,10 @@ export default function Navbar() {
             ))}
           </ul>
           <a
-            href="tel:+573209078814"
+            href={TEL_ESTUDIO}
             className="mt-3 block font-display text-xl text-dorado-dark transition-colors duration-300 hover:text-dorado"
           >
-            +57 320 9078814
+            {TELEFONO_ESTUDIO_TEXTO}
           </a>
         </div>
       </aside>

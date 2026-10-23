@@ -387,13 +387,15 @@ export async function urlComprobante(gastoId: string): Promise<string | null> {
 
 export type ResultadoPlan =
   | { ok: true }
-  | { ok: false; error: string; campo?: "nombre" | "clases" };
+  | { ok: false; error: string; campo?: "nombre" | "clases" | "descuento" };
 
 /** Las rutas que enseñan nombres o precios de planes. */
 function revalidarPlanes() {
   revalidatePath("/admin/planes");
   revalidatePath("/admin/usuarios");
   revalidatePath("/admin");
+  // El catálogo y los descuentos los ve también el cliente.
+  revalidatePath("/mi-cuenta", "layout");
 }
 
 async function soloAdministracion(): Promise<string | null> {
@@ -429,6 +431,14 @@ export async function guardarPlan(
   if ((b.modalidad !== "Mat" && !valida(reformer)) || (b.modalidad !== "Reformer" && !valida(mat)))
     return { ok: false, campo: "clases", error: "Indica cuántas clases trae de cada tipo (de 1 a 100)." };
 
+  // Descuento: sin porcentaje no hay fecha (la base también lo exige).
+  const pct = b.descuentoPct;
+  const hasta = pct === null ? null : b.descuentoHasta;
+  if (pct !== null && (!Number.isInteger(pct) || pct < 1 || pct > 90))
+    return { ok: false, campo: "descuento", error: "El descuento va del 1 al 90 %." };
+  if (hasta !== null && (!/^\d{4}-\d{2}-\d{2}$/.test(hasta) || hasta < hoyEnBogota()))
+    return { ok: false, campo: "descuento", error: "La fecha de fin del descuento ya pasó." };
+
   const fila = {
     nombre,
     precio: b.precio,
@@ -439,6 +449,8 @@ export async function guardarPlan(
     se_vende: b.seVende,
     descripcion: b.descripcion.trim(),
     caracteristicas: b.caracteristicas.map((c) => c.trim()).filter(Boolean),
+    descuento_pct: pct,
+    descuento_hasta: hasta,
   };
 
   const supabase = await crearClienteServidor();

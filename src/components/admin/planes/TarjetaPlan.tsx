@@ -5,7 +5,8 @@ import Dropdown, {
   DropdownDivider,
   DropdownItem,
 } from "@/components/admin/Dropdown";
-import { moneda, numero } from "@/lib/admin/format";
+import { descuentoVigente, precioConDescuento } from "@/lib/admin/descuento";
+import { fecha, moneda, numero } from "@/lib/admin/format";
 import type { PlanConMetricas } from "@/lib/admin/types";
 
 /** Cómo se dice la vigencia sin que parezca una cuenta de días. */
@@ -33,14 +34,19 @@ export function vigencia(dias: number): string {
 export default function TarjetaPlan({
   plan,
   destacado,
+  hoy,
   onEditar,
   onEliminar,
 }: {
   plan: PlanConMetricas;
   destacado: boolean;
+  hoy: string;
   onEditar: () => void;
   onEliminar: () => void;
 }) {
+  const descuento = descuentoVigente(plan.descuentoPct, plan.descuentoHasta, hoy);
+  // Guardado pero ya pasado: se dice, para que nadie crea que sigue en oferta.
+  const caducado = plan.descuentoPct !== null && !descuento;
   return (
     /* `w-full`: sin él la tarjeta medía lo que su contenido y no lo que su
        hueco de la rejilla, y la destacada (nombre más largo) salía más ancha
@@ -121,6 +127,24 @@ export default function TarjetaPlan({
           / {vigencia(plan.vigenciaDias)}
         </span>
       </p>
+
+      {/* El descuento, si lo hay: lo que verá el cliente y hasta cuándo. */}
+      {descuento && (
+        <p
+          className={`mt-3 inline-flex flex-wrap items-center gap-x-1.5 self-start rounded-full border px-3 py-1 text-xs ${
+            destacado ? "border-dorado-light/60 text-dorado-light" : "border-dorado text-dorado-dark"
+          }`}
+        >
+          <strong>−{descuento.pct} %</strong>
+          <span className="font-cifra">{moneda(precioConDescuento(plan.precio, descuento.pct))}</span>
+          <span>· {descuento.hasta ? `hasta el ${fecha(descuento.hasta)}` : "sin fecha de fin"}</span>
+        </p>
+      )}
+      {caducado && plan.descuentoHasta && (
+        <p className={`mt-3 text-xs ${destacado ? "text-beige/75" : "text-verde-300"}`}>
+          El descuento terminó el {fecha(plan.descuentoHasta)}
+        </p>
+      )}
 
       {/* Lo que trae, una sola vez: antes la descripción («Plan Mat»), esta
           línea y una característica («Clases de Mat») decían lo mismo. Y el

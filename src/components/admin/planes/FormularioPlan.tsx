@@ -2,12 +2,14 @@
 
 import { useRef, useState, useTransition } from "react";
 import Modal from "@/components/admin/Modal";
+import CampoSelect from "@/components/admin/campos/CampoSelect";
 import CampoTexto from "@/components/admin/campos/CampoTexto";
 import { CASILLA, FILA_CHECK } from "@/components/admin/campos/estilos";
 import { guardarPlan } from "@/lib/admin/acciones";
-import { moneda } from "@/lib/admin/format";
+import { PORCENTAJES_DESCUENTO, precioConDescuento } from "@/lib/admin/descuento";
+import { fecha, moneda } from "@/lib/admin/format";
 import type { BorradorPlan, ModalidadPlan, PlanConMetricas } from "@/lib/admin/types";
-import { soloDigitos } from "@/lib/validacion";
+import { hoyLocalIso, soloDigitos } from "@/lib/validacion";
 
 const BOTON_PRIMARIO =
   "inline-flex min-h-[44px] items-center justify-center rounded-full bg-dorado px-5 text-sm font-medium text-verde-900 transition-colors duration-300 hover:bg-dorado-dark";
@@ -27,6 +29,8 @@ const VACIO: BorradorPlan = {
   seVende: true,
   descripcion: "",
   caracteristicas: [],
+  descuentoPct: null,
+  descuentoHasta: null,
 };
 
 type Errores = Partial<Record<"nombre" | "precio" | "vigenciaDias", string>>;
@@ -60,6 +64,8 @@ function aBorrador(p: PlanConMetricas): BorradorPlan {
     seVende: p.seVende,
     descripcion: p.descripcion,
     caracteristicas: [...p.caracteristicas],
+    descuentoPct: p.descuentoPct,
+    descuentoHasta: p.descuentoHasta,
   };
 }
 
@@ -94,6 +100,7 @@ export default function FormularioPlan({
   const [nuevaCaract, setNuevaCaract] = useState("");
   /** Fallo del servidor que no es de ningún campo. */
   const [errorEnvio, setErrorEnvio] = useState("");
+  const [errorDescuento, setErrorDescuento] = useState("");
   const [guardando, iniciarGuardado] = useTransition();
   const refs = useRef<Partial<Record<keyof Errores, HTMLElement | null>>>({});
   const refCaract = useRef<HTMLInputElement>(null);
@@ -112,6 +119,7 @@ export default function FormularioPlan({
     setErrores({});
     setNuevaCaract("");
     setErrorEnvio("");
+    setErrorDescuento("");
   }
 
   function set<K extends keyof BorradorPlan>(campo: K, valor: BorradorPlan[K]) {
@@ -162,6 +170,7 @@ export default function FormularioPlan({
     }
 
     setErrorEnvio("");
+    setErrorDescuento("");
     iniciarGuardado(async () => {
       const r = await guardarPlan(plan?.id ?? null, v);
       if (r.ok) {
@@ -173,6 +182,10 @@ export default function FormularioPlan({
       if (r.campo === "nombre") {
         setErrores((e) => ({ ...e, nombre: r.error }));
         refs.current.nombre?.focus();
+        return;
+      }
+      if (r.campo === "descuento") {
+        setErrorDescuento(r.error);
         return;
       }
       setErrorEnvio(r.error);
@@ -317,6 +330,66 @@ export default function FormularioPlan({
             Cada reserva descuenta una clase de su tipo. Cambiar estos números no
             cambia lo que ya compraron: cada membresía guarda las suyas.
           </p>
+        </fieldset>
+
+        {/* Descuento (oct 2026, pedido del estudio). El precio de arriba NO
+            cambia: el descuento va aparte, así la tarjeta del cliente puede
+            enseñar «antes $X» y se quita sin recordar el precio. Se cobra al
+            asignar el plan (la base usa `precio_vigente`). Sin fecha de fin,
+            dura hasta que se quite aquí. */}
+        <fieldset className="rounded-xl border border-beige p-4">
+          <legend className="px-1.5 text-sm font-medium text-verde">Descuento</legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <CampoSelect
+              nombre="descuentoPct"
+              etiqueta="Porcentaje"
+              value={v.descuentoPct === null ? "" : String(v.descuentoPct)}
+              onChange={(e) => {
+                const n = e.target.value === "" ? null : Number(e.target.value);
+                setErrorDescuento("");
+                setV((prev) => ({
+                  ...prev,
+                  descuentoPct: n,
+                  // Sin porcentaje, una fecha de fin no significa nada.
+                  descuentoHasta: n === null ? null : prev.descuentoHasta,
+                }));
+              }}
+              ancho
+            >
+              <option value="">Sin descuento</option>
+              {/* Un % guardado que ya no está en la lista se sigue enseñando. */}
+              {[...new Set([...PORCENTAJES_DESCUENTO, ...(v.descuentoPct ? [v.descuentoPct] : [])])]
+                .sort((a, b) => a - b)
+                .map((n) => (
+                  <option key={n} value={n}>
+                    {n} %
+                  </option>
+                ))}
+            </CampoSelect>
+            {v.descuentoPct !== null && (
+              <CampoTexto
+                nombre="descuentoHasta"
+                etiqueta="Hasta (opcional)"
+                type="date"
+                min={hoyLocalIso()}
+                value={v.descuentoHasta ?? ""}
+                onChange={(e) => {
+                  setErrorDescuento("");
+                  set("descuentoHasta", e.target.value || null);
+                }}
+                error={errorDescuento || undefined}
+              />
+            )}
+          </div>
+          {v.descuentoPct !== null && v.precio > 0 && (
+            <p className="mt-3 rounded-xl bg-dorado/10 px-3 py-2 text-sm text-verde-700">
+              Los clientes lo verán a{" "}
+              <strong className="font-cifra">{moneda(precioConDescuento(v.precio, v.descuentoPct))}</strong>{" "}
+              <span className="text-verde-300 line-through">{moneda(v.precio)}</span>
+              {v.descuentoHasta ? ` hasta el ${fecha(v.descuentoHasta, true)}` : " hasta que lo quites"}.
+              Se cobra ese precio al asignarlo.
+            </p>
+          )}
         </fieldset>
 
         {/* Lista editable de características */}

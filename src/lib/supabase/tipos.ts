@@ -544,6 +544,8 @@ export type Database = {
           clases_reformer: number;
           creado_en: string;
           descripcion: string;
+          descuento_hasta: string | null;
+          descuento_pct: number | null;
           id: string;
           modalidad: Database["public"]["Enums"]["modalidad_plan"];
           nombre: string;
@@ -560,6 +562,8 @@ export type Database = {
           clases_reformer?: number;
           creado_en?: string;
           descripcion?: string;
+          descuento_hasta?: string | null;
+          descuento_pct?: number | null;
           id?: string;
           modalidad?: Database["public"]["Enums"]["modalidad_plan"];
           nombre: string;
@@ -575,6 +579,8 @@ export type Database = {
           clases_reformer?: number;
           creado_en?: string;
           descripcion?: string;
+          descuento_hasta?: string | null;
+          descuento_pct?: number | null;
           id?: string;
           modalidad?: Database["public"]["Enums"]["modalidad_plan"];
           nombre?: string;
@@ -858,6 +864,18 @@ export type Database = {
           plan: string;
           usadas_mat: number;
           usadas_reformer: number;
+          vencimiento: string;
+        }[];
+      };
+      clientes_pocas_clases: {
+        Args: { p_max?: number };
+        Returns: {
+          cliente_id: string;
+          nombre: string;
+          plan: string;
+          quedan_mat: number;
+          quedan_reformer: number;
+          telefono: string | null;
           vencimiento: string;
         }[];
       };

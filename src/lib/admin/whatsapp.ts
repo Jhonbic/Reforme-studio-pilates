@@ -57,3 +57,14 @@ export function mensajeCumpleanos(nombre: string): string {
     `movimiento con propósito.`
   );
 }
+
+/** A quien le quedan 1 o 2 clases (pedido del estudio, oct 2026): se le avisa
+ *  antes de que se le acaben, para que renueve sin quedarse un día sin clase. */
+export function mensajePocasClases(nombre: string, plan: string, quedan: number): string {
+  const clases = quedan === 1 ? "te queda 1 clase" : `te quedan ${quedan} clases`;
+  return (
+    `Hola, ${primerNombre(nombre)}. Te escribimos de Reforme Studio Pilates: ` +
+    `${clases} de tu plan ${plan}. ` +
+    `¿Quieres que te lo renovemos para que no pares tu ritmo?`
+  );
+}

@@ -16,11 +16,13 @@ import {
   getDatosDashboard,
   getMetaClientes,
   getPagosDesde,
+  getPocasClases,
   getUsuarioActual,
 } from "@/lib/admin/queries";
 import {
   enlaceWhatsApp,
   mensajeCumpleanos,
+  mensajePocasClases,
   mensajeRecordatorio,
 } from "@/lib/admin/whatsapp";
 
@@ -57,12 +59,13 @@ export default async function DashboardPage() {
   const hoy = hoyEnBogota();
   const usuario = await getUsuarioActual();
   const esAdmin = usuario?.rol === "Administración";
-  const [datos, agenda, meta, pagos] = await Promise.all([
+  const [datos, agenda, meta, pagos, pocas] = await Promise.all([
     getDatosDashboard(),
     getClases(hoy, horaEnBogota()),
     getMetaClientes(),
     // Desde el 1 del mes pasado: lo justo para comparar con el mismo tramo.
     esAdmin ? getPagosDesde(mesAnterior(hoy).desde) : null,
+    getPocasClases(2),
   ]);
 
   const resumen = resumenClientes(datos, hoy);
@@ -124,6 +127,13 @@ export default async function DashboardPage() {
             id: c.id,
             nombre: c.nombre,
             whatsapp: enlaceWhatsApp(c.telefono, mensajeCumpleanos(c.nombre)),
+          })),
+          pocasClases: pocas.map((c) => ({
+            id: c.id,
+            nombre: c.nombre,
+            plan: c.plan,
+            quedan: c.quedan,
+            whatsapp: enlaceWhatsApp(c.telefono, mensajePocasClases(c.nombre, c.plan, c.quedan)),
           })),
           activosPorMes: serie,
         }}

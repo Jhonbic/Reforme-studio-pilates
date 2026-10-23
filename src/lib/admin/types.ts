@@ -379,6 +379,10 @@ export type BorradorPlan = {
   seVende: boolean;
   descripcion: string;
   caracteristicas: string[];
+  /** Descuento en % (1–90), o `null` sin descuento. */
+  descuentoPct: number | null;
+  /** Último día del descuento (incluido), o `null` si no tiene fin. */
+  descuentoHasta: string | null;
 };
 
 /** Una tarjeta de la pantalla de Planes: condiciones + lo que ha pasado con ellas. */
@@ -404,6 +408,9 @@ export type PlanConMetricas = Omit<CondicionesPlan, "plan"> & {
    * que el plan no vende.
    */
   cobrado30d: number | null;
+  /** El descuento tal como está guardado (puede haber caducado: ver `descuentoVigente`). */
+  descuentoPct: number | null;
+  descuentoHasta: string | null;
 };
 
 /**

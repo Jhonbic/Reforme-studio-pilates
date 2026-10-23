@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { cuandoVence, enlaceWhatsApp, mensajeRecordatorio, primerNombre } from "./whatsapp";
+import {
+  cuandoVence,
+  enlaceWhatsApp,
+  mensajePocasClases,
+  mensajeRecordatorio,
+  primerNombre,
+} from "./whatsapp";
 
 describe("WhatsApp", () => {
   it("sin un móvil colombiano completo no hay enlace (sería un botón que lleva a un error)", () => {
@@ -18,5 +24,10 @@ describe("WhatsApp", () => {
     expect(mensajeRecordatorio("Laura Gómez", "Mensual", "2026-10-16", "2026-10-15")).toContain(
       "Hola, Laura. Te escribimos de Reforme Studio Pilates: tu plan Mensual vence mañana.",
     );
+  });
+
+  it("el aviso de pocas clases dice cuántas quedan, en singular o plural", () => {
+    expect(mensajePocasClases("Ana Ruiz", "Origen", 1)).toContain("te queda 1 clase de tu plan Origen");
+    expect(mensajePocasClases("Ana Ruiz", "Origen", 2)).toContain("te quedan 2 clases de tu plan Origen");
   });
 });

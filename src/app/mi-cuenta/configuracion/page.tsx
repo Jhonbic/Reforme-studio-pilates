@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import BotonContrasena from "@/components/cliente/BotonContrasena";
 import { documento, fecha, telefonoCO } from "@/lib/admin/format";
 import { getMisDatos } from "@/lib/cliente/datos";
+import { WHATSAPP_ESTUDIO } from "@/lib/contacto";
 
-const WHATSAPP = "https://wa.me/573209078814";
+const WHATSAPP = WHATSAPP_ESTUDIO;
 
 function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
   return (

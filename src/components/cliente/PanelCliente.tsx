@@ -12,10 +12,11 @@ import {
   unirmeListaEspera,
 } from "@/lib/cliente/acciones";
 import type { ClaseParaCliente, MiCuenta } from "@/lib/cliente/datos";
+import { WHATSAPP_ESTUDIO } from "@/lib/contacto";
 
 /** Recepción, para lo que no se puede hacer desde aquí. Mismo número que el
  *  footer de la web. */
-const WHATSAPP = "https://wa.me/573209078814";
+const WHATSAPP = WHATSAPP_ESTUDIO;
 
 /** Cuántas próximas clases se enseñan antes de «Ver todas». En el móvil cada
  *  una ocupa ~90px: con 15 reservas, «Reservar una clase» quedaba a cuatro

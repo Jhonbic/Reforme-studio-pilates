@@ -1,5 +1,6 @@
 import { telefonoCO } from "./format";
-import { finDe, sumarDias } from "./horario";
+import { descuentoVigente, precioVigente, type Descuento } from "./descuento";
+import { finDe, hoyEnBogota, sumarDias } from "./horario";
 import { cache } from "react";
 import type { DatosDashboard } from "./dashboard";
 import type { DatosEstadisticas } from "./estadisticas";
@@ -648,6 +649,8 @@ export async function getPlanes(
     caracteristicas: p.caracteristicas,
     clientes: clientes.get(p.nombre) ?? 0,
     cobrado30d: puedeVerCobros ? (cobrado.get(p.id) ?? 0) : null,
+    descuentoPct: p.descuento_pct,
+    descuentoHasta: p.descuento_hasta,
   }));
 }
 
@@ -667,7 +670,12 @@ export async function tieneAccesoWeb(clienteId: string): Promise<boolean> {
 export type PlanALaVenta = {
   id: string;
   nombre: string;
+  /** Lo que se cobra HOY: con el descuento, si hay uno vigente. */
   precio: number;
+  /** El precio de siempre, sin descuento (el «antes» de la tarjeta). */
+  precioLista: number;
+  /** El descuento vigente hoy, o `null`. */
+  descuento: Descuento | null;
   vigenciaDias: number;
   modalidad: ModalidadPlan;
   clasesReformer: number;
@@ -683,14 +691,19 @@ export async function getPlanesALaVenta(): Promise<PlanALaVenta[]> {
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase
     .from("planes")
-    .select("id, nombre, precio, vigencia_dias, modalidad, clases_reformer, clases_mat")
+    .select("id, nombre, precio, vigencia_dias, modalidad, clases_reformer, clases_mat, descuento_pct, descuento_hasta")
     .eq("se_vende", true)
     .order("precio");
   if (error) throw new Error(`No se pudieron leer los planes: ${error.message}`);
+  // «Hoy» de Bogotá: el mismo día con el que la base decide si el descuento
+  // sigue vigente al cobrar (`precio_vigente`).
+  const hoy = hoyEnBogota();
   return data.map((p) => ({
     id: p.id,
     nombre: p.nombre,
-    precio: p.precio,
+    precio: precioVigente(p.precio, p.descuento_pct, p.descuento_hasta, hoy),
+    precioLista: p.precio,
+    descuento: descuentoVigente(p.descuento_pct, p.descuento_hasta, hoy),
     vigenciaDias: p.vigencia_dias,
     modalidad: p.modalidad,
     clasesReformer: p.clases_reformer,
@@ -843,6 +856,38 @@ export async function getDatosEstadisticas(): Promise<DatosEstadisticas> {
       vigenciaDias: p.vigencia_dias,
     })),
   };
+}
+
+/** Un cliente con plan vigente al que le quedan pocas clases por reservar. */
+export type ClientePocasClases = {
+  id: string;
+  nombre: string;
+  telefono: string | null;
+  plan: string;
+  vencimiento: string;
+  /** Reformer + Mat. */
+  quedan: number;
+};
+
+/**
+ * A quién le quedan entre 1 y `max` clases de su plan (pedido del estudio,
+ * oct 2026): la lista «Pocas clases» del dashboard, para avisarle por
+ * WhatsApp antes de que se le acaben. Lo calcula la base
+ * (`clientes_pocas_clases`), con la misma cuenta que el saldo de la ficha.
+ * Quien ya renovó (tiene otra membresía por empezar) no sale.
+ */
+export async function getPocasClases(max = 2): Promise<ClientePocasClases[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("clientes_pocas_clases", { p_max: max });
+  if (error) throw new Error(`No se pudo leer quién tiene pocas clases: ${error.message}`);
+  return data.map((c) => ({
+    id: c.cliente_id,
+    nombre: c.nombre,
+    telefono: c.telefono,
+    plan: c.plan,
+    vencimiento: c.vencimiento,
+    quedan: c.quedan_reformer + c.quedan_mat,
+  }));
 }
 
 export type SaldoClases = { tipo: "Reformer" | "Mat"; usadas: number; total: number };

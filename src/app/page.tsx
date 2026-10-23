@@ -8,6 +8,7 @@ import HeroFX from "@/components/fx/HeroFX";
 import Magnetic from "@/components/fx/Magnetic";
 import { Isotype } from "@/components/Logo";
 import { ButtonLink } from "@/components/ui/Button";
+import { TEL_ESTUDIO, TELEFONO_ESTUDIO_TEXTO } from "@/lib/contacto";
 import {
   IconAltaCalidad,
   IconBienestar,
@@ -301,10 +302,10 @@ export default function Home() {
                       <dt className="eyebrow text-verde-300">Teléfono</dt>
                       <dd className="mt-1 text-lg text-verde">
                         <a
-                          href="tel:+573209078814"
+                          href={TEL_ESTUDIO}
                           className="transition-colors hover:text-dorado-dark"
                         >
-                          +57 320 9078814
+                          {TELEFONO_ESTUDIO_TEXTO}
                         </a>
                       </dd>
                     </div>
