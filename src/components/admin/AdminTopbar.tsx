@@ -158,19 +158,21 @@ export default function AdminTopbar() {
           {sub ? (
             <Link
               href={sub.volverA}
-              className="eyebrow hidden items-center gap-1.5 text-dorado-dark transition-colors duration-300 hover:text-verde lg:inline-flex"
+              className="eyebrow hidden items-center gap-1.5 text-dorado-tinta transition-colors duration-300 hover:text-verde lg:inline-flex"
             >
               <span aria-hidden="true">←</span>
               {sub.volverLabel}
             </Link>
           ) : (
-            <p className="eyebrow hidden text-dorado-dark lg:block">Panel administrativo</p>
+            <p className="eyebrow hidden text-dorado-tinta lg:block">Panel administrativo</p>
           )}
-          {/* El bloque es `sr-only` en móvil y no `hidden`: el árbol de
-              encabezados de cada página cuelga de este `<h1>`. */}
-          <h1 className="truncate font-display text-3xl text-verde lg:mt-1.5">
+          {/* ⚠️ `<p>` y no `<h1>` (oct 2026): cada página trae su propio
+              `<h1>` (la ficha, con el nombre del cliente), y con los dos un
+              lector de pantalla oía dos títulos principales por página. Mismo
+              criterio que `ClienteTopbar`. */}
+          <p className="truncate font-display text-3xl text-verde lg:mt-1.5">
             {sub ? sub.label : seccion.label}
-          </h1>
+          </p>
         </div>
       </div>
     </div>

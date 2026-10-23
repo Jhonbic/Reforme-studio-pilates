@@ -101,7 +101,7 @@ export default async function PlanesClientePage() {
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="text-lg font-bold text-verde">{p.nombre}</h3>
                       {actual && (
-                        <span className="shrink-0 rounded-full bg-dorado/15 px-3 py-1 text-xs text-dorado-dark">
+                        <span className="shrink-0 rounded-full bg-dorado/15 px-3 py-1 text-xs text-dorado-tinta">
                           Tu plan
                         </span>
                       )}

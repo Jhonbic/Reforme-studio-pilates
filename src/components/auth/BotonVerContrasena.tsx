@@ -23,7 +23,7 @@ export default function BotonVerContrasena({ visible, onToggle, campo }: Props) 
       onClick={onToggle}
       aria-controls={campo}
       aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
-      className="flex h-11 w-11 items-center justify-center rounded-lg text-verde-300 transition-colors duration-300 hover:text-dorado-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dorado/60"
+      className="flex h-11 w-11 items-center justify-center rounded-lg text-verde-300 transition-colors duration-300 hover:text-dorado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dorado/60"
     >
       <svg
         viewBox="0 0 24 24"

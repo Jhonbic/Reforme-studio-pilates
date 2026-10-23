@@ -199,7 +199,7 @@ export default function PanelClases({
             {/* El «Hoy / Mañana / Ayer» solo aparece cuando dice algo que la
                 fecha larga no dice. Repetido siempre sería ruido. */}
             {relativo !== largo && (
-              <p className="text-xs uppercase tracking-wider text-dorado-dark">{relativo}</p>
+              <p className="text-xs uppercase tracking-wider text-dorado-tinta">{relativo}</p>
             )}
             <h2 className="font-display text-xl text-verde first-letter:uppercase">{largo}</h2>
             <p className="text-sm text-verde-300">

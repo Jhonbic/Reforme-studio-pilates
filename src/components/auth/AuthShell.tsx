@@ -95,7 +95,7 @@ export default function AuthShell({
         </div>
 
         <div className="p-6 text-center text-xs text-verde-300">
-          <Link href="/" className="transition-colors hover:text-dorado-dark">
+          <Link href="/" className="transition-colors hover:text-dorado-tinta">
             ← Volver al inicio
           </Link>
         </div>

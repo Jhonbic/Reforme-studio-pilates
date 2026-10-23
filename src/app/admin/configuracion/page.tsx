@@ -33,7 +33,7 @@ export default async function ConfiguracionPage() {
       <MiPerfil usuario={usuario} />
       {config && (
         <section aria-labelledby="config-estudio" className="space-y-3">
-          <p id="config-estudio" className="eyebrow text-dorado-dark">
+          <p id="config-estudio" className="eyebrow text-dorado-tinta">
             Del estudio
           </p>
           <PanelConfiguracion config={config} hoy={hoy} />

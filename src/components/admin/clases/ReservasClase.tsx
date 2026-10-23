@@ -348,7 +348,7 @@ export default function ReservasClase({
               {clase.enEspera.map((e, i) => (
                 <li key={e.id} className="flex min-h-[52px] items-center justify-between gap-3 px-4 py-2">
                   <span className="min-w-0 truncate text-sm text-verde">
-                    <span className="font-cifra text-dorado-dark">{i + 1}.</span> {e.nombre}
+                    <span className="font-cifra text-dorado-tinta">{i + 1}.</span> {e.nombre}
                   </span>
                   {editable && (
                     <button

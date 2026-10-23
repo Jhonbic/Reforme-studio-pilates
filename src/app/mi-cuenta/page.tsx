@@ -37,7 +37,7 @@ export default async function MiCuentaPage() {
           className="group flex items-center justify-between gap-4 rounded-2xl border border-dorado bg-gradient-to-r from-dorado/15 to-white px-5 py-4 ring-1 ring-dorado/40 transition-colors duration-300 hover:bg-dorado/20"
         >
           <span className="min-w-0">
-            <span className="block text-xs font-bold uppercase tracking-widest text-dorado-dark">
+            <span className="block text-xs font-bold uppercase tracking-widest text-dorado-tinta">
               Precio especial
             </span>
             <span className="mt-0.5 block font-display text-xl text-verde">

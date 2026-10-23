@@ -132,7 +132,7 @@ export default function TarjetaPlan({
       {descuento && (
         <p
           className={`mt-3 inline-flex flex-wrap items-center gap-x-1.5 self-start rounded-full border px-3 py-1 text-xs ${
-            destacado ? "border-dorado-light/60 text-dorado-light" : "border-dorado text-dorado-dark"
+            destacado ? "border-dorado-light/60 text-dorado-light" : "border-dorado text-dorado-tinta"
           }`}
         >
           <strong>−{descuento.pct} %</strong>
@@ -151,7 +151,7 @@ export default function TarjetaPlan({
           precio por clase, que es lo que sirve para comparar planes. */}
       <p
         className={`mt-4 text-base font-bold ${
-          destacado ? "text-dorado-light" : "text-dorado-dark"
+          destacado ? "text-dorado-light" : "text-dorado-tinta"
         }`}
       >
         {plan.modalidad === "Fusión"

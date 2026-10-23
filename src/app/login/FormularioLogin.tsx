@@ -1,11 +1,15 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import Link from "next/link";
 import TextField from "@/components/auth/TextField";
 import BotonVerContrasena from "@/components/auth/BotonVerContrasena";
 import { Button } from "@/components/ui/Button";
 import { iniciarSesion, type EstadoLogin } from "@/lib/auth/acciones";
+import { enlaceWhatsApp } from "@/lib/admin/whatsapp";
+import { TELEFONO_ESTUDIO } from "@/lib/contacto";
+
+const AYUDA_CONTRASENA =
+  enlaceWhatsApp(TELEFONO_ESTUDIO, "Hola, olvidé mi contraseña de la web de Reforme Studio Pilates. ¿Me ayudan a recuperarla?") ?? "";
 
 type Props = {
   /** Ruta del panel a la que volver al entrar (`?siguiente=`). */
@@ -65,13 +69,19 @@ export default function FormularioLogin({ siguiente, aviso }: Props) {
             />
           }
         />
-        <div className="mt-2 text-right">
-          <Link
-            href="#"
-            className="text-xs text-verde-300 transition-colors hover:text-dorado-dark"
+        {/* Sin correo propio (SMTP) no hay recuperación automática: el
+            enlace abre WhatsApp con el estudio con el mensaje escrito, y
+            recepción le da una contraseña temporal. Antes era un `href="#"`
+            muerto. */}
+        <div className="mt-1 text-right">
+          <a
+            href={AYUDA_CONTRASENA}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-[44px] items-center text-xs text-verde-300 transition-colors hover:text-dorado-tinta"
           >
-            ¿Olvidaste tu contraseña?
-          </Link>
+            ¿Olvidaste tu contraseña? Escríbenos
+          </a>
         </div>
       </div>
 
@@ -92,7 +102,7 @@ export default function FormularioLogin({ siguiente, aviso }: Props) {
             stroke="currentColor"
             strokeWidth={1.5}
             strokeLinecap="round"
-            className="mt-px h-5 w-5 shrink-0 text-dorado-dark"
+            className="mt-px h-5 w-5 shrink-0 text-dorado-tinta"
             aria-hidden="true"
           >
             <circle cx="12" cy="12" r="9" />

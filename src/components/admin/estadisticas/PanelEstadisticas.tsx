@@ -168,7 +168,7 @@ export default function PanelEstadisticas(props: Props) {
                 type="button"
                 aria-pressed={meses === p.meses}
                 onClick={() => setMeses(p.meses)}
-                className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                className={`inline-flex min-h-[36px] items-center rounded-full border px-3.5 text-xs font-semibold transition-colors ${
                   meses === p.meses
                     ? "border-verde bg-verde text-arena"
                     : "border-beige bg-white text-verde-300 hover:border-dorado hover:text-verde-700"
@@ -217,7 +217,7 @@ export default function PanelEstadisticas(props: Props) {
               type="button"
               onClick={() => setDetalleAbierto(!detalleAbierto)}
               aria-expanded={detalleAbierto}
-              className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-verde-300 transition-colors hover:text-verde"
+              className="mt-2 inline-flex min-h-[44px] items-center gap-1.5 text-sm font-semibold text-verde-300 transition-colors hover:text-verde"
             >
               {detalleAbierto ? "Ocultar detalle" : "Ver detalle por mes"}
               <svg
@@ -502,7 +502,9 @@ function BloqueClases({ clases }: { clases: Props["clases"] }) {
           <div>
             <p className="mb-1 text-sm font-semibold text-verde-700">Ocupación por horario</p>
             <p className="mb-3 text-xs text-verde-300">Reservas sobre cupos de cada franja, de media</p>
-            <div className="relative overflow-x-auto">
+            {/* `tabIndex` + nombre: una caja que se desplaza de lado tiene que
+                poder recorrerse con el teclado (en el móvil no cabe entera). */}
+            <div className="relative overflow-x-auto" tabIndex={0} role="region" aria-label="Ocupación por horario">
               <table className="min-w-full border-separate border-spacing-1 text-xs">
                 <thead>
                   <tr>
@@ -528,16 +530,23 @@ function BloqueClases({ clases }: { clases: Props["clases"] }) {
                               —
                             </td>
                           );
-                        /* Texto claro desde el 45 %: el fondo es el verde de marca
-                           mezclado en esa proporción con el blanco cálido, y a
-                           partir de ahí el texto oscuro ya no se distingue. */
-                        const fuerte = c.ocupacion >= 45;
+                        /* ⚠️ Dos tramos, no un degradado lineal (oct 2026): con la
+                           mezcla proporcional, entre el 40 y el 70 % ni el texto
+                           claro ni el oscuro llegaban a 4,5:1. Bajo el 50 %, fondo
+                           claro (mezcla 8–38 %) con texto verde (≥ 4,9:1); desde
+                           el 50 %, fondo oscuro (76–100 %) con texto claro
+                           (≥ 5,1:1). El salto a la mitad dice además de un
+                           vistazo qué franjas se llenan. */
+                        const fuerte = c.ocupacion >= 50;
+                        const mezcla = fuerte
+                          ? 76 + (Math.min(c.ocupacion, 100) - 50) * 0.48
+                          : 8 + c.ocupacion * 0.6;
                         return (
                           <td
                             key={d.indice}
                             title={`${d.nombre} ${h}: ${c.reservas} reservas de ${c.cupos} cupos en ${c.clases} clases`}
                             className={`h-10 min-w-12 rounded-lg text-center font-cifra font-bold ${fuerte ? "text-arena" : "text-verde"}`}
-                            style={{ background: `color-mix(in srgb, #284435 ${Math.max(8, c.ocupacion)}%, #F7F6F3)` }}
+                            style={{ background: `color-mix(in srgb, #284435 ${mezcla}%, #F7F6F3)` }}
                           >
                             {c.ocupacion}%
                           </td>

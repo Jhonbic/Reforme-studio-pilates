@@ -35,7 +35,7 @@ export default async function CambiarContrasenaPage() {
       tagline="Entraste con una contraseña temporal. Elige una que solo sepas tú para seguir."
     >
       <div className="mb-8 text-center lg:text-left">
-        <p className="eyebrow text-dorado-dark">Primer inicio</p>
+        <p className="eyebrow text-dorado-tinta">Primer inicio</p>
         <h1 className="mt-3 font-display text-4xl text-verde">Elige tu contraseña</h1>
         <p className="mt-2 text-verde-700">
           Entraste como <strong className="font-medium">{data.user.email}</strong> con una contraseña
@@ -48,7 +48,7 @@ export default async function CambiarContrasenaPage() {
       <form action={cerrarSesion} className="mt-6 text-center lg:text-left">
         <button
           type="submit"
-          className="text-sm text-verde-300 underline-offset-4 transition-colors hover:text-dorado-dark hover:underline"
+          className="text-sm text-verde-300 underline-offset-4 transition-colors hover:text-dorado-tinta hover:underline"
         >
           No soy yo · cerrar sesión
         </button>

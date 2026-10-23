@@ -267,7 +267,7 @@ export default function AsignarPlan({ clienteId, nombre, vencimiento, planes, ho
                   </dl>
                 )}
                 {plan?.descuento && (
-                  <p className="mt-2 text-xs text-dorado-dark">
+                  <p className="mt-2 text-xs text-dorado-tinta">
                     Con el descuento del {plan.descuento.pct} %: {moneda(plan.precio)} en vez de{" "}
                     {moneda(plan.precioLista)}.
                   </p>

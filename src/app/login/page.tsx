@@ -24,11 +24,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
 
   return (
     <AuthShell
-      headline="Bienvenida de nuevo."
+      headline="Qué bueno verte de nuevo."
       tagline="Accede a tu cuenta para gestionar tus reservas y continuar tu práctica con nosotros."
     >
       <div className="mb-8 text-center lg:text-left">
-        <p className="eyebrow text-dorado-dark">Iniciar sesión</p>
+        <p className="eyebrow text-dorado-tinta">Iniciar sesión</p>
         <h1 className="mt-3 font-display text-4xl text-verde">
           Entra a tu cuenta
         </h1>
@@ -36,7 +36,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           ¿Aún no tienes una?{" "}
           <Link
             href="/registro"
-            className="font-medium text-dorado-dark underline-offset-4 hover:underline"
+            className="font-medium text-dorado-tinta underline-offset-4 hover:underline"
           >
             Regístrate
           </Link>

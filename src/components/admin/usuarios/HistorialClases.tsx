@@ -43,29 +43,51 @@ export default function HistorialClases({ clases }: { clases: ClaseDelCliente[] 
           {clases.length > 1 && <span className="text-verde-300"> · últimas {numero(clases.length)} reservas</span>}
         </p>
       )}
-      <ul className="mt-3 divide-y divide-beige rounded-xl border border-beige">
-        {clases.map((c) => {
-          const e = estadoDe(c);
-          return (
-            /* En móvil, fecha arriba y clase debajo: en una sola línea con la
-               pastilla, el tipo se cortaba en «Refor…». */
-            <li key={c.reservaId} className="flex min-h-[52px] items-center gap-3 px-4 py-2">
-              <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-4">
-                <p className="shrink-0 font-cifra text-sm text-verde sm:w-40">
-                  {fechaCompacta(c.fecha)} · {c.horaInicio}
-                </p>
-                <p
-                  className={`min-w-0 truncate text-sm ${c.cancelada ? "text-verde-300 line-through" : "text-verde-700"}`}
-                >
-                  <span className="font-bold">{c.tipo}</span>
-                  <span className="text-verde-300"> · {c.instructora}</span>
-                </p>
-              </div>
-              <Pastilla simbolo={e.simbolo} texto={e.texto} clase={e.tono} />
-            </li>
-          );
-        })}
-      </ul>
+      <ListaClases clases={clases.slice(0, VISIBLES)} />
+      {/* El resto plegado (oct 2026): con 30 filas seguidas, en el móvil la
+          ficha era una pared. `<details>` nativo: sin JavaScript, con teclado
+          y lector de pantalla gratis. */}
+      {clases.length > VISIBLES && (
+        <details className="group mt-2">
+          <summary className="inline-flex min-h-[44px] cursor-pointer list-none items-center gap-1.5 text-sm font-semibold text-dorado-tinta [&::-webkit-details-marker]:hidden">
+            <span className="group-open:hidden">Ver las {numero(clases.length - VISIBLES)} anteriores</span>
+            <span className="hidden group-open:inline">Ocultar las anteriores</span>
+            <span aria-hidden="true" className="transition-transform group-open:rotate-180">▾</span>
+          </summary>
+          <ListaClases clases={clases.slice(VISIBLES)} />
+        </details>
+      )}
     </div>
+  );
+}
+
+/** Las filas que se ven de entrada: las próximas y las últimas pasadas. */
+const VISIBLES = 6;
+
+function ListaClases({ clases }: { clases: ClaseDelCliente[] }) {
+  return (
+    <ul className="mt-3 divide-y divide-beige rounded-xl border border-beige">
+      {clases.map((c) => {
+        const e = estadoDe(c);
+        return (
+          /* En móvil, fecha arriba y clase debajo: en una sola línea con la
+             pastilla, el tipo se cortaba en «Refor…». */
+          <li key={c.reservaId} className="flex min-h-[52px] items-center gap-3 px-4 py-2">
+            <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-4">
+              <p className="shrink-0 font-cifra text-sm text-verde sm:w-40">
+                {fechaCompacta(c.fecha)} · {c.horaInicio}
+              </p>
+              <p
+                className={`min-w-0 truncate text-sm ${c.cancelada ? "text-verde-300 line-through" : "text-verde-700"}`}
+              >
+                <span className="font-bold">{c.tipo}</span>
+                <span className="text-verde-300"> · {c.instructora}</span>
+              </p>
+            </div>
+            <Pastilla simbolo={e.simbolo} texto={e.texto} clase={e.tono} />
+          </li>
+        );
+      })}
+    </ul>
   );
 }

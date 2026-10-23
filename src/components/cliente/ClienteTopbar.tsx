@@ -40,7 +40,7 @@ export default function ClienteTopbar() {
         <Logo size={24} layout="horizontal" href="/mi-cuenta" className="text-arena lg:hidden" />
 
         <div className="hidden min-w-0 lg:block">
-          <p className="eyebrow text-dorado-dark">Mi cuenta</p>
+          <p className="eyebrow text-dorado-tinta">Mi cuenta</p>
           <p className="mt-1.5 truncate font-display text-3xl text-verde">{seccion.label}</p>
         </div>
       </div>

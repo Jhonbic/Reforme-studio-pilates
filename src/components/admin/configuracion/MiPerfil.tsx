@@ -26,14 +26,14 @@ export default function MiPerfil({ usuario }: { usuario: UsuarioActual }) {
         <div className="flex min-w-0 items-center gap-4">
           <span
             aria-hidden="true"
-            className="flex size-14 shrink-0 items-center justify-center rounded-full bg-dorado/15 font-display text-xl text-dorado-dark"
+            className="flex size-14 shrink-0 items-center justify-center rounded-full bg-dorado/15 font-display text-xl text-dorado-tinta"
           >
             {iniciales(usuario.nombre)}
           </span>
           <div className="min-w-0">
             <p className="truncate font-display text-2xl leading-tight text-verde">{usuario.nombre}</p>
             <p className="mt-0.5 truncate text-sm text-verde-300">{usuario.correo}</p>
-            <p className="eyebrow mt-1.5 text-dorado-dark">{usuario.rol}</p>
+            <p className="eyebrow mt-1.5 text-dorado-tinta">{usuario.rol}</p>
           </div>
         </div>
 

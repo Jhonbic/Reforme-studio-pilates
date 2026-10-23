@@ -142,6 +142,38 @@ En [`src/app/globals.css`](../src/app/globals.css) vía `@theme`:
   `--color-estado-ok/aviso/grave`. **No son los de marca** y no se mezclan con
   ellos — el porqué está en §6, Panel administrativo.
 
+### Revisión antes de presentar (23 oct 2026)
+
+Auditoría de las 17 pantallas a 390 y 1440 px con **axe** (WCAG 2 A/AA),
+desbordes, tamaño de objetivos táctiles y errores de consola. Resultado
+final: **0 violaciones, 0 desbordes, un `<h1>` por página**. Lo que se cambió:
+
+- ⚠️ **Contraste de los tokens de texto** (afecta a toda la web):
+  - `verde-300` #7d9a8b → **#5c7567** (3,05 → 5,0:1 sobre blanco).
+  - Nuevo **`dorado-tinta` #82673c** para TEXTO dorado sobre claro (5,3:1).
+    `dorado-dark` se queda como está porque también es el fondo hover de los
+    botones dorados. Las 60 clases `text-dorado-dark` pasaron a
+    `text-dorado-tinta`. **Texto dorado sobre claro: siempre `dorado-tinta`.**
+  - Estados: ok #2a6e4b, aviso #875509, grave #a63d25 (pasan 4,5:1 también
+    sobre su fondo tintado al 12 %).
+- Mapa de horarios de Estadísticas en **dos tramos** (bajo/sobre el 50 %): con
+  el degradado lineal, a media ocupación no se leía ningún texto.
+- La cabecera del panel dejó de ser `<h1>` (cada página trae el suyo).
+- Menú móvil de la portada con `inert` cerrado; contacto de la portada como
+  lista; «Ver todos» fuera del `tablist` del dashboard.
+- Objetivos táctiles ≥ 36 px en filtros de Finanzas, periodos de
+  Estadísticas y botones de las listas del dashboard (eran 24–28).
+- **Página 404 propia** (`app/not-found.tsx`), en español y con la marca.
+- **Favicon e icono de iPhone** con el isotipo (`app/icon.tsx`,
+  `app/apple-icon.tsx`, `lib/marca/iconoMarca.tsx`); fuera el de plantilla.
+- Login: «¿Olvidaste tu contraseña? Escríbenos» abre WhatsApp del estudio
+  (era `href="#"`); saludo neutro «Qué bueno verte de nuevo».
+- Ficha del cliente: «Clases» enseña 6 y pliega el resto en un `<details>`.
+- Seguridad verificada: sin sesión la API pública no devuelve ni una fila
+  privada; todas las tablas con RLS; las server actions comprueban el rol;
+  la clave `service_role` no llega al navegador; `npm audit` sin
+  vulnerabilidades; cabeceras de seguridad activas.
+
 ## 5. Componentes
 
 En `src/components/`:
@@ -2526,7 +2558,7 @@ de repetir:
 ### Contenido que falta aportar
 
 - [ ] Fotos reales del estudio (hoy solo hay logo y degradados).
-- [ ] **Favicon real** (es el de `create-next-app`).
+- [x] ~~Favicon real~~ — con el isotipo (23 oct 2026).
 - [ ] SVG oficial del logo. El PNG solo está en el hero; Navbar, Footer y
       AuthShell usan el isotipo recreado a mano (`Logo.tsx`).
 - [ ] Destino para los `href="#"`: «¿Olvidaste tu contraseña?» en `/login`, y

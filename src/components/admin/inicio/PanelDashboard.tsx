@@ -76,7 +76,9 @@ const ROTULO = "mb-2 text-xs font-bold uppercase tracking-widest text-verde-300"
 const CIFRA = "font-cifra text-3xl font-bold text-verde";
 const NOTA = "mt-1 text-xs text-verde-300";
 const BOTON_VER =
-  "rounded-lg border border-beige bg-white px-3 py-1.5 text-xs font-semibold text-verde-700 transition-colors hover:border-dorado";
+  // ⚠️ 36 px de alto (oct 2026): copiados de Jain medían 28, por debajo de lo
+  // que se pulsa con el dedo sin acertar al vecino.
+  "inline-flex min-h-[36px] items-center rounded-lg border border-beige bg-white px-3 text-xs font-semibold text-verde-700 transition-colors hover:border-dorado";
 
 /**
  * Dashboard, copia de la ORGANIZACIÓN y la FORMA del de JainSportBox
@@ -114,11 +116,10 @@ export default function PanelDashboard({
 
       {/* Dos pestañas y solo dos. El detalle del dinero sigue en Finanzas,
           que tiene su propio selector de periodo. */}
-      <div
-        role="tablist"
-        aria-label="Resumen"
-        className="mb-6 flex items-center gap-6 border-b border-beige"
-      >
+      {/* ⚠️ «Ver todos» va FUERA del `tablist`: dentro, un lector de pantalla
+          lo contaba como pestaña (un tablist solo admite pestañas). */}
+      <div className="mb-6 flex items-end gap-6 border-b border-beige">
+      <div role="tablist" aria-label="Resumen" className="flex items-end gap-6">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -126,18 +127,19 @@ export default function PanelDashboard({
             role="tab"
             aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
-            className={`-mb-px border-b-2 pb-3 text-xs font-bold uppercase tracking-widest transition-colors ${
+            className={`-mb-px min-h-[44px] border-b-2 pb-3 pt-4 text-xs font-bold uppercase tracking-widest transition-colors ${
               tab === t.key
-                ? "border-dorado text-dorado-dark"
+                ? "border-dorado text-dorado-tinta"
                 : "border-transparent text-verde-300 hover:text-verde-700"
             }`}
           >
             {t.label}
           </button>
         ))}
+      </div>
         <Link
           href={ver}
-          className="ml-auto pb-3 text-xs font-bold text-dorado-dark hover:underline"
+          className="ml-auto inline-flex min-h-[44px] items-end pb-3 text-xs font-bold text-dorado-tinta hover:underline"
         >
           Ver todos →
         </Link>
@@ -556,7 +558,7 @@ function BotonWhatsApp({
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`${texto} a ${quien} por WhatsApp`}
-      className="flex items-center gap-1.5 rounded-lg bg-verde px-3 py-1.5 text-xs font-bold text-arena transition-colors hover:bg-verde-700"
+      className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-verde px-3 text-xs font-bold text-arena transition-colors hover:bg-verde-700"
     >
       {icono && (
         <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

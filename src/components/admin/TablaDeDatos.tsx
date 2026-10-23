@@ -31,7 +31,7 @@ export default function TablaDeDatos({ tabla, tono = "claro" }: Props) {
         className={`cursor-pointer list-none text-xs transition-colors ${
           oscuro
             ? "text-beige/75 hover:text-dorado-light"
-            : "text-verde-300 hover:text-dorado-dark"
+            : "text-verde-300 hover:text-dorado-tinta"
         }`}
       >
         <span className="inline-flex items-center gap-1.5">

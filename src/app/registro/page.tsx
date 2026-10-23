@@ -315,13 +315,13 @@ export default function RegistroPage() {
       tagline="Crea tu cuenta para reservar tus clases y gestionar tu práctica con nosotros."
     >
       <div className="mb-8 text-center lg:text-left">
-        <p className="eyebrow text-dorado-dark">Crear cuenta</p>
+        <p className="eyebrow text-dorado-tinta">Crear cuenta</p>
         <h1 className="mt-3 font-display text-4xl text-verde">Únete a Reforme</h1>
         <p className="mt-2 text-verde-700">
           ¿Ya tienes cuenta?{" "}
           <Link
             href="/login"
-            className="font-medium text-dorado-dark underline-offset-4 hover:underline"
+            className="font-medium text-dorado-tinta underline-offset-4 hover:underline"
           >
             Inicia sesión
           </Link>
@@ -439,7 +439,7 @@ export default function RegistroPage() {
                   onChange={(e) => set("fechaNacimiento", e.target.value)}
                   error={errors.fechaNacimiento}
                 />
-                <p aria-live="polite" className="mt-1.5 text-xs text-dorado-dark">
+                <p aria-live="polite" className="mt-1.5 text-xs text-dorado-tinta">
                   {menor === true &&
                     "Eres menor de edad: en el siguiente paso te pedimos los datos de tu acudiente."}
                 </p>
@@ -660,7 +660,7 @@ export default function RegistroPage() {
               type="button"
               onClick={() => irA(paso - 1)}
               disabled={enviando}
-              className="min-h-[44px] rounded-full px-6 text-sm font-semibold tracking-wide text-verde-700 transition-colors hover:text-dorado-dark disabled:opacity-50"
+              className="min-h-[44px] rounded-full px-6 text-sm font-semibold tracking-wide text-verde-700 transition-colors hover:text-dorado-tinta disabled:opacity-50"
             >
               ← Atrás
             </button>
@@ -726,7 +726,7 @@ function EnlaceTerminos() {
       href={URL_TERMINOS}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-dorado-dark underline-offset-4 hover:underline"
+      className="text-dorado-tinta underline-offset-4 hover:underline"
     >
       términos y condiciones
     </a>

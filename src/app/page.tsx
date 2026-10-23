@@ -132,7 +132,7 @@ export default function Home() {
           <div className="relative z-20 mx-auto max-w-7xl px-6 lg:px-10">
             <div className="grid items-center gap-14 lg:grid-cols-2 lg:gap-20">
               <Reveal direction="left" className="text-center lg:text-left">
-                <p className="eyebrow text-dorado-dark">El estudio</p>
+                <p className="eyebrow text-dorado-tinta">El estudio</p>
                 <h2 className="mt-5 font-display text-4xl leading-tight text-verde sm:text-5xl">
                   Un Pilates consciente, hecho a tu medida.
                 </h2>
@@ -148,7 +148,7 @@ export default function Home() {
                 </p>
                 <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center lg:justify-start">
                   <span className="rule-gold w-16" />
-                  <span className="font-display text-xl italic text-dorado-dark">
+                  <span className="font-display text-xl italic text-dorado-tinta">
                     Movimiento con Propósito
                   </span>
                 </div>
@@ -188,7 +188,7 @@ export default function Home() {
         >
           <div className="relative z-20 mx-auto max-w-7xl px-6 lg:px-10">
             <Reveal className="mx-auto max-w-2xl text-center lg:mx-0 lg:text-left">
-              <p className="eyebrow text-dorado-dark">La experiencia Reforme</p>
+              <p className="eyebrow text-dorado-tinta">La experiencia Reforme</p>
               <h2 className="mt-5 font-display text-4xl leading-tight text-verde sm:text-5xl">
                 Tres pilares que definen cada sesión.
               </h2>
@@ -206,7 +206,7 @@ export default function Home() {
                      contenido se movería 2px y se vería como un temblor. */
                   className="group relative flex flex-col items-center overflow-hidden rounded-3xl border-2 border-transparent bg-arena p-9 text-center shadow-soft transition-all duration-500 hover:-translate-y-1 hover:border-dorado hover:shadow-lift md:items-start md:text-left"
                 >
-                  <span className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full border border-dorado/30 bg-dorado/10 text-dorado-dark transition-all duration-500 group-hover:border-dorado group-hover:bg-dorado group-hover:text-arena">
+                  <span className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full border border-dorado/30 bg-dorado/10 text-dorado-tinta transition-all duration-500 group-hover:border-dorado group-hover:bg-dorado group-hover:text-arena">
                     <p.Icon size={30} />
                   </span>
                   <span className="relative z-10 mt-6 rule-gold w-10 transition-all duration-500 group-hover:w-16" />
@@ -276,7 +276,7 @@ export default function Home() {
           <div className="relative z-20 mx-auto max-w-7xl px-6 lg:px-10">
             <div className="grid gap-14 lg:grid-cols-2 lg:gap-16">
               <Reveal direction="left" className="text-center lg:text-left">
-                <p className="eyebrow text-dorado-dark">Ubicación</p>
+                <p className="eyebrow text-dorado-tinta">Ubicación</p>
                 <h2 className="mt-5 font-display text-4xl leading-tight text-verde sm:text-5xl">
                   Te esperamos en Florencia.
                 </h2>
@@ -286,40 +286,40 @@ export default function Home() {
                   Multiplaza Chaira.
                 </p>
 
-                <dl className="mt-10 space-y-6">
-                  <div className="flex flex-col items-center gap-2 lg:flex-row lg:items-start lg:gap-4">
-                    <span className="text-dorado lg:mt-1">◆</span>
+                <ul className="mt-10 space-y-6">
+                  <li className="flex flex-col items-center gap-2 lg:flex-row lg:items-start lg:gap-4">
+                    <span className="text-dorado lg:mt-1" aria-hidden="true">◆</span>
                     <div>
-                      <dt className="eyebrow text-verde-300">Dirección</dt>
-                      <dd className="mt-1 text-lg text-verde">
+                      <p className="eyebrow text-verde-300">Dirección</p>
+                      <p className="mt-1 text-lg text-verde">
                         Carrera 1 #27-50, Multiplaza Chaira
-                      </dd>
+                      </p>
                     </div>
-                  </div>
-                  <div className="flex flex-col items-center gap-2 lg:flex-row lg:items-start lg:gap-4">
-                    <span className="text-dorado lg:mt-1">◆</span>
+                  </li>
+                  <li className="flex flex-col items-center gap-2 lg:flex-row lg:items-start lg:gap-4">
+                    <span className="text-dorado lg:mt-1" aria-hidden="true">◆</span>
                     <div>
-                      <dt className="eyebrow text-verde-300">Teléfono</dt>
-                      <dd className="mt-1 text-lg text-verde">
+                      <p className="eyebrow text-verde-300">Teléfono</p>
+                      <p className="mt-1 text-lg text-verde">
                         <a
                           href={TEL_ESTUDIO}
-                          className="transition-colors hover:text-dorado-dark"
+                          className="transition-colors hover:text-dorado-tinta"
                         >
                           {TELEFONO_ESTUDIO_TEXTO}
                         </a>
-                      </dd>
+                      </p>
                     </div>
-                  </div>
-                  <div className="flex flex-col items-center gap-2 lg:flex-row lg:items-start lg:gap-4">
-                    <span className="text-dorado lg:mt-1">◆</span>
+                  </li>
+                  <li className="flex flex-col items-center gap-2 lg:flex-row lg:items-start lg:gap-4">
+                    <span className="text-dorado lg:mt-1" aria-hidden="true">◆</span>
                     <div>
-                      <dt className="eyebrow text-verde-300">Reservas</dt>
-                      <dd className="mt-1 text-lg text-verde">
+                      <p className="eyebrow text-verde-300">Reservas</p>
+                      <p className="mt-1 text-lg text-verde">
                         Agenda tu clase desde tu cuenta
-                      </dd>
+                      </p>
                     </div>
-                  </div>
-                </dl>
+                  </li>
+                </ul>
               </Reveal>
 
               <Reveal delay={150} direction="right">

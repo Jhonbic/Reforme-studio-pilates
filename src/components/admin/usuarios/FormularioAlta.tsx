@@ -529,7 +529,7 @@ export default function FormularioAlta({
   if (creado) {
     return (
       <div className="rounded-2xl border border-beige bg-white p-6 text-center shadow-card sm:p-8">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-dorado/15 text-3xl text-dorado-dark">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-dorado/15 text-3xl text-dorado-tinta">
           ✦
         </div>
         {/* `role="status"`: el formulario desaparece de golpe, y quien usa
@@ -574,7 +574,7 @@ export default function FormularioAlta({
           </button>
           <Link
             href="/admin/usuarios"
-            className="text-sm text-dorado-dark underline-offset-4 hover:underline"
+            className="text-sm text-dorado-tinta underline-offset-4 hover:underline"
           >
             Volver al listado
           </Link>

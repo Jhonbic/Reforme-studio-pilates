@@ -119,7 +119,7 @@ export default function TarjetaClase({
             <p className="text-xs text-[var(--color-estado-aviso)] md:hidden">↻ Última de la serie</p>
           )}
           {clase.enEspera.length > 0 && (
-            <p className="text-xs text-dorado-dark md:hidden">
+            <p className="text-xs text-dorado-tinta md:hidden">
               {numero(clase.enEspera.length)} en lista de espera
             </p>
           )}
@@ -142,7 +142,7 @@ export default function TarjetaClase({
           <span className="text-xs text-verde-300">
             {clase.libres === 0 ? "Sin cupos libres" : `${numero(clase.libres)} ${clase.libres === 1 ? "libre" : "libres"}`}
             {clase.enEspera.length > 0 && (
-              <span className="text-dorado-dark"> · {numero(clase.enEspera.length)} en espera</span>
+              <span className="text-dorado-tinta"> · {numero(clase.enEspera.length)} en espera</span>
             )}
           </span>
         </div>

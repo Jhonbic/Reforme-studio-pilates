@@ -26,7 +26,8 @@ const categoriaDe = (m: Movimiento) => (m.tipo === "cobro" ? MEMBRESIA : m.categ
 const SELECT =
   "rounded-lg border border-beige bg-white px-3 py-2 text-xs font-semibold text-verde-700 outline-none focus:ring-2 focus:ring-dorado/50";
 const GRUPO = "flex flex-wrap items-center gap-1 rounded-lg bg-arena p-1";
-const OPCION = "rounded-md px-3 py-1 text-xs font-semibold transition-colors";
+// 36 px de alto como mínimo: medían 24 y en el móvil se pulsaba el de al lado.
+const OPCION = "inline-flex min-h-[36px] items-center rounded-md px-3 text-xs font-semibold transition-colors";
 const OPCION_OFF = "text-verde-300 hover:text-verde-700";
 
 /** Números a mostrar, con elipsis: 1 … 4 [5] 6 … 12 (igual que Jain). */
@@ -242,7 +243,7 @@ export default function LibroMovimientos({
                 type="button"
                 aria-pressed={metodo === m}
                 onClick={() => filtrar(setMetodo)(m)}
-                className={`${OPCION} ${metodo === m ? "bg-white text-dorado-dark shadow" : OPCION_OFF}`}
+                className={`${OPCION} ${metodo === m ? "bg-white text-dorado-tinta shadow" : OPCION_OFF}`}
               >
                 {m}
               </button>
@@ -253,7 +254,7 @@ export default function LibroMovimientos({
             <button
               type="button"
               onClick={limpiar}
-              className="rounded-lg px-3 py-2 text-xs font-semibold text-verde-300 transition-colors hover:bg-dorado/10 hover:text-dorado-dark"
+              className="rounded-lg px-3 py-2 text-xs font-semibold text-verde-300 transition-colors hover:bg-dorado/10 hover:text-dorado-tinta"
             >
               Limpiar
             </button>
@@ -303,7 +304,7 @@ export default function LibroMovimientos({
               <button
                 type="button"
                 onClick={limpiar}
-                className="mx-auto mt-3 block text-sm font-semibold text-dorado-dark hover:underline"
+                className="mx-auto mt-3 block text-sm font-semibold text-dorado-tinta hover:underline"
               >
                 Limpiar filtros
               </button>
@@ -367,7 +368,7 @@ export default function LibroMovimientos({
                       {ingreso && (
                         <Link
                           href={`/admin/usuarios/${m.clienteId}`}
-                          className="block truncate text-xs text-verde-300 hover:text-dorado-dark hover:underline"
+                          className="block truncate text-xs text-verde-300 hover:text-dorado-tinta hover:underline"
                         >
                           {m.cliente}
                         </Link>
@@ -482,7 +483,7 @@ function VerComprobante({ gastoId }: { gastoId: string }) {
     }
   }
   return (
-    <button type="button" onClick={abrir} className="font-semibold text-dorado-dark hover:underline">
+    <button type="button" onClick={abrir} className="font-semibold text-dorado-tinta hover:underline">
       Comprobante
     </button>
   );

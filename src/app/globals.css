@@ -11,11 +11,16 @@
   --color-verde-900: #1b2f24; /* Profundidad / hovers oscuros */
   --color-verde-700: #2f5040;
   --color-verde-500: #3d6a55;
-  --color-verde-300: #7d9a8b; /* Verde apagado para textos secundarios sobre claro */
+  --color-verde-300: #5c7567; /* Verde apagado para textos secundarios sobre claro. Oct 2026: era #7d9a8b (3,05:1 sobre blanco, no llegaba al 4,5 de AA); este da 5,0:1 sobre blanco y 4,6:1 sobre arena */
 
   --color-dorado: #be9b69; /* Dorado / arena — acento */
   --color-dorado-dark: #9c7e4f; /* Hover de acento */
   --color-dorado-light: #d4bd96;
+  /* Dorado para TEXTO sobre claro (oct 2026). `dorado-dark` (#9c7e4f) daba
+     3,8:1 sobre blanco y no llegaba al 4,5 de AA; no se oscureció ese token
+     porque es también el fondo hover de los botones dorados, donde el texto
+     verde-900 perdería contraste. Este da 5,3:1 sobre blanco y 4,9 sobre arena. */
+  --color-dorado-tinta: #82673c;
 
   --color-beige: #e8e1d9; /* Beige claro */
   --color-arena: #f7f6f3; /* Blanco cálido — fondo base */
@@ -79,10 +84,14 @@
   --color-chart-3: #c24a24; /* terracota */
   --color-chart-4: #8b4a8f; /* ciruela */
 
-  /* Estados reservados: NUNCA se reutilizan como "serie 5" */
-  --color-estado-ok: #2f7d55;
-  --color-estado-aviso: #b47612;
-  --color-estado-grave: #b4442a;
+  /* Estados reservados: NUNCA se reutilizan como "serie 5".
+     ⚠️ Oscurecidos en oct 2026 (revisión de accesibilidad antes de
+     presentar): son TEXTO pequeño en pastillas y avisos, y el ámbar (#b47612)
+     daba 3,8:1 sobre blanco. Ahora los tres pasan 4,5:1 sobre blanco, arena y
+     sobre su propio fondo tintado al 12 %. Era #2f7d55 / #b47612 / #b4442a. */
+  --color-estado-ok: #2a6e4b;
+  --color-estado-aviso: #875509;
+  --color-estado-grave: #a63d25;
 
   /* Los mismos estados sobre fondo VERDE OSCURO. Los de arriba están
      calculados contra arena y sobre verde-900 se hunden: el ok (#2f7d55)

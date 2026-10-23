@@ -60,7 +60,7 @@ export default async function MiCuentaConfiguracionPage() {
             href={WHATSAPP}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-medium text-dorado-dark underline underline-offset-4"
+            className="font-medium text-dorado-tinta underline underline-offset-4"
           >
             Escríbenos
           </a>{" "}

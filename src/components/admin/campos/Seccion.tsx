@@ -24,7 +24,7 @@ export default function Seccion({
   return (
     <Card>
       <fieldset>
-        <legend className="eyebrow mb-4 text-dorado-dark">{titulo}</legend>
+        <legend className="eyebrow mb-4 text-dorado-tinta">{titulo}</legend>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
       </fieldset>
     </Card>

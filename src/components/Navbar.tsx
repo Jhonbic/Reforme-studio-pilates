@@ -171,6 +171,9 @@ export default function Navbar() {
       <aside
         id="mobile-menu"
         aria-hidden={!open}
+        /* `inert` cerrado: con solo `aria-hidden`, el tabulador seguía
+           entrando en los enlaces de un menú que no se ve. */
+        inert={!open}
         aria-label="Menú de navegación"
         className={`fixed inset-y-0 right-0 z-[60] flex w-[82%] max-w-sm flex-col bg-arena text-verde shadow-lift transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] md:hidden ${
           open ? "translate-x-0" : "translate-x-full"
@@ -209,7 +212,7 @@ export default function Navbar() {
                   href={l.href}
                   onClick={() => setOpen(false)}
                   style={{ transitionDelay: open ? `${120 + i * 60}ms` : "0ms" }}
-                  className={`block border-b border-beige py-4 font-display text-3xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:text-dorado-dark motion-reduce:translate-x-0 motion-reduce:opacity-100 motion-reduce:transition-none ${
+                  className={`block border-b border-beige py-4 font-display text-3xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:text-dorado-tinta motion-reduce:translate-x-0 motion-reduce:opacity-100 motion-reduce:transition-none ${
                     open ? "translate-x-0 opacity-100" : "translate-x-4 opacity-0"
                   }`}
                 >
@@ -252,7 +255,7 @@ export default function Navbar() {
                   href={s.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="transition-colors duration-300 hover:text-dorado-dark"
+                  className="transition-colors duration-300 hover:text-dorado-tinta"
                 >
                   {s.label}
                 </a>
@@ -261,7 +264,7 @@ export default function Navbar() {
           </ul>
           <a
             href={TEL_ESTUDIO}
-            className="mt-3 block font-display text-xl text-dorado-dark transition-colors duration-300 hover:text-dorado"
+            className="mt-3 block font-display text-xl text-verde transition-colors duration-300 hover:text-dorado-tinta"
           >
             {TELEFONO_ESTUDIO_TEXTO}
           </a>

@@ -90,7 +90,7 @@ function Casilla({
     >
       <dt
         className={`mb-1 text-xs uppercase tracking-[0.14em] ${
-          destacada ? "text-dorado-dark" : "text-verde-300"
+          destacada ? "text-dorado-tinta" : "text-verde-300"
         }`}
       >
         {etiqueta}

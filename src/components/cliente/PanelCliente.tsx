@@ -162,7 +162,7 @@ export default function PanelCliente({
                   <li
                     key={s.tipo}
                     className={`rounded-full px-3 py-1 text-sm ${
-                      s.quedan === 0 ? "bg-beige/60 text-verde-300" : "bg-dorado/15 text-verde"
+                      s.quedan === 0 ? "bg-beige/60 text-verde-700" : "bg-dorado/15 text-verde"
                     }`}
                   >
                     <span className="font-cifra font-bold">{s.quedan}</span> de {s.total} · {s.tipo}
@@ -232,7 +232,7 @@ export default function PanelCliente({
                 ? "Tu cuenta está inactiva: escríbenos o pasa por recepción y la volvemos a activar."
                 : "Para reservar necesitas un plan vigente. "}
               {cuenta.estado !== "De baja" && (
-                <Link href="/mi-cuenta/planes" className="font-medium text-dorado-dark underline underline-offset-4">
+                <Link href="/mi-cuenta/planes" className="font-medium text-dorado-tinta underline underline-offset-4">
                   Ver los planes
                 </Link>
               )}
@@ -270,7 +270,7 @@ export default function PanelCliente({
                   className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-beige bg-white p-4"
                 >
                   <div className="min-w-0">
-                    <p className="text-xs uppercase tracking-wider text-dorado-dark first-letter:uppercase">
+                    <p className="text-xs uppercase tracking-wider text-dorado-tinta first-letter:uppercase">
                       {diaRelativo(c.fecha, hoy)}
                     </p>
                     <p className="font-cifra text-lg font-normal text-verde">
@@ -327,7 +327,7 @@ export default function PanelCliente({
                         href={WHATSAPP}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-dorado-dark underline"
+                        className="text-dorado-tinta underline"
                       >
                         escríbenos
                       </a>
@@ -387,7 +387,7 @@ export default function PanelCliente({
               type="button"
               onClick={() => setTodas((v) => !v)}
               aria-expanded={todas}
-              className="mt-3 text-sm text-dorado-dark underline-offset-4 hover:underline"
+              className="mt-1 inline-flex min-h-[44px] items-center text-sm text-dorado-tinta underline-offset-4 hover:underline"
             >
               {todas ? "Ver menos" : `Ver las ${mias.length}`}
             </button>
@@ -410,7 +410,7 @@ export default function PanelCliente({
                 className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-dorado/60 bg-white p-4"
               >
                 <div className="min-w-0">
-                  <p className="text-xs uppercase tracking-wider text-dorado-dark first-letter:uppercase">
+                  <p className="text-xs uppercase tracking-wider text-dorado-tinta first-letter:uppercase">
                     {diaRelativo(c.fecha, hoy)} · puesto {c.puestoEspera}
                   </p>
                   <p className="font-cifra text-lg font-normal text-verde">
@@ -485,7 +485,7 @@ export default function PanelCliente({
               })}
             </div>
 
-            <p className="mt-4 text-sm font-medium text-dorado-dark first-letter:uppercase">
+            <p className="mt-4 text-sm font-medium text-dorado-tinta first-letter:uppercase">
               {diaRelativo(dia, hoy)}
             </p>
             <ul className="mt-2 space-y-3">
@@ -524,11 +524,11 @@ export default function PanelCliente({
                       </p>
                     </div>
                     {c.reservada ? (
-                      <span className="inline-flex min-h-[44px] items-center rounded-full bg-dorado/15 px-4 text-sm text-dorado-dark">
+                      <span className="inline-flex min-h-[44px] items-center rounded-full bg-dorado/15 px-4 text-sm text-dorado-tinta">
                         ✓ Reservada
                       </span>
                     ) : c.puestoEspera !== null ? (
-                      <span className="inline-flex min-h-[44px] items-center rounded-full border border-dashed border-dorado/60 px-4 text-sm text-dorado-dark">
+                      <span className="inline-flex min-h-[44px] items-center rounded-full border border-dashed border-dorado/60 px-4 text-sm text-dorado-tinta">
                         En espera · puesto {c.puestoEspera}
                       </span>
                     ) : llena && !privada && !sinPlan && !sinClases ? (
