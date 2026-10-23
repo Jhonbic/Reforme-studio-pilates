@@ -2498,6 +2498,21 @@ de repetir:
 
 ### Lo que tiene que hacer alguien (no es código)
 
+> ✅ **23 oct 2026 — producción vaciada para presentar** (decisión del
+> usuario). Se borraron todos los clientes, membresías, pagos, reservas,
+> clases, gastos, presupuestos, el equipo de ejemplo y TODAS las cuentas
+> (también las `prueba-*@reforme.local`). Queda **una sola cuenta,
+> `reformestudiopilates@gmail.com` (Administración)**, creada con contraseña
+> temporal: al entrar pide elegir la propia. Se conservan los 9 planes
+> reales, las dos salas (8 personas) y las horas del estudio (L–V 07–10 y
+> 15–19, sábado 08–15; apagadas y sin instructora). Sobraba una franja suelta
+> de lunes a las 05:00 y se quitó. Copia previa en
+> `../respaldo-reforme-ngjy-2026-10-23-limpieza/` (fuera del repo: tiene
+> datos personales). Siguiente paso del estudio: dar de alta al equipo real
+> y programar las clases desde la agenda. Varios pendientes de abajo sobre
+> datos de ejemplo quedan resueltos con esto.
+
+
 - [ ] **Vercel: las TRES variables de Supabase del proyecto `ngjy…`**
       (`NEXT_PUBLIC_SUPABASE_URL` = `https://ngjybazethrflxtuyhhx.supabase.co`,
       la `anon` y la `service_role` de ese proyecto) y Redeploy. Con la URL de
