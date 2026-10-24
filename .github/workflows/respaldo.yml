@@ -1,0 +1,105 @@
+# Copia de seguridad nocturna de la base de producción (Supabase).
+#
+# El plan Free de Supabase no guarda copias que se puedan restaurar, así que
+# esta las hace cada noche y las deja en GitHub, CIFRADAS, 30 días. Cómo se
+# restauran: docs/RESPALDOS.md.
+#
+# Qué se guarda (el método que documenta Supabase para migrar un proyecto):
+#   · roles.sql    — los roles de la base
+#   · esquema.sql  — tablas, funciones, triggers y reglas de seguridad (RLS)
+#   · datos.sql    — todas las filas, cuentas de usuario (auth) incluidas
+#   · comprobantes/ — los archivos del bucket (el SQL solo guarda la ruta)
+#
+# Secretos (repositorio → Settings → Secrets and variables → Actions):
+#   · RESPALDO_DB_URL — Supabase → Connect → «Session pooler» → URI, con la
+#     contraseña de la base puesta.
+#   · RESPALDO_CLAVE — contraseña del .7z (mínimo 12 caracteres). Guardadla
+#     también fuera de GitHub: sin ella la copia no se puede abrir.
+#   · SUPABASE_SERVICE_ROLE_KEY — la misma de Vercel, para los comprobantes.
+#     Opcional: sin ella la copia sale sin comprobantes y lo avisa.
+
+name: Copia de seguridad
+
+on:
+  schedule:
+    - cron: "0 7 * * *" # 07:00 UTC = 02:00 en Colombia
+  workflow_dispatch: # botón «Run workflow» para lanzarla a mano
+
+permissions:
+  contents: read
+
+concurrency:
+  group: respaldo
+  cancel-in-progress: false
+
+jobs:
+  respaldo:
+    name: Copia de la base y los comprobantes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DB_URL: ${{ secrets.RESPALDO_DB_URL }}
+      CLAVE: ${{ secrets.RESPALDO_CLAVE }}
+      SUPABASE_URL: https://ngjybazethrflxtuyhhx.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Comprobar los secretos
+        run: |
+          [ -n "$DB_URL" ] || { echo "::error::Falta el secreto RESPALDO_DB_URL."; exit 1; }
+          [ "${#CLAVE}" -ge 12 ] || { echo "::error::Falta RESPALDO_CLAVE o tiene menos de 12 caracteres."; exit 1; }
+
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Volcar la base
+        run: |
+          mkdir -p copia
+          # Hasta 3 intentos por volcado: un corte de red de un instante no
+          # debe dejar la noche sin copia.
+          volcar() {
+            for i in 1 2 3; do supabase db dump --db-url "$DB_URL" "$@" && return 0; sleep $((10 * i)); done
+            return 1
+          }
+          volcar -f copia/roles.sql --role-only
+          volcar -f copia/esquema.sql
+          # Fuera dos tablas internas de Storage (vectores, que no usamos): el
+          # usuario `postgres` no puede escribir en ellas y harían fallar toda
+          # la restauración.
+          volcar -f copia/datos.sql --use-copy --data-only -x storage.buckets_vectors -x storage.vector_indexes
+          # Un volcado casi vacío es un fallo aunque el comando no lo diga:
+          # mejor una cruz roja que 30 días de copias inservibles.
+          for f in esquema datos; do
+            [ "$(stat -c%s copia/$f.sql)" -gt 1024 ] || { echo "::error::copia/$f.sql salió casi vacío."; exit 1; }
+          done
+          ls -la copia
+
+      - name: Descargar los comprobantes
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::warning::Sin SUPABASE_SERVICE_ROLE_KEY: la copia sale sin comprobantes."
+          else
+            node scripts/descargar-comprobantes.mjs copia/comprobantes
+          fi
+
+      - name: Cifrar
+        id: cifrar
+        run: |
+          fecha=$(TZ=America/Bogota date +%F)
+          # 7z con AES-256 y nombres de archivo cifrados (-mhe): sin la clave
+          # no se ve ni qué tablas hay. Se abre con 7-Zip en Windows.
+          7z a -t7z -mhe=on -mx=7 -p"$CLAVE" "reforme-$fecha.7z" ./copia/* > /dev/null
+          rm -rf copia
+          echo "fecha=$fecha" >> "$GITHUB_OUTPUT"
+          ls -la "reforme-$fecha.7z"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reforme-${{ steps.cifrar.outputs.fecha }}
+          path: reforme-${{ steps.cifrar.outputs.fecha }}.7z
+          retention-days: 30
+          if-no-files-found: error
+          # Ya va comprimido: volver a comprimirlo solo gasta tiempo.
+          compression-level: 0

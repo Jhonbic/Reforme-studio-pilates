@@ -120,6 +120,16 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
   local». Docker es **solo para desarrollo**: la web sigue en Vercel y la BD en
   Supabase cloud.
 
+### Copias de seguridad (24 oct 2026)
+
+Ver **`docs/RESPALDOS.md`**. Copia nocturna en GitHub Actions
+(`.github/workflows/respaldo.yml`, cifrada, 30 días) y `scripts/respaldar.ps1`
+para copias a mano. Restauración **probada** con una copia real de producción
+en un proyecto vacío: queda idéntica tras ejecutar
+`supabase/restaurar/despues-de-restaurar.sql` (el cron y las reglas del bucket
+no van en el volcado). ⚠️ La copia nocturna necesita los secretos
+`RESPALDO_DB_URL`, `RESPALDO_CLAVE` y `SUPABASE_SERVICE_ROLE_KEY` en GitHub.
+
 ## 4. Sistema de diseño
 
 En [`src/app/globals.css`](../src/app/globals.css) vía `@theme`:
