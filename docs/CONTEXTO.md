@@ -2337,7 +2337,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 |---|---|
 | Código | `github.com/Jhonbic/Reforme-studio-pilates`, rama `main` |
 | Web | Vercel, **https://www.reformestudiopilates.com** (y `reforme-studio-pilates.vercel.app`); push a `main` → despliegue |
-| Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme», cuenta `jhonespa123@gmail.com`). Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
+| Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme»). Desde el 24 oct 2026 está en la **organización del estudio** (cuenta de Google de Reforme, org `pxgyxdevjqhpzfskjwpm`), transferido desde la de `jhonespa123@gmail.com`, que sigue como miembro. Misma URL, claves, datos y cron: no hubo que tocar Vercel. Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
 | Esquema | `supabase/migrations/` — **26 migraciones (`20261018120000_correo_obligatorio`, aún solo en local)** |
 
