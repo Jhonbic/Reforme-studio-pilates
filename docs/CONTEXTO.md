@@ -122,13 +122,14 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 
 ### Copias de seguridad (24 oct 2026)
 
-Ver **`docs/RESPALDOS.md`**. Copia nocturna en GitHub Actions
-(`.github/workflows/respaldo.yml`, cifrada, 30 días) y `scripts/respaldar.ps1`
-para copias a mano. Restauración **probada** con una copia real de producción
-en un proyecto vacío: queda idéntica tras ejecutar
-`supabase/restaurar/despues-de-restaurar.sql` (el cron y las reglas del bucket
-no van en el volcado). ⚠️ La copia nocturna necesita los secretos
-`RESPALDO_DB_URL`, `RESPALDO_CLAVE` y `SUPABASE_SERVICE_ROLE_KEY` en GitHub.
+Ver **`docs/RESPALDOS.md`**. `scripts/respaldar.ps1` vuelca producción y la
+guarda **cifrada (7-Zip, AES-256) en Google Drive** («G:\Mi unidad\Respaldos
+Reforme»), con las últimas 30. Se niega a subir nada sin cifrar a Drive.
+Restauración **probada** con una copia real de producción en un proyecto
+vacío: queda idéntica tras ejecutar `supabase/restaurar/despues-de-restaurar.sql`
+(el cron y las reglas del bucket no van en el volcado). La copia nocturna en
+GitHub Actions se escribió y se retiró (decisión del usuario: «luego vemos»);
+está en el historial de git.
 
 ## 4. Sistema de diseño
 
