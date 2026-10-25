@@ -122,14 +122,15 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 
 ### Copias de seguridad (24 oct 2026)
 
-Ver **`docs/RESPALDOS.md`**. `scripts/respaldar.ps1` vuelca producción y la
-guarda **cifrada (7-Zip, AES-256) en Google Drive** («G:\Mi unidad\Respaldos
-Reforme»), con las últimas 30. Se niega a subir nada sin cifrar a Drive.
-Restauración **probada** con una copia real de producción en un proyecto
-vacío: queda idéntica tras ejecutar `supabase/restaurar/despues-de-restaurar.sql`
-(el cron y las reglas del bucket no van en el volcado). La copia nocturna en
-GitHub Actions se escribió y se retiró (decisión del usuario: «luego vemos»);
-está en el historial de git.
+Ver **`docs/RESPALDOS.md`**. Acceso directo **«Copia de seguridad»** en el
+escritorio → `scripts/respaldo/respaldar-todo.ps1`: copia **Reforme y
+JainSportBox**, cifradas (7-Zip, AES-256), en `G:\Mi unidad\Respaldos\{Reforme,
+JainSportBox}`, con las últimas 30 de cada uno. No guarda contraseñas: usa la
+sesión de la CLI de Supabase. Restauración **probada** de los dos con copias
+reales de producción en un Postgres de Supabase limpio. En Reforme hay que
+ejecutar después `supabase/restaurar/despues-de-restaurar.sql` (el cron y las
+reglas del bucket no van en el volcado). La copia nocturna en GitHub Actions
+se escribió y se retiró («luego vemos»); está en el historial de git.
 
 ## 4. Sistema de diseño
 

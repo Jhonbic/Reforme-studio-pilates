@@ -1,75 +1,80 @@
 # Copias de seguridad
 
-El plan Free de Supabase **no guarda copias que se puedan restaurar**. La copia
-la hace `scripts/respaldar.ps1` y la guarda **cifrada en Google Drive**
-(carpeta «Respaldos Reforme»), conservando las últimas 30.
+El plan Free de Supabase **no guarda copias que se puedan restaurar**. Las
+hace el acceso directo **«Copia de seguridad»** del escritorio: con doble clic
+copia **Reforme y JainSportBox** y lo guarda **cifrado en una misma carpeta
+de Google Drive**:
+
+```
+G:\Mi unidad\Respaldos\
+   ├─ Reforme\        reforme-AAAA-MM-DD_HHMM.7z   (últimas 30)
+   └─ JainSportBox\   jsb-AAAA-MM-DD_HHMM.7z       (últimas 30)
+```
+
+Los scripts están en `scripts/respaldo/` (de este repo, también para Jain):
+
+| Script | Qué hace |
+|---|---|
+| `respaldar-todo.ps1` | Lo que abre el acceso directo. Comprueba Drive, 7-Zip y la clave, abre Docker si está cerrado, copia los dos proyectos (si uno falla el otro se hace igual) y enseña un resumen |
+| `respaldar-proyecto.ps1` | La copia de UN proyecto |
+| `descargar-storage.mjs` | Baja todos los buckets de Storage de un proyecto |
+| `crear-acceso-directo.ps1` | Crea el acceso directo en el escritorio (una vez por PC) |
 
 > Pendiente (decisión del usuario, 24 oct 2026): una copia nocturna automática
 > con GitHub Actions. Se escribió y se retiró antes de subirla; está en el
-> historial de git (commit «Copias de seguridad: nocturna en GitHub
-> Actions…», archivo `.github/workflows/respaldo.yml`) para retomarla.
+> historial de git (`.github/workflows/respaldo.yml`) para retomarla.
 
 Con Supabase Pro (25 USD/mes) se suman sus copias diarias, que se restauran con
 un clic (Database → Backups). Estas siguen valiendo como segunda copia.
 
-## Qué contiene una copia
+## Qué contiene cada copia
 
 Un `.7z` cifrado (AES-256, con los nombres de archivo también cifrados):
 
-| Archivo | Qué es |
-|---|---|
-| `esquema.sql` | Tablas, funciones, triggers y reglas de seguridad (RLS) del esquema `public` |
-| `datos.sql` | Todas las filas, **incluidas las cuentas de usuario** (`auth`, con las contraseñas cifradas) y la configuración del bucket |
-| `roles.sql` | Ajustes de los roles. Hoy solo trae los que Supabase ya pone por defecto: **no hace falta para restaurar** |
-| `comprobantes/` | Los archivos del bucket (fotos y PDF de gastos). El SQL solo guarda la ruta |
+| Archivo | Reforme | JainSportBox |
+|---|---|---|
+| `esquema.sql` | Tablas, funciones, triggers y RLS de `public` | Igual |
+| `datos.sql` | Todas las filas, **incluidas las cuentas de usuario** (`auth`) y la configuración de Storage | Solo `public`: su backend tiene sus propias cuentas |
+| `roles.sql` | Ajustes de roles. **No hace falta para restaurar** | Igual |
+| `storage/` | Bucket `comprobantes` | Bucket `jainsportbox` (fotos) |
 
 ## Preparar el PC (una sola vez)
 
 1. **Google Drive para escritorio** abierto con la cuenta de Google del
-   estudio. Tiene que aparecer la unidad `G:\Mi unidad`.
+   estudio. Tiene que aparecer `G:\Mi unidad`.
 2. **7-Zip**: `winget install 7zip.7zip` (o desde 7-zip.org).
-3. **La clave de cifrado**, como variable de usuario de Windows (PowerShell):
+3. **La clave de cifrado** (la misma para los dos proyectos), como variable
+   de usuario de Windows, en PowerShell:
    ```powershell
    [Environment]::SetEnvironmentVariable("RESPALDO_CLAVE", "una-clave-larga-de-verdad", "User")
    ```
    ≥ 12 caracteres. ⚠️ **Guardadla también en otro sitio** (un gestor de
    contraseñas): sin ella ninguna copia se puede abrir, y no hay forma de
    recuperarla.
-4. **Para incluir los comprobantes**, la clave `service_role` de producción
-   (Supabase → Project Settings → API Keys), igual:
-   ```powershell
-   [Environment]::SetEnvironmentVariable("SUPABASE_SERVICE_ROLE_KEY_PROD", "...", "User")
-   ```
-   Opcional: sin ella la copia sale sin comprobantes y lo avisa.
-5. **Docker Desktop** y la CLI de Supabase con sesión en una cuenta de la
-   organización del estudio: `npx supabase login`. No pide la contraseña de la
-   base.
-
-Cerrar y abrir la terminal después de crear las variables.
+4. **Docker Desktop** instalado (el acceso directo lo abre si está cerrado).
+5. **La CLI de Supabase con sesión** en una cuenta con acceso a los DOS
+   proyectos: `npx supabase login`. No hace falta ninguna contraseña de base
+   de datos ni guardar claves: la CLI enlaza cada proyecto con un rol temporal
+   (en `%LOCALAPPDATA%\RespaldosSupabase\`) y pide la clave de Storage a
+   Supabase en cada copia.
+6. **El acceso directo**: `powershell -ExecutionPolicy Bypass -File scripts\respaldo\crear-acceso-directo.ps1`.
 
 ## Hacer una copia
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\respaldar.ps1
-```
-
-Tarda 1–2 minutos. Lo que hace, en orden:
-1. Comprueba que hay Drive, 7-Zip y clave **antes** de volcar nada.
-2. Vuelca la base en una carpeta temporal del PC (3 intentos por volcado: a
-   veces falla la red un instante).
-3. Descarga los comprobantes.
-4. Cifra en `G:\Mi unidad\Respaldos Reforme\reforme-AAAA-MM-DD_HHMM.7z` y
-   **comprueba que el .7z se abre** con la clave.
-5. Borra los temporales: a Drive solo sube el `.7z`, nunca los SQL en claro.
-6. Borra las copias más antiguas que las últimas 30 (`-Retener` lo cambia).
-
-Otras opciones: `-Destino "D:\Respaldos"` (otro sitio) y `-SinCifrar` (solo
-para un disco local; en Drive no se permite).
+Doble clic en **«Copia de seguridad»** del escritorio. Tarda 2–4 minutos.
+Para cada proyecto:
+1. Vuelca la base en una carpeta temporal del PC (hasta 4 intentos por
+   volcado: el DNS dentro de Docker falla a veces un instante).
+2. Descarga los archivos de Storage.
+3. Cifra y guarda el `.7z` en Drive, y **comprueba que se abre** con la clave.
+4. Borra los temporales: a Drive solo sube el `.7z`, nunca los SQL en claro.
+5. Borra las copias más antiguas que las últimas 30.
 
 **Cada cuánto**: al menos una vez por semana, y **siempre antes de algo
-delicado** (una migración, borrar datos, cambios en planes). Para hacerlo solo
-cada noche hay que dejar el PC encendido con Docker abierto y una tarea en el
-Programador de tareas de Windows.
+delicado** (una migración, borrar datos, cambios de planes).
+
+Probado el 24 oct 2026 contra producción: Reforme 21 KB y JainSportBox 296 KB
+(9 fotos), los dos cifrados y verificados.
 
 ## Abrir una copia
 
@@ -111,9 +116,8 @@ la tarea diaria y las reglas del bucket) y pasaron los 106 tests de la base.
    carpetas (Storage → comprobantes → Upload).
 5. **Apuntar la web al proyecto nuevo**: en Vercel, cambiar
    `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` y
-   `SUPABASE_SERVICE_ROLE_KEY`, y volver a desplegar. Cambiar también la URL en
-   `scripts/respaldar.ps1` y enlazar la CLI al proyecto nuevo
-   (`npx supabase link`).
+   `SUPABASE_SERVICE_ROLE_KEY`, y volver a desplegar. Cambiar también el
+   `Ref` de Reforme en `scripts/respaldo/respaldar-todo.ps1`.
 6. **Authentication → URL Configuration**: Site URL
    `https://www.reformestudiopilates.com`.
 
