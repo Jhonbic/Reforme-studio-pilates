@@ -9,9 +9,11 @@ import {
   resumenClases,
   resumenClientes,
 } from "@/lib/admin/dashboard";
+import { segmentosCampana } from "@/lib/admin/campana";
 import { horaEnBogota, hoyEnBogota, sumarDias } from "@/lib/admin/horario";
 import { mesAnterior } from "@/lib/admin/periodo";
 import {
+  getCampanaEnCurso,
   getClases,
   getDatosDashboard,
   getMetaClientes,
@@ -47,8 +49,9 @@ function textoVence(dias: number): string {
  * Se calcula entero aquí, en el servidor, con funciones puras
  * (`lib/admin/dashboard.ts`), y baja ya resuelto.
  *
- * Arriba, la fila del paso 6: meta de clientes (todo el equipo) e ingresos del
- * mes (solo Administración). Lo que un rol no ve ni se pide: RLS devolvería
+ * Arriba, la fila del paso 6: meta de clientes (todo el equipo), ingresos del
+ * mes (solo Administración) y, mientras corre, la campaña de descuento por
+ * tramos (todo el equipo: Recepción es quien vende). Lo que un rol no ve ni se pide: RLS devolvería
  * vacío y saldría «$0».
  *
  * ⚠️ Sin pagos pendientes (ni «Por cobrar» ni la lista): se quitaron del
@@ -59,13 +62,14 @@ export default async function DashboardPage() {
   const hoy = hoyEnBogota();
   const usuario = await getUsuarioActual();
   const esAdmin = usuario?.rol === "Administración";
-  const [datos, agenda, meta, pagos, pocas] = await Promise.all([
+  const [datos, agenda, meta, pagos, pocas, campana] = await Promise.all([
     getDatosDashboard(),
     getClases(hoy, horaEnBogota()),
     getMetaClientes(),
     // Desde el 1 del mes pasado: lo justo para comparar con el mismo tramo.
     esAdmin ? getPagosDesde(mesAnterior(hoy).desde) : null,
     getPocasClases(2),
+    getCampanaEnCurso(),
   ]);
 
   const resumen = resumenClientes(datos, hoy);
@@ -101,6 +105,16 @@ export default async function DashboardPage() {
         hoy={hoy}
         meta={avanceMeta(resumen.activos, meta)}
         ingresos={pagos ? ingresosDelMes(pagos, hoy) : null}
+        campana={
+          campana && {
+            nombre: campana.nombre,
+            hasta: campana.hasta,
+            vendidas: campana.vendidas,
+            meta: campana.meta,
+            tramo: campana.tramo,
+            segmentos: segmentosCampana(campana.tramos, campana.vendidas),
+          }
+        }
         clientes={{
           activos: resumen.activos,
           // Contra el cierre del mes pasado, de la misma serie que dibuja la

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import CampanasDescuento from "@/components/admin/configuracion/CampanasDescuento";
 import MiPerfil from "@/components/admin/configuracion/MiPerfil";
 import PanelConfiguracion from "@/components/admin/configuracion/PanelConfiguracion";
 import { hoyEnBogota } from "@/lib/admin/horario";
-import { getConfiguracion, getUsuarioActual } from "@/lib/admin/queries";
+import { getCampanas, getConfiguracion, getUsuarioActual } from "@/lib/admin/queries";
 
 export const metadata: Metadata = {
   title: "Configuración · Panel administrativo",
@@ -11,7 +12,8 @@ export const metadata: Metadata = {
 
 /**
  * Configuración: **Mi perfil** (cada rol: contraseña y cerrar sesión) y, solo
- * para Administración, la del estudio (paso 4): plazo para cancelar, meta,
+ * para Administración, la del estudio (paso 4): campañas de descuento, plazo
+ * para cancelar, meta,
  * aforo de las salas, días cerrados y formas de pago.
  *
  * ⚠️ La parte del estudio es solo de Administración, como en la base (RLS de
@@ -25,7 +27,9 @@ export default async function ConfiguracionPage() {
 
   const esAdministracion = usuario.rol === "Administración";
   const hoy = hoyEnBogota();
-  const config = esAdministracion ? await getConfiguracion(hoy) : null;
+  const [config, campanas] = esAdministracion
+    ? await Promise.all([getConfiguracion(hoy), getCampanas()])
+    : [null, []];
 
   return (
     <div className="mx-auto w-full max-w-[1200px] space-y-6">
@@ -36,6 +40,8 @@ export default async function ConfiguracionPage() {
           <p id="config-estudio" className="eyebrow text-dorado-tinta">
             Del estudio
           </p>
+          {/* La campaña primero: mientras corre la apertura es lo que más se toca. */}
+          <CampanasDescuento campanas={campanas} hoy={hoy} />
           <PanelConfiguracion config={config} hoy={hoy} />
         </section>
       )}

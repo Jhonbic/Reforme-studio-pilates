@@ -5,7 +5,8 @@ import { useState, type ReactNode } from "react";
 import LineChart from "../charts/LineChart";
 import Variacion from "../Variacion";
 import AgendaReservas, { type ClaseDelMes } from "./AgendaReservas";
-import { moneda, numero } from "@/lib/admin/format";
+import { fecha, moneda, numero } from "@/lib/admin/format";
+import type { EstadoCampana, SegmentoCampana } from "@/lib/admin/campana";
 
 export type FilaPorVencer = {
   id: string;
@@ -39,6 +40,10 @@ type Props = {
     variacion: number | null;
     etiquetaAnterior: string;
   } | null;
+  /** La campaña de descuento por tramos de hoy, o `null` si no corre ninguna. */
+  campana: (Pick<EstadoCampana, "nombre" | "hasta" | "vendidas" | "meta" | "tramo"> & {
+    segmentos: SegmentoCampana[];
+  }) | null;
   clientes: {
     activos: number;
     /** Activos de hoy menos los del cierre del mes pasado; `null` sin mes anterior. */
@@ -98,6 +103,7 @@ export default function PanelDashboard({
   fechaTexto,
   meta,
   ingresos,
+  campana,
   clientes,
   clases,
   hoy,
@@ -112,7 +118,7 @@ export default function PanelDashboard({
         <p className="mt-1 text-verde-300">{fechaTexto}</p>
       </div>
 
-      <FilaMeta meta={meta} ingresos={ingresos} />
+      <FilaMeta meta={meta} ingresos={ingresos} campana={campana} />
 
       {/* Dos pestañas y solo dos. El detalle del dinero sigue en Finanzas,
           que tiene su propio selector de periodo. */}
@@ -159,9 +165,15 @@ export default function PanelDashboard({
 function FilaMeta({
   meta,
   ingresos,
-}: Pick<Props, "meta" | "ingresos">) {
+  campana,
+}: Pick<Props, "meta" | "ingresos" | "campana">) {
+  const tarjetas = 1 + (ingresos ? 1 : 0) + (campana ? 1 : 0);
   return (
-    <div className={`mb-8 grid grid-cols-1 gap-4 ${ingresos ? "sm:grid-cols-2" : ""}`}>
+    <div
+      className={`mb-8 grid grid-cols-1 gap-4 ${
+        tarjetas === 3 ? "md:grid-cols-2 xl:grid-cols-3" : tarjetas === 2 ? "sm:grid-cols-2" : ""
+      }`}
+    >
       <div className={TARJETA}>
         <p className={ROTULO}>Meta de clientes</p>
         <p className="flex items-baseline gap-2">
@@ -200,6 +212,62 @@ function FilaMeta({
         </div>
       )}
 
+      {campana && <TarjetaCampana c={campana} />}
+    </div>
+  );
+}
+
+/**
+ * La campaña de descuento por tramos (la apertura): cuántas van de la meta,
+ * en qué tramo está y cuántas quedan a ese precio.
+ *
+ * La barra va partida en tramos, del ancho de sus cupos: así se ve de un
+ * vistazo en cuál está y cuánto le falta para pasar al siguiente. Es
+ * decoración (`aria-hidden`): todo lo que dice está escrito debajo.
+ */
+function TarjetaCampana({ c }: { c: NonNullable<Props["campana"]> }) {
+  const agotada = c.tramo === null;
+  return (
+    <div className={TARJETA}>
+      <p className={ROTULO}>{c.nombre}</p>
+      <p className="flex items-baseline gap-2">
+        <span className={CIFRA}>{numero(c.vendidas)}</span>
+        <span className="font-cifra text-sm text-verde-300">de {numero(c.meta)} membresías</span>
+      </p>
+      <div className="mt-3 flex gap-1" aria-hidden="true">
+        {c.segmentos.map((s, i) => (
+          <div key={i} className="min-w-0" style={{ flexGrow: s.cupos, flexBasis: 0 }}>
+            <div
+              className={`h-2 overflow-hidden rounded-full bg-arena ${
+                s.actual ? "ring-1 ring-dorado ring-offset-1" : ""
+              }`}
+            >
+              <div
+                className="h-full rounded-full bg-dorado transition-[width] duration-700"
+                style={{ width: `${(s.llenos / s.cupos) * 100}%` }}
+              />
+            </div>
+            <p
+              className={`mt-1 truncate font-cifra text-[11px] ${
+                s.actual ? "font-bold text-dorado-tinta" : "text-verde-300"
+              }`}
+            >
+              −{s.pct} %
+            </p>
+          </div>
+        ))}
+      </div>
+      <p className={NOTA}>
+        {agotada ? (
+          "Cupos con descuento agotados · ya se cobra precio normal"
+        ) : (
+          <>
+            Tramo del <span className="font-cifra">{c.tramo!.pct} %</span> · quedan{" "}
+            <span className="font-cifra">{numero(c.tramo!.quedan)}</span> a este precio · hasta el{" "}
+            {fecha(c.hasta)}
+          </>
+        )}
+      </p>
     </div>
   );
 }

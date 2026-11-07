@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(106);
+select plan(128);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -57,6 +57,12 @@ insert into membresias (cliente_id, plan_id, inicio, vencimiento, importe)
 -- anulan (dentro de esta transacción) para que la clase de prueba «dentro de
 -- una hora» no choque por sala con una de la semilla. En la CI no hay nada.
 update clases set cancelada = true where fecha between current_date and current_date + 1;
+
+-- Igual con una campaña de descuento que haya en local: cambiaría lo que cobra
+-- `registrar_membresia` en los tests de descuentos. Se quita dentro de esta
+-- transacción (las membresías se desligan antes: la clave es `restrict`).
+update membresias set campana_id = null, campana_pct = null where campana_id is not null;
+delete from campanas;
 
 -- Agenda: solapes de instructora -----------------------------------------------
 select lives_ok(
@@ -620,34 +626,47 @@ select lives_ok(
   'recepción mueve a alguien de una clase a otra');
 reset role;
 
--- Pagos pendientes (paso 6) ----------------------------------------------------------
--- «Cliente sin plan» (d2) ya tiene un plan pagado entero (arriba). Se le vende
--- otro con un abono de 30.000 sobre 100.000.
+-- Pagos (paso 6; desde nov 2026, siempre enteros) ------------------------------
+-- El plan se cobra entero: `registrar_membresia` ya no acepta abonos.
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
   $$select registrar_membresia('00000000-0000-0000-0000-0000000000d2',
-                               '00000000-0000-0000-0000-0000000000b1', 'Nequi', 30000)$$,
-  'se vende un plan con un abono');
+                               '00000000-0000-0000-0000-0000000000b1', 'Nequi')$$,
+  'se vende un plan');
 select is(
-  (select pendiente from membresias_pendientes where cliente_id = '00000000-0000-0000-0000-0000000000d2'),
-  70000, 'lo que falta sale en membresias_pendientes');
+  (select count(*)::int from membresias_pendientes where cliente_id = '00000000-0000-0000-0000-0000000000d2'),
+  0, 'vender un plan lo cobra entero: no deja nada pendiente');
+select throws_ok(
+  $$select registrar_membresia('00000000-0000-0000-0000-0000000000d2',
+                               '00000000-0000-0000-0000-0000000000b1', 'Nequi', 30000)$$,
+  '42883', null,
+  'ya no se puede vender un plan con un abono');
+reset role;
+
+-- Una deuda de ANTES (de cuando había abonos) se sigue viendo y cobrando.
+insert into membresias (id, cliente_id, plan_id, inicio, vencimiento, importe)
+  values ('00000000-0000-0000-0000-00000000dd01', '00000000-0000-0000-0000-0000000000d2',
+          '00000000-0000-0000-0000-0000000000b1', current_date + 800, current_date + 830, 100000);
+insert into pagos (cliente_id, membresia_id, metodo, fecha, importe)
+  values ('00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-00000000dd01',
+          'Nequi', current_date, 30000);
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(
+  (select pendiente from membresias_pendientes where membresia_id = '00000000-0000-0000-0000-00000000dd01'),
+  70000, 'lo que falta de una deuda de antes sale en membresias_pendientes');
 select throws_ok(
   $$insert into pagos (cliente_id, membresia_id, metodo, fecha, importe)
     select cliente_id, membresia_id, 'Nequi', current_date, 80000
-    from membresias_pendientes where cliente_id = '00000000-0000-0000-0000-0000000000d2'$$,
+    from membresias_pendientes where membresia_id = '00000000-0000-0000-0000-00000000dd01'$$,
   'P0001', null,
   'no se cobra más de lo que se debe');
 select lives_ok(
   $$insert into pagos (cliente_id, membresia_id, metodo, fecha, importe)
     select cliente_id, membresia_id, 'Nequi', current_date, 70000
-    from membresias_pendientes where cliente_id = '00000000-0000-0000-0000-0000000000d2'$$,
+    from membresias_pendientes where membresia_id = '00000000-0000-0000-0000-00000000dd01'$$,
   'cobrar el resto salda la membresía');
-select throws_ok(
-  $$select registrar_membresia('00000000-0000-0000-0000-0000000000d2',
-                               '00000000-0000-0000-0000-0000000000b1', 'Nequi', 200000)$$,
-  'P0001', null,
-  'el abono no pasa del precio del plan');
 reset role;
 
 -- Un cliente no ve deudas (tampoco la suya: no lee los pagos).
@@ -822,6 +841,166 @@ select is(
   (select count(*)::integer from clientes_pocas_clases(90)),
   0,
   'un cliente no ve a quién le quedan pocas clases');
+reset role;
+
+-- Campaña de apertura por tramos (nov 2026) ------------------------------------
+-- Tramos pequeños para poder agotarlos: 2 al 15 %, 1 al 10 % (meta 3).
+-- Solo la primera membresía de cada cliente (y, como todo plan, pagada
+-- entera); los descuentos no se suman. (La concurrencia —dos ventas a la vez en el límite de un
+-- tramo— la cubre el candado consultivo; no se puede probar en una sola
+-- transacción.)
+select throws_ok(
+  $$insert into campanas (nombre, desde, hasta) values ('Al revés', current_date, current_date - 1)$$,
+  '23514', null,
+  'una campaña no puede acabar antes de empezar');
+
+insert into campanas (id, nombre, desde, hasta, inicio_membresias)
+  values ('00000000-0000-0000-0000-0000000000f7', 'Apertura de test', current_date - 1, current_date + 6,
+          current_date + 10);
+insert into campana_tramos (campana_id, orden, cupos, descuento_pct) values
+  ('00000000-0000-0000-0000-0000000000f7', 1, 2, 15),
+  ('00000000-0000-0000-0000-0000000000f7', 2, 1, 10);
+
+select throws_ok(
+  $$insert into campanas (nombre, desde, hasta) values ('Encima', current_date + 3, current_date + 20)$$,
+  '23P01', null,
+  'dos campañas no pueden coincidir en el tiempo');
+
+insert into planes (id, nombre, precio, vigencia_dias, modalidad, clases_reformer, clases_mat)
+  values ('00000000-0000-0000-0000-0000000000b7', 'Plan campaña', 100000, 30, 'Mat', 0, 4);
+insert into clientes (id, nombre, identificacion, correo, telefono) values
+  ('00000000-0000-0000-0000-0000000000a7', 'Campaña uno',    'TEST031', 'campana1@reforme.local', '3000000031'),
+  ('00000000-0000-0000-0000-0000000000a8', 'Campaña dos',    'TEST032', 'campana2@reforme.local', '3000000032'),
+  ('00000000-0000-0000-0000-0000000000a9', 'Campaña tres',   'TEST033', 'campana3@reforme.local', '3000000033'),
+  ('00000000-0000-0000-0000-0000000000aa', 'Campaña cuatro', 'TEST034', 'campana4@reforme.local', '3000000034');
+
+-- La web pública (sin sesión) ve las cifras.
+set local role anon;
+select results_eq(
+  $$select vendidas, meta, tramo_orden, tramo_pct, quedan_en_tramo from estado_campana()$$,
+  $$values (0, 3, 1, 15, 2)$$,
+  'sin sesión se ve el estado de la campaña: 0 de 3, tramo del 15 %, quedan 2');
+reset role;
+
+-- Una instructora no monta campañas.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok(
+  $$insert into campanas (nombre, desde, hasta) values ('Mía', current_date + 30, current_date + 31)$$,
+  '42501', null,
+  'solo Administración crea campañas');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+-- Primera venta, sobre un plan con su propio −20 %: no se suman.
+select registrar_membresia('00000000-0000-0000-0000-0000000000a7',
+  '00000000-0000-0000-0000-0000000000b5', 'Efectivo');
+select registrar_membresia('00000000-0000-0000-0000-0000000000a8',
+  '00000000-0000-0000-0000-0000000000b7', 'Nequi');
+select registrar_membresia('00000000-0000-0000-0000-0000000000a9',
+  '00000000-0000-0000-0000-0000000000b7', 'Efectivo');
+select registrar_membresia('00000000-0000-0000-0000-0000000000aa',
+  '00000000-0000-0000-0000-0000000000b7', 'Efectivo');
+-- Ya tenía plan (la semilla de este test): renovar no es «primera».
+select registrar_membresia('00000000-0000-0000-0000-0000000000d1',
+  '00000000-0000-0000-0000-0000000000b7', 'Efectivo');
+-- Renovación de quien entró en la campaña: precio normal.
+select registrar_membresia('00000000-0000-0000-0000-0000000000a7',
+  '00000000-0000-0000-0000-0000000000b7', 'Efectivo');
+reset role;
+
+select results_eq(
+  $$select importe, campana_pct, inicio from membresias
+    where cliente_id = '00000000-0000-0000-0000-0000000000a7' and campana_id is not null$$,
+  $$values (85000, 15, current_date + 10)$$,
+  'la 1ª venta lleva el 15 % sobre el precio de lista (sin sumar el del plan) y empieza el día fijado');
+select is(
+  (select campana_pct from membresias where cliente_id = '00000000-0000-0000-0000-0000000000a8'),
+  15,
+  'la 2ª venta, todavía al 15 %');
+select results_eq(
+  $$select importe, campana_pct from membresias
+    where cliente_id = '00000000-0000-0000-0000-0000000000a9'$$,
+  $$values (90000, 10)$$,
+  'la 3ª venta ya cae en el tramo del 10 %');
+select results_eq(
+  $$select importe, campana_id is null from membresias
+    where cliente_id = '00000000-0000-0000-0000-0000000000aa'$$,
+  $$values (100000, true)$$,
+  'con los cupos agotados se cobra el precio normal');
+select is(
+  (select count(*)::integer from membresias
+   where cliente_id = '00000000-0000-0000-0000-0000000000d1' and campana_id is not null),
+  0,
+  'quien ya tenía un plan no entra en la campaña');
+select results_eq(
+  $$select importe, campana_id is null from membresias
+    where cliente_id = '00000000-0000-0000-0000-0000000000a7' and plan_id = '00000000-0000-0000-0000-0000000000b7'$$,
+  $$values (100000, true)$$,
+  'renovar después de la campaña es precio normal');
+select results_eq(
+  $$select vendidas, tramo_orden is null, quedan_en_tramo is null from estado_campana()$$,
+  $$values (3, true, true)$$,
+  'agotada: 3 de 3 y sin tramo');
+select throws_ok(
+  $$insert into membresias (cliente_id, plan_id, inicio, vencimiento, importe, campana_id, campana_pct)
+    values ('00000000-0000-0000-0000-0000000000a8', '00000000-0000-0000-0000-0000000000b7',
+            current_date + 60, current_date + 90, 85000, '00000000-0000-0000-0000-0000000000f7', 15)$$,
+  '23505', null,
+  'un cliente no ocupa dos cupos de la misma campaña');
+
+-- Guardar la campaña desde Configuración: campaña y tramos de una vez.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok(
+  $$select guardar_campana('00000000-0000-0000-0000-0000000000f7', 'Apertura ampliada',
+      current_date - 1, current_date + 6, null, '[{"cupos": 5, "pct": 20}]')$$,
+  'Administración edita la campaña y le cambia los tramos');
+select results_eq(
+  $$select nombre, vendidas, meta, tramo_pct, quedan_en_tramo from estado_campana()$$,
+  $$values ('Apertura ampliada'::text, 3, 5, 20, 2)$$,
+  'los tramos nuevos sustituyen a los viejos y lo vendido sigue contando');
+select throws_ok(
+  $$select guardar_campana('00000000-0000-0000-0000-0000000000f7', 'Sin tramos',
+      current_date - 1, current_date + 6, null, '[]')$$,
+  'P0001', null,
+  'una campaña sin tramos no se guarda');
+reset role;
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok(
+  $$select guardar_campana(null, 'De la instructora', current_date + 40, current_date + 41, null,
+      '[{"cupos": 5, "pct": 20}]')$$,
+  '42501', null,
+  'solo Administración guarda campañas');
+reset role;
+
+-- Terminar ahora: la campaña se marca cerrada y deja de contar.
+select lives_ok(
+  $$update campanas set cerrada = true, hasta = current_date - 1
+    where id = '00000000-0000-0000-0000-0000000000f7'$$,
+  'terminar una campaña con ventas');
+select is((select count(*)::integer from estado_campana()), 0,
+  'una campaña cerrada ya no se aplica al cobrar');
+-- El caso que fallaba (7 nov 2026): la nueva empieza HOY, justo después de la
+-- cerrada, y se termina el mismo día. Antes se movía su primer día a ayer y
+-- chocaba con la anterior.
+select lives_ok(
+  $$insert into campanas (id, nombre, desde, hasta)
+    values ('00000000-0000-0000-0000-0000000000f8', 'Segunda campaña', current_date - 1, current_date + 6)$$,
+  'tras cerrar una, se abre otra en sus mismas fechas');
+select lives_ok(
+  $$update campanas set cerrada = true, hasta = desde
+    where id = '00000000-0000-0000-0000-0000000000f8'$$,
+  'y se puede terminar aunque sus fechas coincidan con la cerrada');
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$select guardar_campana('00000000-0000-0000-0000-0000000000f8', 'Reabierta',
+      current_date, current_date + 6, null, '[{"cupos": 5, "pct": 20}]')$$,
+  'P0002', null,
+  'una campaña terminada no se edita');
 reset role;
 
 select * from finish();

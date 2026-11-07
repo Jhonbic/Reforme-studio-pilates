@@ -71,7 +71,7 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
 | `npm test` | **Vitest**, 63 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 92 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm run test:db` | **pgTAP**, 128 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -1874,7 +1874,13 @@ dashboard la **meta de 60 clientes**, los **ingresos del mes** y los **pagos
 pendientes**; hasta aquí todo plan se cobraba entero al asignarlo, así que
 «pendiente» no existía.
 
-- **Abonos**: «Asignar plan / Renovar» pregunta **Paga hoy: Todo · Una parte ·
+- ⚠️ **Los abonos se QUITARON el 7 nov 2026** (decisión del usuario: «siempre
+  se debe pagar completo»): «Asignar plan / Renovar» ya no pregunta cuánto
+  paga y `registrar_membresia` vuelve a tener **3 argumentos** (sin
+  `p_abono`; migración `20261107120000_campana_apertura`). Una llamada con
+  abono falla con «la función no existe». Lo de abajo sobre deudas sigue
+  valiendo para las que quedaran de antes: se ven y se cobran en la ficha.
+- ~~**Abonos**~~ (historia): «Asignar plan / Renovar» preguntaba **Paga hoy: Todo · Una parte ·
   Nada todavía**. El plan se activa igual; el resumen dice «Se cobra hoy» y
   «Queda debiendo». `registrar_membresia` tiene un 4º argumento `p_abono`
   (NULL = todo, 0 = sin pago). Se borró la versión de 3 argumentos: con el
@@ -1949,6 +1955,133 @@ Pedidos del estudio en la reunión del 22 oct. Migración
   empezar).
 - Tres listas en `xl`; en `lg` la tercera baja a otra fila.
 - 9 tests de base (106) y 6 de Vitest (88).
+
+#### Campaña de apertura por tramos (nov 2026) — fase 1 de 5: la base
+
+Pedido del estudio: «Preinscripciones de apertura», 7 días, primeras 20
+membresías al 15 %, siguientes 25 al 10 %, siguientes 35 al 5 % (meta 80).
+Migración `20261107120000_campana_apertura`.
+
+- Tablas **`campanas`** (nombre, desde, hasta, `inicio_membresias` opcional)
+  y **`campana_tramos`** (orden, cupos, %). Dos campañas no pueden coincidir
+  en el tiempo (exclusión). Las monta solo Administración; el personal las lee.
+- **Reglas (decisión del usuario)**: solo la **primera membresía** de cada
+  cliente (y, como todo plan desde el 7 nov 2026, pagada entera: ya no hay
+  abonos). Los descuentos **no se suman**: el tramo va sobre
+  el precio de lista e ignora el descuento propio del plan.
+- La aplica **`registrar_membresia`**; la membresía guarda `campana_id` y
+  `campana_pct` (cambiar la campaña después no reescribe la historia). Un
+  cliente, un cupo por campaña (índice único).
+- ⚠️ **Concurrencia**: candado `pg_advisory_xact_lock` por campaña antes de
+  contar, y se vuelve a leer el tramo después. Consultivo y no `for update`
+  porque Recepción no tiene UPDATE sobre `campanas`. Probado con dos
+  conexiones a la vez sobre el último cupo: una al 15 %, la otra a precio
+  normal.
+- **`estado_campana(fecha)`** (`security definer`, también para `anon`): solo
+  cifras — vendidas, meta, tramo en curso y cuántas quedan en él. Es la única
+  fuente para el cobro, el dashboard y la web.
+- `inicio_membresias`: si se rellena, las membresías de la campaña empiezan
+  ese día (el estudio aún no lo ha decidido). NULL = el día del pago.
+- La meta de la campaña va **aparte** de `ajustes.meta_clientes`.
+- 13 tests de base (119).
+- **Fase 2 — cobrar en recepción** (`AsignarPlan`): si el cliente nunca ha
+  tenido plan y hay tramo, arriba sale «Preinscripciones de apertura ·
+  membresía 18 de 80 · −15 % en su primera membresía. Quedan 2 a este
+  precio», la lista de planes enseña el precio de apertura y el resumen
+  cobra ese precio. (Los avisos de «Una parte» / «Nada todavía» se fueron
+  con los abonos.) La regla para anunciar vive en `lib/admin/campana.ts`.
+  ⚠️ **El aviso de éxito cuenta lo que cobró la BASE**: `asignarPlan` lee
+  `importe` y `campana_pct` de la membresía creada; si otra venta se llevó
+  el último cupo del tramo, lo dice («El tramo cambió mientras se cobraba»).
+  `getEstadoCampana()` en `queries.ts`. Tipos de `campanas`,
+  `campana_tramos` y `estado_campana` añadidos A MANO a `tipos.ts`: el
+  generador de la CLI de nov 2026 pierde columnas de las vistas.
+- **Fase 3 — Configuración → «Campaña de descuento»** (`CampanasDescuento.tsx`,
+  primera tarjeta de «Del estudio», solo Administración): lista de las
+  últimas 6 campañas con estado (● En curso · ◇ Programada · ○ Terminada),
+  «N de 80 membresías vendidas» con barra y los tramos en pastillas.
+  - **Formulario** (diálogo): nombre, primer y último día («7 días, incluido
+    el último»), tramos como una frase por línea («Primeras [20] al [15 %] ✕»,
+    sin etiqueta encima de cada campo: el nombre accesible va en
+    `aria-label`), «+ Añadir tramo» (hasta 10), eco «Meta: 80 membresías. Se
+    cobran las primeras 20 al 15 %…», y la casilla «Las membresías empiezan
+    otro día» (`inicio_membresias`). Una nueva arranca con los tramos de la
+    apertura (20/15 · 25/10 · 35/5) y siete días desde hoy.
+  - Lo guarda **`guardar_campana`** (misma migración): campaña y tramos en
+    una transacción. Reglas en `erroresCampana()` (`campana.ts`, con tests),
+    compartidas por el formulario y la server action `guardarCampana`. Dos
+    campañas a la vez → el error vuelve a «Primer día».
+  - Editar con ventas hechas es seguro: lo vendido sigue contando y conserva
+    su %. Si los tramos nuevos quedan por debajo de lo vendido, avisa en
+    ámbar de que no queda ningún cupo con descuento.
+  - **Sin ventas se «Borra»; con ventas se «Termina ahora»**: se marca
+    **`cerrada`** y su último día pasa a ayer (o a su primer día si empezó
+    hoy); desde ese momento, precio normal. Las dos con segunda pulsación.
+    `terminarCampana`, `eliminarCampana`.
+    ⚠️ **Gotcha (7 nov 2026)**: al principio «terminar» movía las DOS fechas
+    a ayer, y una campaña que empezó hoy caía encima de la anterior ya
+    terminada → «conflicting key value violates exclusion constraint
+    campanas_sin_solapes». Ahora la exclusión solo cuenta campañas no
+    cerradas (`where (not cerrada)`), `estado_campana()` las ignora y
+    `guardar_campana` no deja editarlas. Se puede cerrar una y abrir otra el
+    mismo día. Tests de base del caso (128).
+  - ⚠️ El test de base aparta (dentro de su transacción) las campañas que
+    haya en local: una campaña viva cambiaba lo que cobran los tests de
+    descuentos de los planes. 4 tests de base nuevos (123) y 7 de Vitest.
+  - Probado en el navegador a 1280 y 390 px: editar, crear una que choca
+    (error en la fecha), crear otra válida con un 4.º tramo, borrarla.
+- **Fase 4 — dashboard**: tercera tarjeta en la fila de Meta e Ingresos,
+  solo mientras corre una campaña (`getCampanaEnCurso()`) y para **todo el
+  equipo** (son cifras, y Recepción es quien vende). «35 de 80 membresías»,
+  barra **partida en tramos** del ancho de sus cupos (el tramo en curso con
+  anillo dorado y su % en negrita; `segmentosCampana()` en `campana.ts`, con
+  tests) y «Tramo del 10 % · quedan 10 a este precio · hasta el 13 de nov»,
+  o «Cupos con descuento agotados · ya se cobra precio normal». La barra es
+  `aria-hidden`: todo lo que dice está escrito. Con las tres tarjetas, la
+  fila va a 2 columnas en `md` y 3 en `xl`.
+- **Fase 5 — portada y área de cliente**:
+  - **Portada**: recuadro en la sección verde «Reserva tu clase en
+    segundos», solo mientras quedan cupos: «Preinscripciones de apertura ·
+    −15 % en tu primera membresía · Quedan 18 cupos a este precio · hasta el
+    13 de nov». **No va en el hero**: el hero no
+    admite más texto (§6).
+    ⚠️ La portada **sigue estática** (`○`, `revalidate = 60`: se regenera
+    como mucho cada minuto) porque lee la campaña con un cliente de Supabase
+    **sin cookies** (`lib/campanaPublica.ts`, `server-only`); con
+    `crearClienteServidor()` se volvería dinámica. Sin variables (la CI) o
+    con la base caída devuelve `null` y la portada sale como siempre.
+    `asignarPlan` hace `revalidatePath("/")`: cobrar baja el contador al
+    momento.
+  - **`/mi-cuenta` (Inicio y Planes)**: si corre la campaña y el cliente
+    **nunca ha tenido membresía** (`cobertura` vacía), el aviso de Inicio y
+    la banda de Planes son los de la campaña, y cada plan sale con el precio
+    de apertura, el de lista tachado y la etiqueta «−15 % · hasta el 13 de
+    nov». El WhatsApp «Lo quiero» dice «con el 15 % de apertura». Manda
+    sobre el descuento propio de los planes (no se suman). Quien ya tuvo un
+    plan ve lo de siempre.
+  - `aEstadoCampana()` (`campana.ts`) convierte la fila de
+    `estado_campana()` para el panel, el cliente y la portada.
+  - Probado en el navegador a 1280 y 390 px con una clienta sin plan;
+    `next build` confirma `/` como `○` con revalidación de 1 min.
+- ⚠️ **Leer la campaña no lanza** (`getEstadoCampana`, `getCampanaEnCurso`):
+  si la base falla o aún no tiene la migración, se registra y se sigue sin
+  campaña. Probado quitando el permiso en local: el dashboard y la ficha se
+  pintan sin ella. Configuración (`getCampanas`) sí lanza: es la pantalla de
+  la campaña.
+- **Revisión antes de producción (7 nov 2026)**: la migración se aplicó
+  ENTERA sobre el estado de producción (quitándola y volviéndola a poner en
+  una transacción deshecha): entra limpia, `anon` solo ejecuta
+  `estado_campana`, RLS en las dos tablas. Lint, tipos, Vitest (103),
+  pgTAP (128), `npm audit --omit=dev` (0) y `next build` con y sin
+  variables de Supabase (la portada sigue `○`, 1 min).
+- **Para producción**: 1) aplicar la migración `20261107120000_campana_apertura`
+  (⚠️ la CLI local ya no tiene permisos sobre el proyecto desde que pasó a
+  la organización del estudio: `supabase login` con una cuenta de esa
+  organización, `supabase migration list` para ver qué falta, y `supabase
+  db push`; o pegar el archivo en el SQL Editor). 2) Push a `main` (Vercel
+  despliega). 3) Crear la campaña real en Configuración. La migración va
+  ANTES que la web o a la vez: con la web primero no se rompe nada (ver
+  arriba), pero la tarjeta de Configuración fallaría hasta aplicarla.
 
 #### Planes (`/admin/planes`) — desde Supabase, oct 2026
 
@@ -2351,7 +2484,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, **https://www.reformestudiopilates.com** (y `reforme-studio-pilates.vercel.app`); push a `main` → despliegue |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme»). Desde el 24 oct 2026 está en la **organización del estudio** (cuenta de Google de Reforme, org `pxgyxdevjqhpzfskjwpm`), transferido desde la de `jhonespa123@gmail.com`, que sigue como miembro. Misma URL, claves, datos y cron: no hubo que tocar Vercel. Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **26 migraciones (`20261018120000_correo_obligatorio`, aún solo en local)** |
+| Esquema | `supabase/migrations/` — **las de `20261107120000_campana_apertura` para atrás (esta, aún solo en local)** |
 
 ### Variables de entorno
 
@@ -2359,7 +2492,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto | `.env.local` y Vercel ✅ |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave pública (RLS manda) | `.env.local` y Vercel ✅ |
-| `SUPABASE_SERVICE_ROLE_KEY` | Crear cuentas: registro de clientes, alta de miembros, contraseñas temporales y quitar la marca de «debe cambiarla» | `.env.local` ✅ · **Vercel: pendiente** |
+| `SUPABASE_SERVICE_ROLE_KEY` | Crear cuentas: registro de clientes, alta de miembros, contraseñas temporales y quitar la marca de «debe cambiarla» | `.env.local` ✅ · Vercel ✅ (Secret; confirmado por el usuario el 7 nov 2026) |
 | `NEXT_PUBLIC_SITE_URL` | Opcional. URL pública para `sitemap`, `robots` y la imagen al compartir | Sin ella: `https://www.reformestudiopilates.com` (`src/lib/sitio.ts`) |
 
 ⚠️ `SUPABASE_SERVICE_ROLE_KEY` se salta toda la seguridad de la base: nunca con
@@ -2531,8 +2664,9 @@ de repetir:
       un proyecto y una clave de otro, Supabase responde «Invalid API key».
 - [ ] **Borrar el proyecto `gdmxiqvmtegusevkqtgt`** cuando producción esté
       probada contra `ngjy…`.
-- [ ] **Añadir `SUPABASE_SERVICE_ROLE_KEY` en Vercel** (Production y Preview) y
-      volver a desplegar. **Sin ella, en producción no funcionan ni el registro
+- [x] ~~**Añadir `SUPABASE_SERVICE_ROLE_KEY` en Vercel**~~ — ya estaba, con el
+      valor correcto (comprobado por el usuario, 7 nov 2026). Debe estar en
+      Production y Preview, como *Secret*, y con un despliegue posterior. Antes: **Sin ella, en producción no funcionan ni el registro
       de clientes, ni el alta de miembros, ni las contraseñas temporales (equipo y «Crear contraseña web»), ni el cambio obligatorio al primer inicio.** Valor: Supabase → Project
       Settings → API → `service_role`.
 - [ ] **Cambiar la contraseña de la cuenta de administración** del remoto: la

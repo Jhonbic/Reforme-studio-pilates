@@ -1,5 +1,6 @@
 import { telefonoCO } from "./format";
 import { descuentoVigente, precioVigente, type Descuento } from "./descuento";
+import { aEstadoCampana, type CampanaConfig, type EstadoCampana, type TramoCampana } from "./campana";
 import { finDe, hoyEnBogota, sumarDias } from "./horario";
 import { cache } from "react";
 import type { DatosDashboard } from "./dashboard";
@@ -708,6 +709,83 @@ export async function getPlanesALaVenta(): Promise<PlanALaVenta[]> {
     modalidad: p.modalidad,
     clasesReformer: p.clases_reformer,
     clasesMat: p.clases_mat,
+  }));
+}
+
+/**
+ * La campaña de descuento por tramos que corre hoy (Bogotá), o `null`.
+ * Solo cifras: la misma función la pide la web pública.
+ *
+ * ⚠️ **No lanza**: si la base falla (o aún no tiene la migración, en los
+ * minutos de un despliegue), se registra y se sigue como si no hubiera
+ * campaña. Una promoción no puede tumbar el dashboard ni la ficha del
+ * cliente. Lo que se cobra lo decide igual la base, con o sin este dato.
+ */
+export async function getEstadoCampana(): Promise<EstadoCampana | null> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("estado_campana", { p_fecha: hoyEnBogota() });
+  if (error) {
+    console.error(`No se pudo leer la campaña: ${error.message}`);
+    return null;
+  }
+  const c = data?.[0];
+  return c ? aEstadoCampana(c) : null;
+}
+
+/**
+ * La campaña en curso para el dashboard: su estado y los tramos (para la
+ * barra por tramos), o `null` si hoy no corre ninguna. Todo el equipo la ve:
+ * son cifras, y Recepción es quien vende.
+ */
+export async function getCampanaEnCurso(): Promise<(EstadoCampana & { tramos: TramoCampana[] }) | null> {
+  const estado = await getEstadoCampana();
+  if (!estado) return null;
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase
+    .from("campana_tramos")
+    .select("cupos, descuento_pct")
+    .eq("campana_id", estado.id)
+    .order("orden");
+  // Como `getEstadoCampana`: sin tramos no se pinta la tarjeta, pero el
+  // dashboard sigue.
+  if (error) {
+    console.error(`No se pudieron leer los tramos: ${error.message}`);
+    return null;
+  }
+  return { ...estado, tramos: data.map((t) => ({ cupos: t.cupos, pct: t.descuento_pct })) };
+}
+
+/**
+ * Las campañas para Configuración: las que siguen y las últimas terminadas,
+ * de la más reciente a la más antigua, con sus tramos y cuántas se vendieron.
+ * Solo Administración (RLS: el personal las lee, pero solo ella las gestiona).
+ */
+export async function getCampanas(): Promise<CampanaConfig[]> {
+  const supabase = await crearClienteServidor();
+  const [{ data, error }, ventas] = await Promise.all([
+    supabase
+      .from("campanas")
+      .select("id, nombre, desde, hasta, inicio_membresias, cerrada, campana_tramos(orden, cupos, descuento_pct)")
+      .order("desde", { ascending: false })
+      .limit(6),
+    // Pocas filas (como mucho la meta de cada campaña): se cuentan aquí.
+    supabase.from("membresias").select("campana_id").not("campana_id", "is", null),
+  ]);
+  if (error) throw new Error(`No se pudieron leer las campañas: ${error.message}`);
+  if (ventas.error) throw new Error(`No se pudieron contar las ventas: ${ventas.error.message}`);
+  const vendidas = new Map<string, number>();
+  for (const v of ventas.data) if (v.campana_id) vendidas.set(v.campana_id, (vendidas.get(v.campana_id) ?? 0) + 1);
+  return data.map((c) => ({
+    id: c.id,
+    nombre: c.nombre,
+    desde: c.desde,
+    hasta: c.hasta,
+    inicioMembresias: c.inicio_membresias,
+    cerrada: c.cerrada,
+    tramos: [...c.campana_tramos]
+      .sort((a, b) => a.orden - b.orden)
+      .map((t) => ({ cupos: t.cupos, pct: t.descuento_pct })),
+    vendidas: vendidas.get(c.id) ?? 0,
   }));
 }
 

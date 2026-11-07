@@ -3,24 +3,15 @@
 import { useState, useTransition } from "react";
 import Modal from "@/components/admin/Modal";
 import CampoSelect from "@/components/admin/campos/CampoSelect";
-import CampoTexto from "@/components/admin/campos/CampoTexto";
 import { useToast } from "@/context/ToastContext";
 import { asignarPlan } from "@/lib/admin/acciones";
 import { fecha, moneda } from "@/lib/admin/format";
-import { soloDigitos } from "@/lib/validacion";
 import { sumarDias } from "@/lib/admin/horario";
 import type { PlanALaVenta } from "@/lib/admin/queries";
 import type { MetodoPago } from "@/lib/admin/types";
+import { aperturaPosible, precioDeVenta, type EstadoCampana } from "@/lib/admin/campana";
 
 const METODOS: MetodoPago[] = ["Nequi", "Daviplata", "Transferencia", "Efectivo", "Tarjeta", "Otro"];
-
-/** Cuánto paga hoy: el plan entero, un abono o nada (queda debiendo). */
-type ModoPago = "todo" | "parte" | "nada";
-const MODOS: { valor: ModoPago; texto: string }[] = [
-  { valor: "todo", texto: "Todo" },
-  { valor: "parte", texto: "Una parte" },
-  { valor: "nada", texto: "Nada todavía" },
-];
 
 const BOTON_PRIMARIO =
   "inline-flex min-h-[44px] items-center justify-center rounded-full bg-dorado px-5 text-sm font-medium text-verde-900 transition-colors duration-300 hover:bg-dorado-dark disabled:opacity-60";
@@ -36,6 +27,10 @@ type Props = {
   planes: PlanALaVenta[];
   /** Hoy en Bogotá, del servidor. */
   hoy: string;
+  /** La campaña de descuento por tramos que corre hoy, o `null`. */
+  campana?: EstadoCampana | null;
+  /** Si nunca ha tenido un plan: solo entonces entra en la campaña. */
+  primeraMembresia?: boolean;
 };
 
 /**
@@ -48,65 +43,78 @@ type Props = {
  * después. Calcularlo aquí también es lo que permite enseñarlo; si las dos
  * reglas divergieran, el cobro diría una fecha y la ficha otra — por eso la
  * fuente de verdad sigue siendo la base, y esto es solo el anuncio.
+ *
+ * ⚠️ **El plan se cobra SIEMPRE entero** (decisión del usuario, nov 2026). Se
+ * quitaron «Una parte» y «Nada todavía» (paso 6) y la base ya no acepta
+ * abonos. Las deudas que quedaran de antes se cobran en la ficha
+ * («Registrar pago»).
  */
-export default function AsignarPlan({ clienteId, nombre, vencimiento, planes, hoy }: Props) {
+export default function AsignarPlan({
+  clienteId,
+  nombre,
+  vencimiento,
+  planes,
+  hoy,
+  campana = null,
+  primeraMembresia = false,
+}: Props) {
   const { mostrarAviso } = useToast();
   const [abierto, setAbierto] = useState(false);
   const [planId, setPlanId] = useState("");
   const [metodo, setMetodo] = useState<MetodoPago>("Nequi");
-  const [modo, setModo] = useState<ModoPago>("todo");
-  const [parte, setParte] = useState("");
   const [error, setError] = useState("");
   const [guardando, iniciar] = useTransition();
 
   const renovar = vencimiento !== "";
   const plan = planes.find((p) => p.id === planId);
 
+  // Campaña de apertura: el % que le toca si es su primera membresía. Las
+  // mismas reglas que `registrar_membresia`.
+  const pctApertura = aperturaPosible(campana, primeraMembresia);
+
   // Mismo cálculo que la función de la base: el día después del vencimiento
-  // actual, o hoy si ya venció o no tenía plan.
+  // actual, o hoy si ya venció o no tenía plan; y si la campaña fija el día
+  // de inicio, ese.
   const despuesDelActual = vencimiento ? sumarDias(vencimiento, 1) : hoy;
-  const inicio = despuesDelActual > hoy ? despuesDelActual : hoy;
+  const inicioNormal = despuesDelActual > hoy ? despuesDelActual : hoy;
+  const inicioCampana =
+    pctApertura !== null && campana?.inicioMembresias && campana.inicioMembresias > inicioNormal
+      ? campana.inicioMembresias
+      : null;
+  const inicio = inicioCampana ?? inicioNormal;
   const vence = plan ? sumarDias(inicio, plan.vigenciaDias) : "";
 
-  // Lo que entra hoy y lo que queda debiendo. Con «Una parte» vacía, 0.
-  const precio = plan?.precio ?? 0;
-  const pagaHoy = modo === "todo" ? precio : modo === "nada" ? 0 : Number(parte || 0);
-  const debe = Math.max(0, precio - pagaHoy);
-  const errorParte =
-    modo !== "parte" || !plan || parte === ""
-      ? ""
-      : pagaHoy <= 0
-        ? "Escribe cuánto paga hoy."
-        : pagaHoy >= precio
-          ? `Es el plan entero: elige «Todo» (${moneda(precio)}).`
-          : "";
+  // Lo que se cobra hoy: el plan entero, siempre.
+  const precio = plan ? precioDeVenta(plan, pctApertura) : 0;
 
   function cerrar() {
     setAbierto(false);
     setPlanId("");
     setMetodo("Nequi");
-    setModo("todo");
-    setParte("");
     setError("");
   }
 
   function enviar(e: React.FormEvent) {
     e.preventDefault();
     if (!plan) return setError("Elige un plan.");
-    if (modo === "parte" && (parte === "" || errorParte))
-      return setError(errorParte || "Escribe cuánto paga hoy.");
     setError("");
     iniciar(async () => {
-      const r = await asignarPlan(clienteId, plan.id, metodo, modo === "todo" ? null : pagaHoy);
+      const r = await asignarPlan(clienteId, plan.id, metodo);
       if (!r.ok) return setError(r.error);
       cerrar();
       const quien = nombre.split(" ")[0];
+      // El aviso cuenta lo que cobró la base: si otra venta se llevó el
+      // último cupo del tramo, el % (o el precio) pudo cambiar.
+      const cobrado = r.importe ?? precio;
+      const pctReal = r.aperturaPct ?? null;
+      const cambio =
+        pctApertura !== null && pctReal !== pctApertura
+          ? " El tramo cambió mientras se cobraba."
+          : "";
       mostrarAviso(
-        debe === 0
-          ? `${plan.nombre} para ${quien}: cobrados ${moneda(plan.precio)}.`
-          : pagaHoy === 0
-            ? `${plan.nombre} para ${quien}: queda debiendo ${moneda(debe)}.`
-            : `${plan.nombre} para ${quien}: cobrados ${moneda(pagaHoy)}, queda debiendo ${moneda(debe)}.`,
+        `${plan.nombre} para ${quien}: cobrados ${moneda(cobrado)}${
+          pctReal !== null ? ` con el ${pctReal} % de apertura` : ""
+        }.${cambio}`,
         "success",
       );
     });
@@ -136,6 +144,25 @@ export default function AsignarPlan({ clienteId, nombre, vencimiento, planes, ho
             </p>
           ) : (
             <>
+              {/* Campaña de apertura: lo primero que se lee, porque cambia
+                  el precio de todos los planes de la lista. */}
+              {pctApertura !== null && campana?.tramo && (
+                <div className="rounded-xl border border-dorado/60 bg-[color-mix(in_srgb,var(--color-dorado)_10%,white)] px-4 py-3 text-sm text-verde">
+                  <p className="font-medium">
+                    {campana.nombre} · membresía{" "}
+                    <span className="font-cifra whitespace-nowrap">
+                      {campana.vendidas + 1} de {campana.meta}
+                    </span>
+                  </p>
+                  <p className="mt-0.5 text-verde-700">
+                    <span className="font-cifra">−{pctApertura} %</span> en su primera membresía.{" "}
+                    {campana.tramo.quedan === 1
+                      ? "Es la última a este precio."
+                      : `Quedan ${campana.tramo.quedan} a este precio.`}
+                  </p>
+                </div>
+              )}
+
               <CampoSelect
                 nombre="plan"
                 etiqueta="Plan"
@@ -160,8 +187,12 @@ export default function AsignarPlan({ clienteId, nombre, vencimiento, planes, ho
                           {p.modalidad === "Fusión"
                             ? `${p.clasesReformer} Reformer + ${p.clasesMat} Mat`
                             : `${p.clasesReformer + p.clasesMat} clases`}{" "}
-                          · {moneda(p.precio)}
-                          {p.descuento ? ` (−${p.descuento.pct} %)` : ""}
+                          · {moneda(precioDeVenta(p, pctApertura))}
+                          {pctApertura !== null
+                            ? ` (apertura −${pctApertura} %)`
+                            : p.descuento
+                              ? ` (−${p.descuento.pct} %)`
+                              : ""}
                         </option>
                       ))}
                     </optgroup>
@@ -169,60 +200,6 @@ export default function AsignarPlan({ clienteId, nombre, vencimiento, planes, ho
                 })}
               </CampoSelect>
 
-              {/* Pagar a plazos: el plan se activa igual, y lo que falta sale
-                  en la ficha y en «Por cobrar» del dashboard hasta que se
-                  cobre. */}
-              <fieldset>
-                <legend className="mb-1.5 text-sm font-medium text-verde">Paga hoy</legend>
-                <div className="flex flex-wrap gap-2">
-                  {MODOS.map((m) => (
-                    <label
-                      key={m.valor}
-                      className={`inline-flex min-h-[44px] cursor-pointer items-center rounded-full border px-4 text-sm transition-colors duration-300 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-dorado/40 ${
-                        modo === m.valor
-                          ? "border-dorado bg-dorado text-verde-900"
-                          : "border-beige text-verde-700 hover:border-dorado"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="modo-pago"
-                        value={m.valor}
-                        checked={modo === m.valor}
-                        onChange={() => {
-                          setModo(m.valor);
-                          setError("");
-                        }}
-                        className="sr-only"
-                      />
-                      {m.texto}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-
-              {modo === "parte" && (
-                <CampoTexto
-                  nombre="abono"
-                  etiqueta="Cuánto paga hoy"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  value={parte}
-                  onChange={(e) => {
-                    setParte(soloDigitos(e.target.value).slice(0, 9));
-                    setError("");
-                  }}
-                  error={errorParte || undefined}
-                  ayuda={
-                    parte && !errorParte
-                      ? `${moneda(pagaHoy)} · queda debiendo ${moneda(debe)}`
-                      : "En pesos, sin puntos."
-                  }
-                  ancho
-                />
-              )}
-
-              {modo !== "nada" && (
               <CampoSelect
                 nombre="metodo"
                 etiqueta="Cómo paga"
@@ -236,14 +213,13 @@ export default function AsignarPlan({ clienteId, nombre, vencimiento, planes, ho
                   </option>
                 ))}
               </CampoSelect>
-              )}
 
               {/* El resumen solo aparece con un plan elegido: antes no hay
                   fechas ni importe que anunciar. `aria-live` para que quien usa
                   lector oiga el cambio al elegir otro plan. */}
               <div aria-live="polite">
                 {plan && (
-                  <dl className="grid grid-cols-2 gap-3 rounded-xl border border-beige bg-arena/50 px-4 py-3 text-sm sm:grid-cols-4">
+                  <dl className="grid grid-cols-3 gap-3 rounded-xl border border-beige bg-arena/50 px-4 py-3 text-sm">
                     <div>
                       <dt className="text-xs text-verde-300">Empieza</dt>
                       <dd className="font-cifra font-normal text-verde">{fecha(inicio, true)}</dd>
@@ -254,25 +230,28 @@ export default function AsignarPlan({ clienteId, nombre, vencimiento, planes, ho
                     </div>
                     <div>
                       <dt className="text-xs text-verde-300">Se cobra hoy</dt>
-                      <dd className="font-cifra font-normal text-verde">{moneda(pagaHoy)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-verde-300">Queda debiendo</dt>
-                      <dd
-                        className={`font-cifra font-normal ${debe > 0 ? "text-[var(--color-estado-aviso)]" : "text-verde"}`}
-                      >
-                        {debe > 0 ? moneda(debe) : "Nada"}
-                      </dd>
+                      <dd className="font-cifra font-normal text-verde">{moneda(precio)}</dd>
                     </div>
                   </dl>
                 )}
-                {plan?.descuento && (
+                {plan && pctApertura !== null && (
+                  <p className="mt-2 text-xs text-dorado-tinta">
+                    Con el {pctApertura} % de apertura: {moneda(precio)} en vez de{" "}
+                    {moneda(plan.precioLista)}.
+                  </p>
+                )}
+                {plan?.descuento && pctApertura === null && (
                   <p className="mt-2 text-xs text-dorado-tinta">
                     Con el descuento del {plan.descuento.pct} %: {moneda(plan.precio)} en vez de{" "}
                     {moneda(plan.precioLista)}.
                   </p>
                 )}
-                {plan && inicio > hoy && (
+                {plan && inicioCampana && (
+                  <p className="mt-2 text-xs text-verde-300">
+                    Las membresías de apertura empiezan el {fecha(inicioCampana, true)}.
+                  </p>
+                )}
+                {plan && !inicioCampana && inicio > hoy && (
                   <p className="mt-2 text-xs text-verde-300">
                     Empieza cuando acabe el plan actual: los días que ya pagó no
                     se pierden.
@@ -282,8 +261,7 @@ export default function AsignarPlan({ clienteId, nombre, vencimiento, planes, ho
             </>
           )}
 
-          {/* El error del abono ya sale bajo su campo: no se repite aquí. */}
-          {error && plan && error !== errorParte && (
+          {error && plan && (
             <p
               role="alert"
               className="rounded-xl border border-[color-mix(in_srgb,var(--color-estado-grave)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-estado-grave)_8%,transparent)] px-4 py-3 text-sm text-[var(--color-estado-grave)]"
@@ -301,11 +279,9 @@ export default function AsignarPlan({ clienteId, nombre, vencimiento, planes, ho
               <button type="submit" disabled={guardando} className={BOTON_PRIMARIO}>
                 {guardando
                   ? "Registrando…"
-                  : !plan
-                    ? "Cobrar"
-                    : pagaHoy > 0
-                      ? `Cobrar ${moneda(pagaHoy)}`
-                      : "Asignar sin cobrar"}
+                  : plan
+                    ? `Cobrar ${moneda(precio)}`
+                    : "Cobrar"}
               </button>
             )}
           </div>

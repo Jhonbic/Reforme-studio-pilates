@@ -21,6 +21,7 @@ import {
   getMembresiasConSaldo,
   getMotivoBaja,
   getPagosPendientes,
+  getEstadoCampana,
   getPlanesALaVenta,
   getPlanesAdquiridos,
   getSaldoCliente,
@@ -128,15 +129,16 @@ export default async function FichaClientePage({
     usuario?.rol === "Administración" || usuario?.rol === "Recepción";
   // Arranca ya, en paralelo con lo de abajo: con pagos solo para el mostrador.
   const historialPlanes = getPlanesAdquiridos(id, puedeCobrar);
-  const [planes, accesoWeb, clasesParaReservar, membresias, deudas] = puedeCobrar
+  const [planes, accesoWeb, clasesParaReservar, membresias, deudas, campana] = puedeCobrar
     ? await Promise.all([
         getPlanesALaVenta(),
         tieneAccesoWeb(id),
         cliente ? getClasesParaReservar(cliente.id, hoy, horaEnBogota()) : [],
         cliente ? getMembresiasConSaldo(cliente.id) : [],
         cliente ? getPagosPendientes(cliente.id) : [],
+        getEstadoCampana(),
       ])
-    : [[], false, [], [], []];
+    : [[], false, [], [], [], null];
 
   /* Un id que no existe es un 404 de verdad, no una tarjeta vacía: la ficha de
      alguien que no está no es «sin datos», es otra dirección. */
@@ -179,6 +181,9 @@ export default async function FichaClientePage({
               vencimiento={cliente.vencimiento}
               planes={planes}
               hoy={hoy}
+              campana={campana}
+              // La campaña de apertura es solo para la PRIMERA membresía.
+              primeraMembresia={planesAdquiridos.length === 0}
             />
           )}
           {/* Reservar parte de la PERSONA: «resérvame el jueves a las 7». */}
@@ -295,8 +300,9 @@ export default async function FichaClientePage({
             ) : (
               <span className="font-normal text-verde-300">Sin plan todavía</span>
             )}
-            {/* Lo que debe (plan asignado con abono o sin cobrar), con el
-                botón para cobrarlo. Solo lo ve el mostrador. */}
+            {/* Lo que debe, con el botón para cobrarlo. Solo lo ve el
+                mostrador. Desde nov 2026 todo plan se cobra entero, así que
+                solo aparece con deudas de antes (abonos del paso 6). */}
             {deudas.length > 0 && (
               <div className="mt-3 space-y-2 font-normal">
                 {deudas.map((d) => (

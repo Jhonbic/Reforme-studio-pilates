@@ -9,7 +9,8 @@ import {
   TIPOS_IDENTIFICACION,
 } from "./catalogos";
 import { fecha as fechaCorta, moneda } from "./format";
-import { hoyEnBogota } from "./horario";
+import { hoyEnBogota, sumarDias } from "./horario";
+import { erroresCampana, type BorradorCampana, type CampoCampana } from "./campana";
 import { getUsuarioActual } from "./queries";
 import type {
   Asistencia,
@@ -526,7 +527,14 @@ export async function eliminarPlan(id: string): Promise<ResultadoPlan> {
    ====================================================================== */
 
 export type ResultadoAsignacion =
-  | { ok: true }
+  | {
+      ok: true;
+      /** Al asignar un plan: lo que se cobró DE VERDAD por la membresía y el
+       *  % de apertura que eligió la base (`null` = precio normal). Puede no
+       *  ser lo anunciado si otra venta se llevó el último cupo del tramo. */
+      importe?: number;
+      aperturaPct?: number | null;
+    }
   | { ok: false; error: string };
 
 const UUID_VALIDO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -547,8 +555,6 @@ export async function asignarPlan(
   clienteId: string,
   planId: string,
   metodo: string,
-  /** Lo que paga hoy. `null` = el plan entero; 0 = nada todavía. */
-  abono: number | null = null,
 ): Promise<ResultadoAsignacion> {
   const usuario = await getUsuarioActual();
   if (usuario?.rol !== "Administración" && usuario?.rol !== "Recepción") {
@@ -558,16 +564,13 @@ export async function asignarPlan(
     return { ok: false, error: "Cliente o plan no válido." };
   }
   if (!esMetodo(metodo)) return { ok: false, error: "Método de pago no válido." };
-  if (abono !== null && (!Number.isInteger(abono) || abono < 0))
-    return { ok: false, error: "Lo que paga hoy no es un importe válido." };
 
   const supabase = await crearClienteServidor();
-  // El tope (no más que el precio) lo pone la función de la base.
-  const { error } = await supabase.rpc("registrar_membresia", {
+  // Siempre el plan entero (nov 2026): la base ya no acepta abonos.
+  const { data: membresiaId, error } = await supabase.rpc("registrar_membresia", {
     p_cliente: clienteId,
     p_plan: planId,
     p_metodo: metodo,
-    ...(abono === null ? {} : { p_abono: abono }),
   });
 
   if (error) {
@@ -584,7 +587,18 @@ export async function asignarPlan(
   revalidatePath("/admin/finanzas");
   revalidatePath("/admin/planes");
   revalidatePath("/admin");
-  return { ok: true };
+  // El contador de la campaña de descuento: portada y área de cliente.
+  revalidatePath("/");
+  revalidatePath("/mi-cuenta", "layout");
+
+  // Lo que eligió la base (el tramo de la campaña lo decide ella, con su
+  // candado): el aviso tiene que contar lo que pasó, no lo que se anunció.
+  const { data: m } = await supabase
+    .from("membresias")
+    .select("importe, campana_pct")
+    .eq("id", membresiaId)
+    .maybeSingle();
+  return { ok: true, importe: m?.importe, aperturaPct: m?.campana_pct ?? null };
 }
 
 /**
@@ -1463,6 +1477,113 @@ export async function abrirDia(fecha: string): Promise<ResultadoConfig> {
   const { error } = await supabase.from("dias_cerrados").delete().eq("fecha", fecha);
   if (error) return { ok: false, error: `No se pudo abrir el día: ${error.message}` };
   revalidarConfiguracion();
+  return { ok: true };
+}
+
+/* ======================================================================
+   Campañas de descuento por tramos (solo Administración)
+   ====================================================================== */
+
+export type ResultadoCampana =
+  | { ok: true }
+  | { ok: false; error: string; campo?: CampoCampana };
+
+function revalidarCampana() {
+  // La campaña cambia el cobro (ficha), Configuración y, más adelante, el
+  // dashboard y la web: todo el panel.
+  revalidatePath("/admin", "layout");
+  revalidatePath("/mi-cuenta", "layout");
+  revalidatePath("/");
+}
+
+/**
+ * Crea (`id` null) o edita una campaña con sus tramos, en una transacción
+ * (`guardar_campana`). Mismas reglas que el formulario (`erroresCampana`);
+ * la base vuelve a impedir fechas al revés y dos campañas a la vez.
+ */
+export async function guardarCampana(id: string | null, b: BorradorCampana): Promise<ResultadoCampana> {
+  const prohibido = await soloAdminConfig();
+  if (prohibido) return { ok: false, error: prohibido };
+  if (id !== null && !UUID_VALIDO.test(id)) return { ok: false, error: "Campaña no válida." };
+
+  const errores = erroresCampana(b, hoyEnBogota(), id === null);
+  const primero = (Object.keys(errores) as CampoCampana[])[0];
+  if (primero) return { ok: false, error: errores[primero]!, campo: primero };
+
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("guardar_campana", {
+    p_id: id,
+    p_nombre: b.nombre.trim(),
+    p_desde: b.desde,
+    p_hasta: b.hasta,
+    p_inicio: b.inicio === "" ? null : b.inicio,
+    p_tramos: b.tramos.map((t) => ({ cupos: t.cupos, pct: t.pct })),
+  });
+  if (error) {
+    if (error.code === "23P01")
+      return {
+        ok: false,
+        error: "Ya hay otra campaña en esas fechas: cambia las fechas o edita esa.",
+        campo: "desde",
+      };
+    if (error.code === "P0001" || error.code === "P0002" || error.code === "42501")
+      return { ok: false, error: error.message };
+    if (error.code === "23514") return { ok: false, error: "Revisa las fechas y los tramos." };
+    return { ok: false, error: `No se pudo guardar la campaña: ${error.message}` };
+  }
+  revalidarCampana();
+  return { ok: true };
+}
+
+/**
+ * Termina una campaña HOY: desde ahora se cobra precio normal. Lo vendido se
+ * queda como está.
+ *
+ * ⚠️ Se marca `cerrada` (deja de aplicarse y de ocupar sus fechas) y su
+ * último día pasa a ayer, o a su primer día si empezó hoy. Antes se movían
+ * las dos fechas a ayer, y una campaña que empezó hoy acababa encima de la
+ * anterior: la base lo rechazaba («campanas_sin_solapes»).
+ */
+export async function terminarCampana(id: string): Promise<ResultadoCampana> {
+  const prohibido = await soloAdminConfig();
+  if (prohibido) return { ok: false, error: prohibido };
+  if (!UUID_VALIDO.test(id)) return { ok: false, error: "Campaña no válida." };
+
+  const supabase = await crearClienteServidor();
+  const { data: c, error: errorLeer } = await supabase
+    .from("campanas")
+    .select("desde, hasta, cerrada")
+    .eq("id", id)
+    .maybeSingle();
+  if (errorLeer) return { ok: false, error: `No se pudo leer la campaña: ${errorLeer.message}` };
+  if (!c) return { ok: false, error: "Esa campaña ya no existe." };
+
+  const ayer = sumarDias(hoyEnBogota(), -1);
+  if (c.cerrada || c.hasta <= ayer) return { ok: false, error: "Esa campaña ya había terminado." };
+  // El último día que estuvo viva: ayer, o el primero si empezó hoy.
+  const hasta = c.desde > ayer ? c.desde : ayer;
+  const { error } = await supabase.from("campanas").update({ cerrada: true, hasta }).eq("id", id);
+  if (error) return { ok: false, error: `No se pudo terminar la campaña: ${error.message}` };
+  revalidarCampana();
+  return { ok: true };
+}
+
+/** Borra una campaña que no vendió nada. Con ventas, se termina (la base no
+ *  deja borrarla: las membresías la necesitan para su historia). */
+export async function eliminarCampana(id: string): Promise<ResultadoCampana> {
+  const prohibido = await soloAdminConfig();
+  if (prohibido) return { ok: false, error: prohibido };
+  if (!UUID_VALIDO.test(id)) return { ok: false, error: "Campaña no válida." };
+
+  const supabase = await crearClienteServidor();
+  const { error, count } = await supabase.from("campanas").delete({ count: "exact" }).eq("id", id);
+  if (error) {
+    if (error.code === "23503")
+      return { ok: false, error: "Ya vendió membresías con descuento: termínala en vez de borrarla." };
+    return { ok: false, error: `No se pudo borrar la campaña: ${error.message}` };
+  }
+  if (count === 0) return { ok: false, error: "Esa campaña ya no existe." };
+  revalidarCampana();
   return { ok: true };
 }
 

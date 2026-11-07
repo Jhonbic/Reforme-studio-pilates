@@ -9,6 +9,8 @@ import Magnetic from "@/components/fx/Magnetic";
 import { Isotype } from "@/components/Logo";
 import { ButtonLink } from "@/components/ui/Button";
 import { TEL_ESTUDIO, TELEFONO_ESTUDIO_TEXTO } from "@/lib/contacto";
+import { getCampanaPublica } from "@/lib/campanaPublica";
+import { fecha, numero } from "@/lib/admin/format";
 import {
   IconAltaCalidad,
   IconBienestar,
@@ -33,7 +35,18 @@ const pilares = [
   },
 ];
 
-export default function Home() {
+/**
+ * La portada sigue siendo estática, pero se regenera como mucho cada minuto:
+ * lo justo para que el contador de la campaña de descuento («quedan 18
+ * cupos») no se quede viejo. Cobrar un plan la regenera al momento
+ * (`revalidatePath("/")` en `asignarPlan`).
+ */
+export const revalidate = 60;
+
+export default async function Home() {
+  const campana = await getCampanaPublica();
+  const tramo = campana?.tramo ?? null;
+
   return (
     <>
       <Navbar />
@@ -244,6 +257,29 @@ export default function Home() {
 
           <div className="relative z-20 mx-auto max-w-3xl px-6 text-center lg:px-10">
             <Reveal>
+              {/* Campaña de descuento por tramos (la apertura), solo mientras
+                  quedan cupos. Aquí y no en el hero: el hero no admite más
+                  texto (§6 del contexto). El número que queda es real y
+                  baja con cada venta: es la escasez de verdad, no un adorno. */}
+              {campana && tramo && (
+                <div className="mx-auto mb-12 max-w-xl rounded-2xl border border-dorado/50 bg-verde-900/40 px-6 py-6 shadow-lift backdrop-blur-sm">
+                  <p className="eyebrow text-dorado-light">{campana.nombre}</p>
+                  <p className="mt-4 font-display text-4xl leading-tight sm:text-5xl">
+                    <span className="text-dorado">−{tramo.pct} %</span> en tu primera membresía
+                  </p>
+                  <p className="mt-4 text-beige">
+                    {tramo.quedan === 1 ? (
+                      "Queda el último cupo a este precio"
+                    ) : (
+                      <>
+                        Quedan <strong className="font-cifra font-bold text-arena">{numero(tramo.quedan)}</strong>{" "}
+                        cupos a este precio
+                      </>
+                    )}{" "}
+                    · hasta el {fecha(campana.hasta)}
+                  </p>
+                </div>
+              )}
               <p className="eyebrow text-dorado-light">Tu práctica te espera</p>
               <h2 className="mt-5 font-display text-4xl leading-tight sm:text-5xl">
                 Reserva tu clase en segundos.

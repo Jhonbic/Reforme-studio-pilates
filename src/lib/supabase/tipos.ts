@@ -48,6 +48,67 @@ export type Database = {
         };
         Relationships: [];
       };
+      campana_tramos: {
+        Row: {
+          campana_id: string;
+          cupos: number;
+          descuento_pct: number;
+          orden: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          campana_id: string;
+          cupos: number;
+          descuento_pct: number;
+          orden: number;
+        };
+        Update: {
+          campana_id?: string;
+          cupos?: number;
+          descuento_pct?: number;
+          orden?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "campana_tramos_campana_id_fkey";
+            columns: ["campana_id"];
+            isOneToOne: false;
+            referencedRelation: "campanas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      campanas: {
+        Row: {
+          cerrada: boolean;
+          creada_en: string;
+          desde: string;
+          hasta: string;
+          id: string;
+          inicio_membresias: string | null;
+          nombre: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          cerrada?: boolean;
+          creada_en?: string;
+          desde: string;
+          hasta: string;
+          id?: string;
+          inicio_membresias?: string | null;
+          nombre: string;
+        };
+        Update: {
+          cerrada?: boolean;
+          creada_en?: string;
+          desde?: string;
+          hasta?: string;
+          id?: string;
+          inicio_membresias?: string | null;
+          nombre?: string;
+        };
+        Relationships: [];
+      };
       clases: {
         Row: {
           cancelada: boolean;
@@ -396,6 +457,8 @@ export type Database = {
       };
       membresias: {
         Row: {
+          campana_id: string | null;
+          campana_pct: number | null;
           clases_mat: number;
           clases_reformer: number;
           cliente_id: string;
@@ -408,6 +471,8 @@ export type Database = {
         };
         ComputedFields: never;
         Insert: {
+          campana_id?: string | null;
+          campana_pct?: number | null;
           clases_mat: number;
           clases_reformer: number;
           cliente_id: string;
@@ -419,6 +484,8 @@ export type Database = {
           vencimiento: string;
         };
         Update: {
+          campana_id?: string | null;
+          campana_pct?: number | null;
           clases_mat?: number;
           clases_reformer?: number;
           cliente_id?: string;
@@ -814,12 +881,38 @@ export type Database = {
       };
       es_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       es_mostrador: { Args: Record<PropertyKey, never>; Returns: boolean };
+      estado_campana: {
+        Args: { p_fecha?: string };
+        Returns: {
+          campana_id: string;
+          desde: string;
+          hasta: string;
+          inicio_membresias: string | null;
+          meta: number;
+          nombre: string;
+          quedan_en_tramo: number | null;
+          tramo_orden: number | null;
+          tramo_pct: number | null;
+          vendidas: number;
+        }[];
+      };
       estado_de_membresia: {
         Args: { p_hoy?: string; p_ultima_asistencia: string; p_vencimiento: string };
         Returns: Database["public"]["Enums"]["estado_membresia"];
       };
       extender_agenda: { Args: Record<PropertyKey, never>; Returns: number };
       extender_agenda_interna: { Args: Record<PropertyKey, never>; Returns: number };
+      guardar_campana: {
+        Args: {
+          p_desde: string;
+          p_hasta: string;
+          p_id: string | null;
+          p_inicio: string | null;
+          p_nombre: string;
+          p_tramos: Json;
+        };
+        Returns: string;
+      };
       marcar_asistencia: {
         Args: { p_asistencia: Database["public"]["Enums"]["asistencia"]; p_reserva: string };
         Returns: undefined;
@@ -844,7 +937,6 @@ export type Database = {
       reactivar_cliente: { Args: { p_cliente: string }; Returns: undefined };
       registrar_membresia: {
         Args: {
-          p_abono?: number;
           p_cliente: string;
           p_metodo: Database["public"]["Enums"]["metodo_pago"];
           p_plan: string;

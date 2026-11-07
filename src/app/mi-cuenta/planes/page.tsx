@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { fecha, moneda } from "@/lib/admin/format";
-import { getPlanesALaVenta, type PlanALaVenta } from "@/lib/admin/queries";
+import { aperturaPosible, precioDeVenta } from "@/lib/admin/campana";
+import { getEstadoCampana, getPlanesALaVenta, type PlanALaVenta } from "@/lib/admin/queries";
 import { enlaceWhatsApp, primerNombre } from "@/lib/admin/whatsapp";
 import { getMiCuenta } from "@/lib/cliente/datos";
 import { TELEFONO_ESTUDIO } from "@/lib/contacto";
-
 
 const ORDEN_MODALIDAD = ["Mat", "Reformer", "Fusión"] as const;
 
@@ -24,13 +24,21 @@ function clasesDe(p: PlanALaVenta): string {
  * aquí no se paga nada.
  *
  * Lee `planes` con la sesión del cliente (RLS: «planes: el cliente los ve»).
+ *
+ * Campaña de descuento por tramos (la apertura): si corre y sería su PRIMERA
+ * membresía, todos los precios salen con el % del tramo, sobre el precio de
+ * lista y sin sumar el descuento propio del plan (las reglas de
+ * `registrar_membresia`). Quien ya tuvo un plan ve los precios de siempre.
  */
 export default async function PlanesClientePage() {
   const cuenta = await getMiCuenta();
   if (!cuenta) redirect("/login");
-  const planes = await getPlanesALaVenta();
+  const [planes, campana] = await Promise.all([getPlanesALaVenta(), getEstadoCampana()]);
   const nombre = primerNombre(cuenta.nombre);
-  const conDescuento = planes.filter((p) => p.descuento);
+  // Nunca ha tenido una membresía: ni vigente ni pasada.
+  const pctApertura = aperturaPosible(campana, cuenta.cobertura.length === 0);
+  // Con la apertura no se anuncia el descuento propio de los planes: no se suman.
+  const conDescuento = pctApertura === null ? planes.filter((p) => p.descuento) : [];
   const mayor = Math.max(0, ...conDescuento.map((p) => p.descuento?.pct ?? 0));
 
   return (
@@ -45,6 +53,21 @@ export default async function PlanesClientePage() {
       {/* Solo cuando el estudio pone un descuento (oct 2026): un aviso arriba
           que lleva la vista a los planes en oferta. Sin descuentos no hay
           nada que anunciar y la página queda como siempre. */}
+      {campana?.tramo && pctApertura !== null && (
+        <section className="relative overflow-hidden rounded-2xl bg-verde px-5 py-5 text-center text-arena sm:px-6 sm:text-left">
+          <p className="eyebrow text-dorado-light">{campana.nombre}</p>
+          <p className="mt-1 font-display text-2xl sm:text-3xl">
+            <span className="text-dorado">−{pctApertura} %</span> en tu primera membresía
+          </p>
+          <p className="mt-1 text-sm text-beige/80">
+            {campana.tramo.quedan === 1
+              ? "Queda el último cupo a este precio"
+              : `Quedan ${campana.tramo.quedan} cupos a este precio`}{" "}
+            · hasta el {fecha(campana.hasta)}.
+          </p>
+        </section>
+      )}
+
       {conDescuento.length > 0 && (
         <section className="relative overflow-hidden rounded-2xl bg-verde px-5 py-5 text-center text-arena sm:px-6 sm:text-left">
           <p className="eyebrow text-dorado-light">Precio especial</p>
@@ -69,11 +92,18 @@ export default async function PlanesClientePage() {
               {delGrupo.map((p) => {
                 const actual = cuenta.plan === p.nombre && cuenta.estado !== "Vencida";
                 const total = p.clasesReformer + p.clasesMat;
-                const oferta = p.descuento;
+                // La apertura manda sobre el descuento del plan (no se suman).
+                const oferta =
+                  pctApertura !== null ? { pct: pctApertura, hasta: campana?.hasta ?? null } : p.descuento;
+                const precio = precioDeVenta(p, pctApertura);
                 const mensaje =
                   `Hola, soy ${nombre} (${cuenta.correo}). Me interesa el plan ${p.nombre}` +
-                  ` de ${p.modalidad} (${clasesDe(p)}, ${moneda(p.precio)}` +
-                  (oferta ? ` con el ${oferta.pct} % de descuento` : "") +
+                  ` de ${p.modalidad} (${clasesDe(p)}, ${moneda(precio)}` +
+                  (pctApertura !== null
+                    ? ` con el ${pctApertura} % de apertura`
+                    : oferta
+                      ? ` con el ${oferta.pct} % de descuento`
+                      : "") +
                   `). ¿Me ayudas a activarlo?`;
                 const enlace = enlaceWhatsApp(TELEFONO_ESTUDIO, mensaje);
                 return (
@@ -107,7 +137,7 @@ export default async function PlanesClientePage() {
                       )}
                     </div>
                     <p className="mt-2 flex flex-wrap items-baseline gap-x-2">
-                      <span className="font-cifra text-3xl font-light text-verde">{moneda(p.precio)}</span>
+                      <span className="font-cifra text-3xl font-light text-verde">{moneda(precio)}</span>
                       {oferta && (
                         <span className="font-cifra text-sm text-verde-300 line-through">
                           <span className="sr-only">Antes </span>
@@ -120,7 +150,7 @@ export default async function PlanesClientePage() {
                     </p>
                     {total > 0 && (
                       <p className="mt-0.5 text-xs text-verde-300">
-                        {moneda(Math.round(p.precio / total))} por clase
+                        {moneda(Math.round(precio / total))} por clase
                       </p>
                     )}
                     {enlace && (
