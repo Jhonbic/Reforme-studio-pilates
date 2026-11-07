@@ -47,7 +47,7 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 
 **Contacto / ubicación:**
 - Dirección: Carrera 1 #27-50, Multiplaza Chaira, Florencia.
-- Teléfono/WhatsApp: **+57 313 2077686** (desde el 23 oct 2026; antes 320 9078814).
+- Teléfono/WhatsApp: **+57 313 2077687** (desde el 23 oct 2026; antes 320 9078814. Hasta el 7 nov 2026 salía por error 313 2077686).
   Vive en un solo sitio: `src/lib/contacto.ts`.
 - Redes (handle `reformestudiopilates`): Instagram, Facebook, TikTok, WhatsApp.
 - Web de referencia actual: https://reformestudiopilates.com/
