@@ -383,6 +383,9 @@ export type BorradorPlan = {
   descuentoPct: number | null;
   /** Último día del descuento (incluido), o `null` si no tiene fin. */
   descuentoHasta: string | null;
+  /** El plan que el cliente ve primero, con la cinta «Plan destacado». Uno
+   *  solo en el estudio: marcar otro apaga el anterior (lo hace la base). */
+  destacado: boolean;
 };
 
 /** Una tarjeta de la pantalla de Planes: condiciones + lo que ha pasado con ellas. */
@@ -411,6 +414,8 @@ export type PlanConMetricas = Omit<CondicionesPlan, "plan"> & {
   /** El descuento tal como está guardado (puede haber caducado: ver `descuentoVigente`). */
   descuentoPct: number | null;
   descuentoHasta: string | null;
+  /** Marcado por Administración como el plan destacado de la web del cliente. */
+  destacado: boolean;
 };
 
 /**
@@ -546,6 +551,8 @@ export type DatosPersonales = {
  */
 export type PlanAdquirido = {
   id: string;
+  /** El id del plan comprado: decide el derecho a la campaña de apertura. */
+  planId: string;
   plan: string;
   modalidad: ModalidadPlan;
   inicio: string;

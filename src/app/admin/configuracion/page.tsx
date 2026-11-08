@@ -3,7 +3,7 @@ import CampanasDescuento from "@/components/admin/configuracion/CampanasDescuent
 import MiPerfil from "@/components/admin/configuracion/MiPerfil";
 import PanelConfiguracion from "@/components/admin/configuracion/PanelConfiguracion";
 import { hoyEnBogota } from "@/lib/admin/horario";
-import { getCampanas, getConfiguracion, getUsuarioActual } from "@/lib/admin/queries";
+import { getCampanas, getConfiguracion, getPlanesALaVenta, getUsuarioActual } from "@/lib/admin/queries";
 
 export const metadata: Metadata = {
   title: "Configuración · Panel administrativo",
@@ -27,9 +27,9 @@ export default async function ConfiguracionPage() {
 
   const esAdministracion = usuario.rol === "Administración";
   const hoy = hoyEnBogota();
-  const [config, campanas] = esAdministracion
-    ? await Promise.all([getConfiguracion(hoy), getCampanas()])
-    : [null, []];
+  const [config, campanas, planes] = esAdministracion
+    ? await Promise.all([getConfiguracion(hoy), getCampanas(), getPlanesALaVenta()])
+    : [null, [], []];
 
   return (
     <div className="mx-auto w-full max-w-[1200px] space-y-6">
@@ -41,7 +41,7 @@ export default async function ConfiguracionPage() {
             Del estudio
           </p>
           {/* La campaña primero: mientras corre la apertura es lo que más se toca. */}
-          <CampanasDescuento campanas={campanas} hoy={hoy} />
+          <CampanasDescuento campanas={campanas} hoy={hoy} planes={planes} />
           <PanelConfiguracion config={config} hoy={hoy} />
         </section>
       )}

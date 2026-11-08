@@ -48,6 +48,29 @@ export type Database = {
         };
         Relationships: [];
       };
+      // Escrito a mano (migración 20261108150000_campana_planes).
+      campana_planes_excluidos: {
+        Row: { campana_id: string; plan_id: string };
+        ComputedFields: never;
+        Insert: { campana_id: string; plan_id: string };
+        Update: { campana_id?: string; plan_id?: string };
+        Relationships: [
+          {
+            foreignKeyName: "campana_planes_excluidos_campana_id_fkey";
+            columns: ["campana_id"];
+            isOneToOne: false;
+            referencedRelation: "campanas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "campana_planes_excluidos_plan_id_fkey";
+            columns: ["plan_id"];
+            isOneToOne: false;
+            referencedRelation: "planes";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       campana_tramos: {
         Row: {
           campana_id: string;
@@ -611,6 +634,7 @@ export type Database = {
           clases_reformer: number;
           creado_en: string;
           descripcion: string;
+          destacado: boolean;
           descuento_hasta: string | null;
           descuento_pct: number | null;
           id: string;
@@ -629,6 +653,7 @@ export type Database = {
           clases_reformer?: number;
           creado_en?: string;
           descripcion?: string;
+          destacado?: boolean;
           descuento_hasta?: string | null;
           descuento_pct?: number | null;
           id?: string;
@@ -646,6 +671,7 @@ export type Database = {
           clases_reformer?: number;
           creado_en?: string;
           descripcion?: string;
+          destacado?: boolean;
           descuento_hasta?: string | null;
           descuento_pct?: number | null;
           id?: string;
@@ -819,6 +845,17 @@ export type Database = {
       };
     };
     Functions: {
+      // Escrito a mano (migración 20261108140000_mis_datos).
+      actualizar_mis_datos: {
+        Args: {
+          p_direccion: string;
+          p_emergencia_nombre: string;
+          p_emergencia_telefono: string;
+          p_eps: string;
+          p_telefono: string;
+        };
+        Returns: undefined;
+      };
       agenda_cliente: {
         Args: { p_desde: string; p_hasta: string };
         Returns: {
@@ -890,6 +927,8 @@ export type Database = {
           inicio_membresias: string | null;
           meta: number;
           nombre: string;
+          /** Planes que no entran en la campaña (20261108150000). */
+          planes_excluidos: string[];
           quedan_en_tramo: number | null;
           tramo_orden: number | null;
           tramo_pct: number | null;
@@ -907,6 +946,7 @@ export type Database = {
           p_desde: string;
           p_hasta: string;
           p_id: string | null;
+          p_excluidos?: string[];
           p_inicio: string | null;
           p_nombre: string;
           p_tramos: Json;
@@ -927,6 +967,20 @@ export type Database = {
       };
       mi_cliente_id: { Args: Record<PropertyKey, never>; Returns: string };
       mi_equipo_id: { Args: Record<PropertyKey, never>; Returns: string };
+      // Escrito a mano (migración 20261108120000_mi_historial).
+      mi_historial: {
+        Args: { p_desde: string; p_hasta: string };
+        Returns: {
+          asistencia: Database["public"]["Enums"]["asistencia"] | null;
+          cancelada: boolean;
+          duracion_min: number;
+          fecha: string;
+          hora_inicio: string;
+          instructora: string;
+          reserva_id: string;
+          tipo: Database["public"]["Enums"]["tipo_clase"];
+        }[];
+      };
       mi_rol: {
         Args: Record<PropertyKey, never>;
         Returns: Database["public"]["Enums"]["rol_equipo"];

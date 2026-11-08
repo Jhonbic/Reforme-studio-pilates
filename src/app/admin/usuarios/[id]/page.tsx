@@ -182,8 +182,9 @@ export default async function FichaClientePage({
               planes={planes}
               hoy={hoy}
               campana={campana}
-              // La campaña de apertura es solo para la PRIMERA membresía.
-              primeraMembresia={planesAdquiridos.length === 0}
+              // La campaña de apertura: solo si no compró nunca un plan que
+              // entre en ella (los excluidos no cuentan).
+              planesComprados={planesAdquiridos.map((p) => p.planId)}
             />
           )}
           {/* Reservar parte de la PERSONA: «resérvame el jueves a las 7». */}

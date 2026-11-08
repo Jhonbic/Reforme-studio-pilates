@@ -6,7 +6,9 @@
  * repite sus reglas solo para ANUNCIARLAS antes de cobrar; si divergen,
  * manda la base, y la acción devuelve lo que se cobró de verdad.
  *
- * Reglas: primera membresía del cliente · el tramo va sobre el precio de
+ * Reglas: solo los planes que ENTRAN en la campaña (Configuración elige los
+ * que no) · solo quien no ha tenido nunca un plan que entre (comprar uno
+ * excluido no gasta el derecho, nov 2026) · el tramo va sobre el precio de
  * lista y NO se suma al descuento propio del plan. (Pagada entera ya no es
  * una regla de la campaña: desde nov 2026 todo plan se cobra entero.)
  */
@@ -25,17 +27,38 @@ export type EstadoCampana = {
   meta: number;
   /** El tramo en curso, o `null` si los cupos se agotaron. */
   tramo: { orden: number; pct: number; quedan: number } | null;
+  /** Ids de los planes que NO entran en la campaña. */
+  planesExcluidos: string[];
 };
 
 /**
- * El % de apertura que le toca a esta venta, o `null` si no entra (sin campaña, cupos agotados o no es su primera membresía).
+ * ¿Tiene derecho al descuento de apertura? Hay tramo con cupos y no ha
+ * comprado nunca un plan que entre en la campaña. `planesComprados`: los ids
+ * de los planes de TODAS sus membresías. Comprar un plan excluido (la clase
+ * suelta) no le quita el derecho (decisión del usuario, nov 2026).
  */
-export function aperturaPosible(
+export function tieneDerechoApertura(campana: EstadoCampana | null, planesComprados: string[]): boolean {
+  if (!campana?.tramo) return false;
+  return planesComprados.every((id) => campana.planesExcluidos.includes(id));
+}
+
+/** ¿Entra este plan en la campaña? */
+export function planEnCampana(campana: EstadoCampana | null, planId: string): boolean {
+  return Boolean(campana) && !campana!.planesExcluidos.includes(planId);
+}
+
+/**
+ * El % de apertura que le toca a ESTA venta (este cliente, este plan), o
+ * `null` si no entra: sin campaña, cupos agotados, plan excluido o ya compró
+ * un plan que entra.
+ */
+export function aperturaPara(
   campana: EstadoCampana | null,
-  primeraMembresia: boolean,
+  planesComprados: string[],
+  planId: string,
 ): number | null {
-  if (!campana?.tramo || !primeraMembresia) return null;
-  return campana.tramo.pct;
+  if (!tieneDerechoApertura(campana, planesComprados) || !planEnCampana(campana, planId)) return null;
+  return campana!.tramo!.pct;
 }
 
 /** Lo que cuesta el plan en esta venta: con el % de apertura, sobre el
@@ -65,6 +88,8 @@ export type CampanaConfig = {
   tramos: TramoCampana[];
   /** Membresías vendidas con ella (cada una es un cupo). */
   vendidas: number;
+  /** Ids de los planes que NO entran. */
+  planesExcluidos: string[];
 };
 
 export type EstadoDeCampana = "En curso" | "Programada" | "Terminada";
@@ -91,9 +116,11 @@ export type BorradorCampana = {
   /** Vacío = las membresías empiezan el día del pago. */
   inicio: string;
   tramos: TramoCampana[];
+  /** Ids de los planes que NO entran (se marcan los que entran). */
+  excluidos: string[];
 };
 
-export type CampoCampana = "nombre" | "desde" | "hasta" | "inicio" | "tramos";
+export type CampoCampana = "nombre" | "desde" | "hasta" | "inicio" | "tramos" | "planes";
 
 /**
  * Lo que impide guardar. La misma función en el formulario y en la server
@@ -101,11 +128,15 @@ export type CampoCampana = "nombre" | "desde" | "hasta" | "inicio" | "tramos";
  *
  * `nueva`: al crear, no se empieza en el pasado. Al editar una campaña que
  * ya empezó, su `desde` puede ser anterior a hoy.
+ *
+ * `planesALaVenta`: los ids de los planes que se venden hoy. Si todos están
+ * excluidos, la campaña no descontaría nada.
  */
 export function erroresCampana(
   b: BorradorCampana,
   hoy: string,
   nueva: boolean,
+  planesALaVenta: string[] = [],
 ): Partial<Record<CampoCampana, string>> {
   const e: Partial<Record<CampoCampana, string>> = {};
   const nombre = b.nombre.trim();
@@ -131,6 +162,9 @@ export function erroresCampana(
     e.tramos = "Cada tramo necesita de 1 a 10.000 membresías.";
   else if (b.tramos.some((t) => !Number.isInteger(t.pct) || t.pct < 1 || t.pct > 90))
     e.tramos = "Cada descuento va del 1 al 90 %.";
+
+  if (planesALaVenta.length > 0 && planesALaVenta.every((id) => b.excluidos.includes(id)))
+    e.planes = "Marca al menos un plan que entre en la campaña.";
   return e;
 }
 
@@ -190,6 +224,7 @@ export type FilaEstadoCampana = {
   tramo_orden: number | null;
   tramo_pct: number | null;
   quedan_en_tramo: number | null;
+  planes_excluidos: string[] | null;
 };
 
 export function aEstadoCampana(c: FilaEstadoCampana): EstadoCampana {
@@ -205,5 +240,6 @@ export function aEstadoCampana(c: FilaEstadoCampana): EstadoCampana {
       c.tramo_orden !== null && c.tramo_pct !== null && c.quedan_en_tramo !== null
         ? { orden: c.tramo_orden, pct: c.tramo_pct, quedan: c.quedan_en_tramo }
         : null,
+    planesExcluidos: c.planes_excluidos ?? [],
   };
 }

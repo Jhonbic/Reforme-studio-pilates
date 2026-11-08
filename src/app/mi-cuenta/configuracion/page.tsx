@@ -1,80 +1,60 @@
 import { redirect } from "next/navigation";
-import BotonContrasena from "@/components/cliente/BotonContrasena";
+import FormularioPerfil from "@/components/cliente/perfil/FormularioPerfil";
 import { documento, fecha, telefonoCO } from "@/lib/admin/format";
+import { hoyEnBogota } from "@/lib/admin/horario";
+import { enlaceWhatsApp, primerNombre } from "@/lib/admin/whatsapp";
 import { getMisDatos } from "@/lib/cliente/datos";
-import { WHATSAPP_ESTUDIO } from "@/lib/contacto";
-
-const WHATSAPP = WHATSAPP_ESTUDIO;
-
-function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs uppercase tracking-[0.14em] text-verde-300">{etiqueta}</dt>
-      <dd className="mt-1 break-words text-verde-700">{children}</dd>
-    </div>
-  );
-}
-
-const SIN_DATO = <span className="text-verde-300">Sin dato</span>;
+import { esMenorDeEdad } from "@/lib/cliente/registro";
+import { TELEFONO_ESTUDIO } from "@/lib/contacto";
 
 /**
- * Área de cliente → Mi cuenta: sus datos y cambiar la contraseña (decisión del
- * usuario, oct 2026).
+ * Área de cliente → Mi perfil (nov 2026; antes «Mi cuenta»), con el formato
+ * de «Mi perfil» de DEMO adminGym (decisión del usuario).
  *
- * ⚠️ Los datos son de SOLO LECTURA aquí: los corrige recepción, que tiene a la
- * persona delante. El correo es su usuario para entrar, y dejar cambiarlo
- * desde la web sin verificarlo abriría la puerta a quedarse con una cuenta.
+ * Los datos de CONTACTO (teléfono, EPS, dirección y contacto de emergencia)
+ * los corrige él mismo (`guardarMisDatos` → `actualizar_mis_datos`). Nombre,
+ * correo, documento, fecha de nacimiento y acudiente van con candado: los
+ * corrige recepción, que comprueba quién es. El correo además es su usuario,
+ * y cambiarlo desde la web sin verificarlo abriría la puerta a quedarse con
+ * una cuenta.
  */
-export default async function MiCuentaConfiguracionPage() {
+export default async function MiPerfilPage() {
   const datos = await getMisDatos();
   if (!datos) redirect("/login");
   const [tipo, ...num] = datos.documento.split(" ");
+  const menor = datos.fechaNacimiento ? esMenorDeEdad(datos.fechaNacimiento, hoyEnBogota()) : null;
+  const acudiente = datos.acudienteNombre
+    ? `${datos.acudienteNombre}${datos.acudienteTelefono ? ` · ${telefonoCO(datos.acudienteTelefono)}` : ""}`
+    : null;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <section className="text-center md:text-left">
-        <h1 className="font-display text-3xl text-verde sm:text-4xl">{datos.nombre}</h1>
+        <h1 className="font-display text-4xl text-verde sm:text-5xl">Mi perfil</h1>
+        <p className="mt-2 text-verde-700">Cliente desde el {fecha(datos.alta, true)}.</p>
       </section>
 
-      <section className="rounded-2xl border border-beige bg-white p-5 sm:p-6">
-        <h2 className="text-lg font-bold text-verde">Mis datos</h2>
-        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Dato etiqueta="Documento">{tipo} {documento(num.join(" "))}</Dato>
-          <Dato etiqueta="Correo (tu usuario)">{datos.correo ?? SIN_DATO}</Dato>
-          <Dato etiqueta="Teléfono">{datos.telefono ? telefonoCO(datos.telefono) : SIN_DATO}</Dato>
-          <Dato etiqueta="Fecha de nacimiento">
-            {datos.fechaNacimiento ? fecha(datos.fechaNacimiento, true) : SIN_DATO}
-          </Dato>
-          <Dato etiqueta="Dirección">{datos.direccion ?? SIN_DATO}</Dato>
-          <Dato etiqueta="EPS">{datos.eps ?? SIN_DATO}</Dato>
-          <Dato etiqueta="Contacto de emergencia">
-            {datos.emergenciaNombre
-              ? `${datos.emergenciaNombre}${datos.emergenciaTelefono ? ` · ${telefonoCO(datos.emergenciaTelefono)}` : ""}`
-              : SIN_DATO}
-          </Dato>
-          <Dato etiqueta="Cliente desde">{fecha(datos.alta, true)}</Dato>
-        </dl>
-        <p className="mt-5 text-sm text-verde-700">
-          ¿Algo no está bien?{" "}
-          <a
-            href={WHATSAPP}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-dorado-tinta underline underline-offset-4"
-          >
-            Escríbenos
-          </a>{" "}
-          y lo corregimos.
-        </p>
-      </section>
-
-      <section className="rounded-2xl border border-beige bg-white p-5 sm:p-6">
-        <h2 className="text-lg font-bold text-verde">Contraseña</h2>
-        <p className="mt-1 text-sm text-verde-700">Te pediremos la actual y la nueva dos veces.</p>
-        <div className="mt-4">
-          <BotonContrasena />
-        </div>
-      </section>
+      <FormularioPerfil
+        bloqueados={{
+          nombre: datos.nombre,
+          correo: datos.correo ?? "—",
+          documento: `${tipo} ${documento(num.join(" "))}`,
+          fechaNacimiento: datos.fechaNacimiento ? fecha(datos.fechaNacimiento, true) : "Sin dato",
+          acudiente,
+        }}
+        inicial={{
+          telefono: datos.telefono ?? "",
+          direccion: datos.direccion ?? "",
+          eps: datos.eps ?? "",
+          emergenciaNombre: datos.emergenciaNombre ?? "",
+          emergenciaTelefono: datos.emergenciaTelefono ?? "",
+        }}
+        menor={menor}
+        enlaceCorreccion={enlaceWhatsApp(
+          TELEFONO_ESTUDIO,
+          `Hola, soy ${primerNombre(datos.nombre)} (${datos.correo ?? ""}). Quiero corregir un dato de mi ficha: `,
+        )}
+      />
     </div>
   );
 }

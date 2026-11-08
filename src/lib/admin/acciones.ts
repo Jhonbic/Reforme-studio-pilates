@@ -452,6 +452,8 @@ export async function guardarPlan(
     caracteristicas: b.caracteristicas.map((c) => c.trim()).filter(Boolean),
     descuento_pct: pct,
     descuento_hasta: hasta,
+    // Marcar uno apaga el anterior: lo hace el trigger `planes_un_destacado`.
+    destacado: b.destacado,
   };
 
   const supabase = await crearClienteServidor();
@@ -1506,11 +1508,18 @@ export async function guardarCampana(id: string | null, b: BorradorCampana): Pro
   if (prohibido) return { ok: false, error: prohibido };
   if (id !== null && !UUID_VALIDO.test(id)) return { ok: false, error: "Campaña no válida." };
 
-  const errores = erroresCampana(b, hoyEnBogota(), id === null);
+  const supabase = await crearClienteServidor();
+  // Los planes que se venden hoy: para no dejar una campaña sin ningún plan
+  // dentro, y para no guardar ids que no existen.
+  const { data: aLaVenta, error: errorPlanes } = await supabase.from("planes").select("id").eq("se_vende", true);
+  if (errorPlanes) return { ok: false, error: `No se pudieron leer los planes: ${errorPlanes.message}` };
+  const idsALaVenta = aLaVenta.map((p) => p.id);
+  const excluidos = [...new Set(b.excluidos)].filter((x) => UUID_VALIDO.test(x));
+
+  const errores = erroresCampana({ ...b, excluidos }, hoyEnBogota(), id === null, idsALaVenta);
   const primero = (Object.keys(errores) as CampoCampana[])[0];
   if (primero) return { ok: false, error: errores[primero]!, campo: primero };
 
-  const supabase = await crearClienteServidor();
   const { error } = await supabase.rpc("guardar_campana", {
     p_id: id,
     p_nombre: b.nombre.trim(),
@@ -1518,6 +1527,7 @@ export async function guardarCampana(id: string | null, b: BorradorCampana): Pro
     p_hasta: b.hasta,
     p_inicio: b.inicio === "" ? null : b.inicio,
     p_tramos: b.tramos.map((t) => ({ cupos: t.cupos, pct: t.pct })),
+    p_excluidos: excluidos,
   });
   if (error) {
     if (error.code === "23P01")

@@ -53,13 +53,20 @@ function IconoCuenta() {
   );
 }
 
-export type SeccionCliente = { href: string; label: string; icono: () => React.ReactElement };
+export type SeccionCliente = {
+  href: string;
+  label: string;
+  icono: () => React.ReactElement;
+  /** Va al pie de la barra lateral, no en la lista de secciones. */
+  pie?: boolean;
+};
 
 export const SECCIONES_CLIENTE: SeccionCliente[] = [
   { href: "/mi-cuenta", label: "Inicio", icono: IconoInicio },
   { href: "/mi-cuenta/reservar", label: "Reservar", icono: IconoReservar },
   { href: "/mi-cuenta/planes", label: "Planes", icono: IconoPlanes },
-  { href: "/mi-cuenta/configuracion", label: "Mi cuenta", icono: IconoCuenta },
+  // Al pie de la barra, en el sitio de «Ver la web» (decisión del usuario, nov 2026).
+  { href: "/mi-cuenta/configuracion", label: "Mi perfil", icono: IconoCuenta, pie: true },
 ];
 
 /** «Inicio» solo en su ruta exacta; las demás también en sus hijas. */

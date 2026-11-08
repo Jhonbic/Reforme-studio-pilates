@@ -551,7 +551,7 @@ export async function getPlanesAdquiridos(clienteId: string, conPagos: boolean):
   const [membresias, pagos] = await Promise.all([
     supabase
       .from("membresias")
-      .select("id, inicio, vencimiento, importe, clases_reformer, clases_mat, planes(nombre, modalidad)")
+      .select("id, plan_id, inicio, vencimiento, importe, clases_reformer, clases_mat, planes(nombre, modalidad)")
       .eq("cliente_id", clienteId)
       .order("inicio", { ascending: false }),
     conPagos
@@ -567,6 +567,7 @@ export async function getPlanesAdquiridos(clienteId: string, conPagos: boolean):
   }
   return membresias.data.map((m) => ({
     id: m.id,
+    planId: m.plan_id,
     plan: m.planes?.nombre ?? "Plan",
     modalidad: m.planes?.modalidad ?? "Mat",
     inicio: m.inicio,
@@ -652,6 +653,7 @@ export async function getPlanes(
     cobrado30d: puedeVerCobros ? (cobrado.get(p.id) ?? 0) : null,
     descuentoPct: p.descuento_pct,
     descuentoHasta: p.descuento_hasta,
+    destacado: p.destacado,
   }));
 }
 
@@ -681,6 +683,10 @@ export type PlanALaVenta = {
   modalidad: ModalidadPlan;
   clasesReformer: number;
   clasesMat: number;
+  /** El plan destacado (cinta en la vista del cliente). */
+  destacado: boolean;
+  /** Lo que incluye, además de clases y vigencia (lo escribe Administración). */
+  caracteristicas: string[];
 };
 
 /**
@@ -692,7 +698,9 @@ export async function getPlanesALaVenta(): Promise<PlanALaVenta[]> {
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase
     .from("planes")
-    .select("id, nombre, precio, vigencia_dias, modalidad, clases_reformer, clases_mat, descuento_pct, descuento_hasta")
+    .select(
+      "id, nombre, precio, vigencia_dias, modalidad, clases_reformer, clases_mat, descuento_pct, descuento_hasta, destacado, caracteristicas",
+    )
     .eq("se_vende", true)
     .order("precio");
   if (error) throw new Error(`No se pudieron leer los planes: ${error.message}`);
@@ -709,6 +717,8 @@ export async function getPlanesALaVenta(): Promise<PlanALaVenta[]> {
     modalidad: p.modalidad,
     clasesReformer: p.clases_reformer,
     clasesMat: p.clases_mat,
+    destacado: p.destacado,
+    caracteristicas: p.caracteristicas,
   }));
 }
 
@@ -765,7 +775,9 @@ export async function getCampanas(): Promise<CampanaConfig[]> {
   const [{ data, error }, ventas] = await Promise.all([
     supabase
       .from("campanas")
-      .select("id, nombre, desde, hasta, inicio_membresias, cerrada, campana_tramos(orden, cupos, descuento_pct)")
+      .select(
+        "id, nombre, desde, hasta, inicio_membresias, cerrada, campana_tramos(orden, cupos, descuento_pct), campana_planes_excluidos(plan_id)",
+      )
       .order("desde", { ascending: false })
       .limit(6),
     // Pocas filas (como mucho la meta de cada campaña): se cuentan aquí.
@@ -786,6 +798,7 @@ export async function getCampanas(): Promise<CampanaConfig[]> {
       .sort((a, b) => a.orden - b.orden)
       .map((t) => ({ cupos: t.cupos, pct: t.descuento_pct })),
     vendidas: vendidas.get(c.id) ?? 0,
+    planesExcluidos: c.campana_planes_excluidos.map((e) => e.plan_id),
   }));
 }
 

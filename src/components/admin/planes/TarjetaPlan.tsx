@@ -82,6 +82,13 @@ export default function TarjetaPlan({
           >
             {plan.nombreVisible}
           </h3>
+          {/* El destacado de la web del cliente: lo marca Administración. No
+              es «El más contratado», que se calcula con los clientes. */}
+          {plan.destacado && (
+            <p className={`mt-0.5 text-xs ${destacado ? "text-dorado-light" : "text-dorado-tinta"}`}>
+              ☆ Destacado en la web
+            </p>
+          )}
         </div>
 
         <Dropdown

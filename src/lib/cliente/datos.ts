@@ -24,9 +24,17 @@ export type MiCuenta = {
   /** Tramos que cubren sus membresías: para saber, antes de pulsar, qué
    *  días puede reservar (la regla de verdad está en la base). */
   cobertura: { inicio: string; vencimiento: string }[];
-  /** Clases que le quedan HOY de cada tipo, sumando las membresías que cubren
-   *  hoy. Solo los tipos que su plan trae (un plan Mat no dice «0 Reformer»).
-   *  Vacío si hoy no tiene plan. */
+  /** Ids de los planes de TODAS sus membresías (repetidos incluidos): decide
+   *  si tiene derecho al descuento de apertura (`tieneDerechoApertura`). */
+  planesComprados: string[];
+  /** Primer día de la membresía que cuenta (la de hoy o, si aún no ha
+   *  empezado, la próxima). Con él la tarjeta del plan dice «Empieza el…» y
+   *  pinta cuánto lleva consumido. `null` sin plan. */
+  inicio: string | null;
+  /** Clases que le quedan de cada tipo, sumando las membresías que cubren
+   *  hoy; si hoy no le cubre ninguna pero tiene una por empezar, las de esa
+   *  (pagó un plan que empieza el lunes: ya sabe con cuántas cuenta). Solo
+   *  los tipos que su plan trae (un plan Mat no dice «0 Reformer»). */
   saldo: { tipo: "Reformer" | "Mat"; quedan: number; total: number }[];
 };
 
@@ -51,15 +59,22 @@ export const getMiCuenta = cache(async (): Promise<MiCuenta | null> => {
 
   const [vigente, membresias, saldos] = await Promise.all([
     supabase.from("clientes_vigentes").select("plan, vencimiento, estado").eq("id", ficha.id).maybeSingle(),
-    supabase.from("membresias").select("inicio, vencimiento").eq("cliente_id", ficha.id),
+    supabase.from("membresias").select("inicio, vencimiento, plan_id").eq("cliente_id", ficha.id),
     supabase.rpc("saldo_clases", { p_cliente: ficha.id }),
   ]);
 
   // La cuenta de hoy: las membresías que cubren hoy (puede haber dos si
-  // renovó antes de tiempo y la nueva ya empezó).
+  // renovó antes de tiempo y la nueva ya empezó). Si ninguna cubre hoy, la
+  // próxima que empieza: sin esto, quien pagó un plan que arranca el lunes
+  // veía «Vigente hasta…» sin ninguna clase.
   const hoy = hoyEnBogota();
-  const deHoy = (saldos.data ?? []).filter((m) => m.inicio <= hoy && hoy <= m.vencimiento);
-  const suma = (f: (m: (typeof deHoy)[number]) => number) => deHoy.reduce((t, m) => t + f(m), 0);
+  const todas = saldos.data ?? [];
+  const deHoy = todas.filter((m) => m.inicio <= hoy && hoy <= m.vencimiento);
+  const proxima = todas
+    .filter((m) => m.inicio > hoy)
+    .sort((a, b) => a.inicio.localeCompare(b.inicio))[0];
+  const cuentan = deHoy.length > 0 ? deHoy : proxima ? [proxima] : [];
+  const suma = (f: (m: (typeof cuentan)[number]) => number) => cuentan.reduce((t, m) => t + f(m), 0);
   const saldo = (
     [
       { tipo: "Reformer", total: suma((m) => m.clases_reformer), usadas: suma((m) => m.usadas_reformer) },
@@ -76,7 +91,9 @@ export const getMiCuenta = cache(async (): Promise<MiCuenta | null> => {
     plan: vigente.data?.plan ?? null,
     vencimiento: vigente.data?.vencimiento ?? null,
     estado: vigente.data?.estado ?? "Sin plan",
-    cobertura: membresias.data ?? [],
+    inicio: cuentan.length > 0 ? cuentan.map((m) => m.inicio).sort()[0] : null,
+    cobertura: (membresias.data ?? []).map((m) => ({ inicio: m.inicio, vencimiento: m.vencimiento })),
+    planesComprados: (membresias.data ?? []).map((m) => m.plan_id),
     saldo,
   };
 });
@@ -146,12 +163,16 @@ export type MisDatos = {
   eps: string | null;
   emergenciaNombre: string | null;
   emergenciaTelefono: string | null;
+  /** Solo si es menor: lo dio de alta con su acudiente. */
+  acudienteNombre: string | null;
+  acudienteTelefono: string | null;
   alta: string;
 };
 
 /**
- * Su ficha, con su sesión (RLS solo le deja leer la suya). Solo lectura: los
- * datos los corrige recepción, que comprueba quién es.
+ * Su ficha, con su sesión (RLS solo le deja leer la suya). Los de contacto
+ * los corrige él mismo en «Mi perfil» (`guardarMisDatos`); el resto,
+ * recepción, que comprueba quién es.
  */
 export async function getMisDatos(): Promise<MisDatos | null> {
   const supabase = await crearClienteServidor();
@@ -162,7 +183,7 @@ export async function getMisDatos(): Promise<MisDatos | null> {
   const { data } = await supabase
     .from("clientes")
     .select(
-      "nombre, tipo_identificacion, identificacion, correo, telefono, fecha_nacimiento, direccion, eps, emergencia_nombre, emergencia_telefono, alta",
+      "nombre, tipo_identificacion, identificacion, correo, telefono, fecha_nacimiento, direccion, eps, emergencia_nombre, emergencia_telefono, acudiente_nombre, acudiente_telefono, alta",
     )
     .eq("cuenta_id", user.id)
     .maybeSingle();
@@ -177,6 +198,43 @@ export async function getMisDatos(): Promise<MisDatos | null> {
     eps: data.eps,
     emergenciaNombre: data.emergencia_nombre,
     emergenciaTelefono: data.emergencia_telefono,
+    acudienteNombre: data.acudiente_nombre,
+    acudienteTelefono: data.acudiente_telefono,
     alta: data.alta,
   };
+}
+
+/** Una clase a la que ya fue (o que ya empezó), para el calendario «Tus clases». */
+export type ClasePasada = {
+  fecha: string;
+  horaInicio: string;
+  tipo: TipoClase;
+  instructora: string;
+  /** `null` = nadie pasó lista. */
+  asistencia: "Asistió" | "No vino" | null;
+  /** La canceló el estudio: no cuenta como tomada. */
+  cancelada: boolean;
+};
+
+/**
+ * Sus clases ya empezadas entre dos fechas (`mi_historial`, solo las suyas).
+ *
+ * ⚠️ No lanza: el historial es un adorno del Inicio, y si la base aún no tiene
+ * la migración (o falla) el Inicio se pinta igual, con el calendario vacío.
+ */
+export async function getMiHistorial(desde: string, hasta: string): Promise<ClasePasada[]> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("mi_historial", { p_desde: desde, p_hasta: hasta });
+  if (error) {
+    console.error(`No se pudo leer el historial del cliente: ${error.message}`);
+    return [];
+  }
+  return data.map((c) => ({
+    fecha: c.fecha,
+    horaInicio: c.hora_inicio.slice(0, 5),
+    tipo: c.tipo,
+    instructora: c.instructora,
+    asistencia: c.asistencia,
+    cancelada: c.cancelada,
+  }));
 }

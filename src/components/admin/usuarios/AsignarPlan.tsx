@@ -9,7 +9,7 @@ import { fecha, moneda } from "@/lib/admin/format";
 import { sumarDias } from "@/lib/admin/horario";
 import type { PlanALaVenta } from "@/lib/admin/queries";
 import type { MetodoPago } from "@/lib/admin/types";
-import { aperturaPosible, precioDeVenta, type EstadoCampana } from "@/lib/admin/campana";
+import { aperturaPara, precioDeVenta, tieneDerechoApertura, type EstadoCampana } from "@/lib/admin/campana";
 
 const METODOS: MetodoPago[] = ["Nequi", "Daviplata", "Transferencia", "Efectivo", "Tarjeta", "Otro"];
 
@@ -29,8 +29,9 @@ type Props = {
   hoy: string;
   /** La campaña de descuento por tramos que corre hoy, o `null`. */
   campana?: EstadoCampana | null;
-  /** Si nunca ha tenido un plan: solo entonces entra en la campaña. */
-  primeraMembresia?: boolean;
+  /** Ids de los planes de todas sus membresías: tiene derecho a la campaña
+   *  si ninguno entra en ella (comprar uno excluido no gasta el derecho). */
+  planesComprados?: string[];
 };
 
 /**
@@ -56,7 +57,7 @@ export default function AsignarPlan({
   planes,
   hoy,
   campana = null,
-  primeraMembresia = false,
+  planesComprados = [],
 }: Props) {
   const { mostrarAviso } = useToast();
   const [abierto, setAbierto] = useState(false);
@@ -68,9 +69,12 @@ export default function AsignarPlan({
   const renovar = vencimiento !== "";
   const plan = planes.find((p) => p.id === planId);
 
-  // Campaña de apertura: el % que le toca si es su primera membresía. Las
-  // mismas reglas que `registrar_membresia`.
-  const pctApertura = aperturaPosible(campana, primeraMembresia);
+  // Campaña de apertura: el % que le toca con el plan elegido (`null` si no
+  // tiene derecho o si ese plan no entra). Las mismas reglas que
+  // `registrar_membresia`.
+  const conDerecho = tieneDerechoApertura(campana, planesComprados);
+  const pctDe = (id: string) => aperturaPara(campana, planesComprados, id);
+  const pctApertura = plan ? pctDe(plan.id) : null;
 
   // Mismo cálculo que la función de la base: el día después del vencimiento
   // actual, o hoy si ya venció o no tenía plan; y si la campaña fija el día
@@ -145,8 +149,9 @@ export default function AsignarPlan({
           ) : (
             <>
               {/* Campaña de apertura: lo primero que se lee, porque cambia
-                  el precio de todos los planes de la lista. */}
-              {pctApertura !== null && campana?.tramo && (
+                  el precio de los planes de la lista. Sale por tener derecho,
+                  antes de elegir plan, y dice cuáles NO entran. */}
+              {conDerecho && campana?.tramo && (
                 <div className="rounded-xl border border-dorado/60 bg-[color-mix(in_srgb,var(--color-dorado)_10%,white)] px-4 py-3 text-sm text-verde">
                   <p className="font-medium">
                     {campana.nombre} · membresía{" "}
@@ -155,11 +160,21 @@ export default function AsignarPlan({
                     </span>
                   </p>
                   <p className="mt-0.5 text-verde-700">
-                    <span className="font-cifra">−{pctApertura} %</span> en su primera membresía.{" "}
+                    <span className="font-cifra">−{campana.tramo.pct} %</span> en su primera membresía.{" "}
                     {campana.tramo.quedan === 1
                       ? "Es la última a este precio."
                       : `Quedan ${campana.tramo.quedan} a este precio.`}
                   </p>
+                  {planes.some((p) => campana.planesExcluidos.includes(p.id)) && (
+                    <p className="mt-0.5 text-verde-700">
+                      No aplica a:{" "}
+                      {planes
+                        .filter((p) => campana.planesExcluidos.includes(p.id))
+                        .map((p) => `${p.nombre} (${p.modalidad})`)
+                        .join(", ")}
+                      .
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -187,9 +202,9 @@ export default function AsignarPlan({
                           {p.modalidad === "Fusión"
                             ? `${p.clasesReformer} Reformer + ${p.clasesMat} Mat`
                             : `${p.clasesReformer + p.clasesMat} clases`}{" "}
-                          · {moneda(precioDeVenta(p, pctApertura))}
-                          {pctApertura !== null
-                            ? ` (apertura −${pctApertura} %)`
+                          · {moneda(precioDeVenta(p, pctDe(p.id)))}
+                          {pctDe(p.id) !== null
+                            ? ` (apertura −${pctDe(p.id)} %)`
                             : p.descuento
                               ? ` (−${p.descuento.pct} %)`
                               : ""}

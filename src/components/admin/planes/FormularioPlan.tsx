@@ -31,6 +31,7 @@ const VACIO: BorradorPlan = {
   caracteristicas: [],
   descuentoPct: null,
   descuentoHasta: null,
+  destacado: false,
 };
 
 type Errores = Partial<Record<"nombre" | "precio" | "vigenciaDias", string>>;
@@ -66,6 +67,7 @@ function aBorrador(p: PlanConMetricas): BorradorPlan {
     caracteristicas: [...p.caracteristicas],
     descuentoPct: p.descuentoPct,
     descuentoHasta: p.descuentoHasta,
+    destacado: p.destacado,
   };
 }
 
@@ -483,6 +485,23 @@ export default function FormularioPlan({
             <span className="block text-xs text-verde-300">
               Al desmarcarlo deja de ofrecerse, pero quien ya lo tiene lo
               conserva hasta que le venza.
+            </span>
+          </span>
+        </label>
+
+        {/* Uno solo en el estudio: el trigger de la base apaga el anterior. */}
+        <label className={FILA_CHECK}>
+          <input
+            type="checkbox"
+            checked={v.destacado}
+            onChange={(e) => set("destacado", e.target.checked)}
+            className={CASILLA}
+          />
+          <span className="text-sm text-verde-700">
+            Plan destacado
+            <span className="block text-xs text-verde-300">
+              Los clientes lo ven con la cinta «Plan destacado». Solo puede
+              haber uno: marcarlo quita el destacado que hubiera.
             </span>
           </span>
         </label>

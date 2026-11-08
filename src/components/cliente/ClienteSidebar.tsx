@@ -64,7 +64,7 @@ export default function ClienteSidebar({ nombre, detalle }: { nombre: string; de
         <Link
           href="/mi-cuenta/configuracion"
           onClick={cerrarCajon}
-          aria-label={`Mi cuenta: ${nombre}, ${detalle}`}
+          aria-label={`Mi perfil: ${nombre}, ${detalle}`}
           className="flex items-center gap-3 border-b border-verde-700/70 px-6 py-4 transition-colors hover:bg-verde-700/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-dorado"
         >
           <span
@@ -83,7 +83,7 @@ export default function ClienteSidebar({ nombre, detalle }: { nombre: string; de
 
         <nav aria-label="Secciones de mi cuenta" className="flex-1 overflow-y-auto px-4 py-6">
           <div className="space-y-1.5">
-            {SECCIONES_CLIENTE.map((s) => {
+            {SECCIONES_CLIENTE.filter((s) => !s.pie).map((s) => {
               const activa = esActivaCliente(s.href, pathname);
               return (
                 <Link
@@ -106,16 +106,27 @@ export default function ClienteSidebar({ nombre, detalle }: { nombre: string; de
         </nav>
 
         <div className="space-y-1 border-t border-verde-700/70 p-4">
-          <Link
-            href="/"
-            onClick={cerrarCajon}
-            className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm text-beige/80 transition-colors hover:bg-verde-700/70 hover:text-arena"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Ver la web
-          </Link>
+          {/* «Mi perfil» al pie, donde estaba «Ver la web» (decisión del
+              usuario, nov 2026): se mira de vez en cuando, no a diario. */}
+          {SECCIONES_CLIENTE.filter((s) => s.pie).map((s) => {
+            const activa = esActivaCliente(s.href, pathname);
+            return (
+              <Link
+                key={s.href}
+                href={s.href}
+                onClick={cerrarCajon}
+                aria-current={activa ? "page" : undefined}
+                className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm transition-colors ${
+                  activa ? "bg-dorado font-medium text-verde-900" : "text-beige/80 hover:bg-verde-700/70 hover:text-arena"
+                }`}
+              >
+                <span className="[&>svg]:h-4 [&>svg]:w-4">
+                  <s.icono />
+                </span>
+                {s.label}
+              </Link>
+            );
+          })}
           {/* `<form>` con server action y no un enlace: un GET que cierra sesión
               lo dispararía cualquier precarga de enlaces. */}
           <form action={cerrarSesion}>

@@ -1,14 +1,15 @@
 import { redirect } from "next/navigation";
+import CatalogoPlanes from "@/components/cliente/planes/CatalogoPlanes";
+import type { PlanParaTarjeta } from "@/components/cliente/planes/TarjetaPlanCliente";
 import { fecha, moneda } from "@/lib/admin/format";
-import { aperturaPosible, precioDeVenta } from "@/lib/admin/campana";
+import { aperturaPara, precioDeVenta, tieneDerechoApertura } from "@/lib/admin/campana";
 import { getEstadoCampana, getPlanesALaVenta, type PlanALaVenta } from "@/lib/admin/queries";
 import { enlaceWhatsApp, primerNombre } from "@/lib/admin/whatsapp";
 import { getMiCuenta } from "@/lib/cliente/datos";
+import { beneficiosDe, pestanaInicial } from "@/lib/cliente/planes";
 import { TELEFONO_ESTUDIO } from "@/lib/contacto";
 
-const ORDEN_MODALIDAD = ["Mat", "Reformer", "Fusión"] as const;
-
-/** «8 de Reformer + 4 de Mat», para la tarjeta y para el mensaje. */
+/** «8 de Reformer + 4 de Mat», para el mensaje de WhatsApp. */
 function clasesDe(p: PlanALaVenta): string {
   const partes = [
     p.clasesReformer > 0 ? `${p.clasesReformer} de Reformer` : null,
@@ -18,10 +19,12 @@ function clasesDe(p: PlanALaVenta): string {
 }
 
 /**
- * Área de cliente → Planes: el catálogo a la venta, por modalidad, con
- * «Lo quiero» en cada plan, que abre WhatsApp con el plan ya escrito
- * (decisión del usuario, oct 2026). El plan lo activa recepción al cobrarlo:
- * aquí no se paga nada.
+ * Área de cliente → Planes: el catálogo a la venta en pestañas por modalidad,
+ * con tarjetas al estilo de DEMO adminGym (nov 2026, decisión del usuario):
+ * cabecera verde, precio grande, lo que incluye con ✓, el plan DESTACADO con
+ * cinta y brillo (lo marca Administración) y los descuentos con el precio de
+ * antes tachado. «Adquirir» abre WhatsApp con el plan ya escrito: aquí no se
+ * paga; lo activa recepción al cobrarlo.
  *
  * Lee `planes` con la sesión del cliente (RLS: «planes: el cliente los ve»).
  *
@@ -35,26 +38,61 @@ export default async function PlanesClientePage() {
   if (!cuenta) redirect("/login");
   const [planes, campana] = await Promise.all([getPlanesALaVenta(), getEstadoCampana()]);
   const nombre = primerNombre(cuenta.nombre);
-  // Nunca ha tenido una membresía: ni vigente ni pasada.
-  const pctApertura = aperturaPosible(campana, cuenta.cobertura.length === 0);
-  // Con la apertura no se anuncia el descuento propio de los planes: no se suman.
-  const conDescuento = pctApertura === null ? planes.filter((p) => p.descuento) : [];
-  const mayor = Math.max(0, ...conDescuento.map((p) => p.descuento?.pct ?? 0));
+  // No ha comprado nunca un plan que entre en la campaña (los excluidos no cuentan).
+  const conDerecho = tieneDerechoApertura(campana, cuenta.planesComprados);
+  const pctApertura = conDerecho ? campana!.tramo!.pct : null;
+
+  const tarjetas: PlanParaTarjeta[] = planes.map((p) => {
+    // El % de apertura de ESTE plan: `null` si el plan no entra en la campaña.
+    const pctPlan = aperturaPara(campana, cuenta.planesComprados, p.id);
+    // La apertura manda sobre el descuento del plan (no se suman).
+    const oferta =
+      pctPlan !== null
+        ? { pct: pctPlan, hasta: campana?.hasta ?? null, nombre: "Apertura" }
+        : p.descuento
+          ? { pct: p.descuento.pct, hasta: p.descuento.hasta, nombre: "Precio especial" }
+          : null;
+    const precio = precioDeVenta(p, pctPlan);
+    const mensaje =
+      `Hola, soy ${nombre} (${cuenta.correo}). Me interesa el plan ${p.nombre}` +
+      ` de ${p.modalidad} (${clasesDe(p)}, ${moneda(precio)}` +
+      (pctPlan !== null
+        ? ` con el ${pctPlan} % de apertura`
+        : oferta
+          ? ` con el ${oferta.pct} % de descuento`
+          : "") +
+      `). ¿Me ayudas a activarlo?`;
+    return {
+      id: p.id,
+      nombre: p.nombre,
+      modalidad: p.modalidad,
+      vigenciaDias: p.vigenciaDias,
+      precio,
+      precioLista: p.precioLista,
+      oferta,
+      beneficios: beneficiosDe(p, precio),
+      destacado: p.destacado,
+      actual: cuenta.plan === p.nombre && cuenta.estado !== "Vencida",
+      enlace: enlaceWhatsApp(TELEFONO_ESTUDIO, mensaje),
+    };
+  });
 
   return (
     <div className="space-y-8">
-      <section className="text-center md:text-left">
-        <h1 className="font-display text-3xl text-verde sm:text-4xl">Elige tu plan</h1>
-        <p className="mt-2 text-verde-700">
+      <section className="text-center">
+        <p className="eyebrow text-dorado-tinta">Planes</p>
+        <h1 className="mt-2 font-display text-4xl text-verde sm:text-5xl">Elige tu plan</h1>
+        <p className="mx-auto mt-2 max-w-md text-verde-700">
           Escríbenos por WhatsApp con el que quieras y te lo activamos en recepción.
         </p>
       </section>
 
-      {/* Solo cuando el estudio pone un descuento (oct 2026): un aviso arriba
-          que lleva la vista a los planes en oferta. Sin descuentos no hay
-          nada que anunciar y la página queda como siempre. */}
+      {/* La campaña de apertura, solo mientras corre. Los descuentos propios
+          de los planes NO llevan banda arriba (decisión del usuario): se ven
+          en su tarjeta. */}
       {campana?.tramo && pctApertura !== null && (
-        <section className="relative overflow-hidden rounded-2xl bg-verde px-5 py-5 text-center text-arena sm:px-6 sm:text-left">
+        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-verde to-verde-900 px-5 py-5 text-center text-arena sm:px-6">
+          <span className="brillo-plan" aria-hidden="true" />
           <p className="eyebrow text-dorado-light">{campana.nombre}</p>
           <p className="mt-1 font-display text-2xl sm:text-3xl">
             <span className="text-dorado">−{pctApertura} %</span> en tu primera membresía
@@ -65,117 +103,26 @@ export default async function PlanesClientePage() {
               : `Quedan ${campana.tramo.quedan} cupos a este precio`}{" "}
             · hasta el {fecha(campana.hasta)}.
           </p>
+          {/* Los planes que el estudio dejó fuera de la promoción. */}
+          {planes.some((p) => campana.planesExcluidos.includes(p.id)) && (
+            <p className="mt-1 text-sm text-beige/80">
+              No aplica a{" "}
+              {planes
+                .filter((p) => campana.planesExcluidos.includes(p.id))
+                .map((p) => `${p.nombre} (${p.modalidad})`)
+                .join(", ")}
+              .
+            </p>
+          )}
         </section>
       )}
 
-      {conDescuento.length > 0 && (
-        <section className="relative overflow-hidden rounded-2xl bg-verde px-5 py-5 text-center text-arena sm:px-6 sm:text-left">
-          <p className="eyebrow text-dorado-light">Precio especial</p>
-          <p className="mt-1 font-display text-2xl sm:text-3xl">
-            {conDescuento.length === 1
-              ? `${conDescuento[0].nombre} con ${mayor} % de descuento`
-              : `Hasta ${mayor} % de descuento en ${conDescuento.length} planes`}
-          </p>
-          <p className="mt-1 text-sm text-beige/80">
-            Búscalos abajo con la etiqueta dorada. Escríbenos y te lo activamos al precio de oferta.
-          </p>
-        </section>
-      )}
-
-      {ORDEN_MODALIDAD.map((modalidad) => {
-        const delGrupo = planes.filter((p) => p.modalidad === modalidad);
-        if (delGrupo.length === 0) return null;
-        return (
-          <section key={modalidad}>
-            <h2 className="font-display text-2xl text-verde">{modalidad}</h2>
-            <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {delGrupo.map((p) => {
-                const actual = cuenta.plan === p.nombre && cuenta.estado !== "Vencida";
-                const total = p.clasesReformer + p.clasesMat;
-                // La apertura manda sobre el descuento del plan (no se suman).
-                const oferta =
-                  pctApertura !== null ? { pct: pctApertura, hasta: campana?.hasta ?? null } : p.descuento;
-                const precio = precioDeVenta(p, pctApertura);
-                const mensaje =
-                  `Hola, soy ${nombre} (${cuenta.correo}). Me interesa el plan ${p.nombre}` +
-                  ` de ${p.modalidad} (${clasesDe(p)}, ${moneda(precio)}` +
-                  (pctApertura !== null
-                    ? ` con el ${pctApertura} % de apertura`
-                    : oferta
-                      ? ` con el ${oferta.pct} % de descuento`
-                      : "") +
-                  `). ¿Me ayudas a activarlo?`;
-                const enlace = enlaceWhatsApp(TELEFONO_ESTUDIO, mensaje);
-                return (
-                  <li
-                    key={p.id}
-                    /* En oferta: borde dorado doble, fondo cálido y la etiqueta
-                       arriba. Es el ÚNICO momento en que una tarjeta se sale
-                       del blanco, para que se vea sin buscarla. */
-                    className={`flex flex-col rounded-2xl border p-5 ${
-                      oferta
-                        ? "border-dorado bg-gradient-to-b from-dorado/15 to-white shadow-soft ring-1 ring-dorado/40"
-                        : actual
-                          ? "border-dorado bg-white shadow-soft"
-                          : "border-beige bg-white"
-                    }`}
-                  >
-                    {oferta && (
-                      <p className="mb-2 inline-flex items-center gap-1.5 self-start rounded-full bg-verde px-3 py-1 text-xs font-bold text-dorado-light">
-                        −{oferta.pct} %
-                        <span className="font-normal text-beige/80">
-                          {oferta.hasta ? `· hasta el ${fecha(oferta.hasta)}` : "· por tiempo limitado"}
-                        </span>
-                      </p>
-                    )}
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-lg font-bold text-verde">{p.nombre}</h3>
-                      {actual && (
-                        <span className="shrink-0 rounded-full bg-dorado/15 px-3 py-1 text-xs text-dorado-tinta">
-                          Tu plan
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-2 flex flex-wrap items-baseline gap-x-2">
-                      <span className="font-cifra text-3xl font-light text-verde">{moneda(precio)}</span>
-                      {oferta && (
-                        <span className="font-cifra text-sm text-verde-300 line-through">
-                          <span className="sr-only">Antes </span>
-                          {moneda(p.precioLista)}
-                        </span>
-                      )}
-                    </p>
-                    <p className="mt-1 text-sm text-verde-700">
-                      {clasesDe(p)} · {p.vigenciaDias} días
-                    </p>
-                    {total > 0 && (
-                      <p className="mt-0.5 text-xs text-verde-300">
-                        {moneda(Math.round(precio / total))} por clase
-                      </p>
-                    )}
-                    {enlace && (
-                      <a
-                        href={enlace}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-4 inline-flex min-h-[44px] items-center justify-center rounded-full bg-verde px-5 text-sm font-medium text-arena transition-colors duration-300 hover:bg-verde-900"
-                        aria-label={`Pedir el plan ${p.nombre} por WhatsApp`}
-                      >
-                        {actual ? "Renovar por WhatsApp" : "Lo quiero · WhatsApp"}
-                      </a>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        );
-      })}
-
-      {planes.length === 0 && (
-        <p className="rounded-2xl border border-beige bg-white p-6 text-center text-verde-700">
+      {planes.length === 0 ? (
+        <p className="rounded-3xl border border-beige bg-white p-6 text-center text-verde-700">
           Ahora mismo no hay planes a la venta. Escríbenos y te contamos.
         </p>
+      ) : (
+        <CatalogoPlanes planes={tarjetas} inicial={pestanaInicial(planes, cuenta.plan)} />
       )}
     </div>
   );

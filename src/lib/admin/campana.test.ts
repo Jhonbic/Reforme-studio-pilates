@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-  aperturaPosible,
+  aperturaPara,
   erroresCampana,
   estadoDeCampana,
   frasesTramos,
   metaDe,
+  planEnCampana,
   precioDeVenta,
   segmentosCampana,
+  tieneDerechoApertura,
   type BorradorCampana,
   type EstadoCampana,
 } from "./campana";
@@ -20,18 +22,29 @@ const campana: EstadoCampana = {
   vendidas: 18,
   meta: 80,
   tramo: { orden: 1, pct: 15, quedan: 2 },
+  // «Inicio» (la clase suelta) no entra en la campaña.
+  planesExcluidos: ["inicio"],
 };
 
 describe("campaña de apertura", () => {
-  it("solo la primera membresía del cliente entra en la campaña", () => {
-    expect(aperturaPosible(campana, true)).toBe(15);
-    // Renovar, o quien ya tuvo un plan: precio normal.
-    expect(aperturaPosible(campana, false)).toBeNull();
+  it("solo quien no ha comprado nunca un plan que entre tiene el descuento", () => {
+    expect(aperturaPara(campana, [], "origen")).toBe(15);
+    // Renovar, o quien ya tuvo un plan que entra: precio normal.
+    expect(aperturaPara(campana, ["origen"], "equilibrio")).toBeNull();
+  });
+
+  it("un plan excluido no lleva descuento, y comprarlo no gasta el derecho", () => {
+    expect(planEnCampana(campana, "inicio")).toBe(false);
+    expect(aperturaPara(campana, [], "inicio")).toBeNull();
+    // Probó con la clase suelta: al inscribirse sigue teniendo el descuento.
+    expect(tieneDerechoApertura(campana, ["inicio", "inicio"])).toBe(true);
+    expect(aperturaPara(campana, ["inicio"], "origen")).toBe(15);
   });
 
   it("con los cupos agotados, o sin campaña, no hay descuento", () => {
-    expect(aperturaPosible({ ...campana, tramo: null }, true)).toBeNull();
-    expect(aperturaPosible(null, true)).toBeNull();
+    expect(aperturaPara({ ...campana, tramo: null }, [], "origen")).toBeNull();
+    expect(aperturaPara(null, [], "origen")).toBeNull();
+    expect(tieneDerechoApertura(null, [])).toBe(false);
   });
 
   it("el tramo va sobre el precio de lista y no se suma al descuento del plan", () => {
@@ -59,9 +72,16 @@ const borrador: BorradorCampana = {
     { cupos: 25, pct: 10 },
     { cupos: 35, pct: 5 },
   ],
+  excluidos: ["inicio"],
 };
 
 describe("configurar una campaña", () => {
+  it("al menos un plan a la venta tiene que entrar en la campaña", () => {
+    expect(erroresCampana(borrador, "2026-11-07", true, ["inicio", "origen"])).toEqual({});
+    expect(erroresCampana({ ...borrador, excluidos: ["inicio", "origen"] }, "2026-11-07", true, ["inicio", "origen"]).planes)
+      .toBeDefined();
+  });
+
   it("la del estudio es válida y su meta es 80", () => {
     expect(erroresCampana(borrador, "2026-11-07", true)).toEqual({});
     expect(metaDe(borrador.tramos)).toBe(80);

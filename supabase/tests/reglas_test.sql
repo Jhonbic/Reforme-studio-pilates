@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(128);
+select plan(150);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -327,6 +327,71 @@ select throws_ok(
 select lives_ok(
   $$select marcar_asistencia('00000000-0000-0000-0000-0000000000ab', 'No vino')$$,
   'recepción o administración corrigen una marca');
+select throws_ok(
+  $$select * from mi_historial('2020-01-01', '2020-12-31')$$,
+  'P0001', 'Esta cuenta no es de un cliente.',
+  'una cuenta del equipo no tiene historial de cliente');
+reset role;
+
+-- Historial del cliente (calendario del Inicio de /mi-cuenta) -----------------
+-- Sigue con la clase pasada de 2020, marcada «No vino» justo arriba.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select is(
+  (select asistencia::text from mi_historial('2020-01-01', '2020-12-31')),
+  'No vino',
+  'el cliente ve sus clases pasadas con su asistencia');
+select is(
+  (select count(*)::int from mi_historial('2031-01-01', '2031-12-31')),
+  0,
+  'el historial no trae clases que no han empezado (esas van por la agenda)');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c2","role":"authenticated"}';
+select is(
+  (select count(*)::int from mi_historial('2020-01-01', '2020-12-31')),
+  0,
+  'un cliente no ve el historial de otro');
+reset role;
+
+set local role anon;
+select throws_ok(
+  $$select * from mi_historial('2020-01-01', '2020-12-31')$$,
+  '42501', null,
+  'sin sesión no se pide el historial');
+select throws_ok(
+  $$select actualizar_mis_datos('3001112233', 'Calle 1 # 2-3', null, 'Ana Pérez', '3009998877')$$,
+  '42501', null,
+  'sin sesión no se cambian datos de nadie');
+reset role;
+
+-- Mi perfil: el cliente corrige sus datos de CONTACTO, y solo los suyos -------
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select lives_ok(
+  $$select actualizar_mis_datos('3001112233', '  Calle nueva # 2-3 ', 'Sura', 'Ana Pérez', '3009998877')$$,
+  'el cliente corrige su teléfono, dirección, EPS y emergencia');
+select throws_ok(
+  $$select actualizar_mis_datos('12345', 'Calle nueva # 2-3', null, 'Ana Pérez', '3009998877')$$,
+  'P0001', 'Un móvil colombiano son 10 dígitos y empieza por 3.',
+  'un teléfono que no es un móvil colombiano no se guarda');
+reset role;
+select is(
+  (select telefono || '|' || direccion || '|' || eps from clientes where id = '00000000-0000-0000-0000-0000000000d1'),
+  '3001112233|Calle nueva # 2-3|Sura',
+  'se guardó en SU ficha, con la dirección sin espacios de sobra');
+select is(
+  (select nombre from clientes where id = '00000000-0000-0000-0000-0000000000d1'),
+  'Cliente con plan',
+  'el nombre no se puede tocar desde aquí');
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$select actualizar_mis_datos('3001112233', 'Calle 1 # 2-3', null, 'Ana Pérez', '3009998877')$$,
+  'P0001', 'Esta cuenta no es de un cliente.',
+  'una cuenta del equipo no tiene «mis datos» de cliente');
 reset role;
 
 -- Agenda automática: el horario manda ------------------------------------------
@@ -782,6 +847,20 @@ insert into clientes (id, nombre, identificacion, correo, telefono) values
   ('00000000-0000-0000-0000-0000000000d5', 'Cliente descuento', 'TEST020', 'descuento@reforme.local', '3000000020'),
   ('00000000-0000-0000-0000-0000000000d6', 'Cliente caducado', 'TEST021', 'caducado@reforme.local', '3000000021');
 
+-- Plan destacado (nov 2026): uno solo; marcar otro apaga el anterior.
+update planes set destacado = true where id = '00000000-0000-0000-0000-0000000000b5';
+update planes set destacado = true where id = '00000000-0000-0000-0000-0000000000b6';
+select is(
+  (select array_agg(id::text) from planes where destacado),
+  array['00000000-0000-0000-0000-0000000000b6'],
+  'marcar un plan como destacado apaga el anterior: nunca hay dos');
+select lives_ok(
+  $$insert into planes (nombre, precio, vigencia_dias, modalidad, clases_reformer, clases_mat, destacado)
+    values ('Nuevo destacado', 100000, 30, 'Mat', 0, 2, true)$$,
+  'crear un plan ya destacado también apaga el anterior');
+select is((select count(*)::int from planes where destacado), 1, 'sigue habiendo un solo destacado');
+update planes set destacado = false where destacado;
+
 select throws_ok(
   $$update planes set descuento_pct = null, descuento_hasta = current_date + 5
     where id = '00000000-0000-0000-0000-0000000000b5'$$,
@@ -961,6 +1040,50 @@ select results_eq(
   $$select nombre, vendidas, meta, tramo_pct, quedan_en_tramo from estado_campana()$$,
   $$values ('Apertura ampliada'::text, 3, 5, 20, 2)$$,
   'los tramos nuevos sustituyen a los viejos y lo vendido sigue contando');
+
+-- Planes que no entran en la campaña (nov 2026) ------------------------------
+-- Se excluye «Plan con descuento» (b5, con su propio −20 %).
+insert into clientes (id, nombre, identificacion, correo, telefono) values
+  ('00000000-0000-0000-0000-0000000000ab', 'Campaña cinco', 'TEST035', 'campana5@reforme.local', '3000000035');
+select lives_ok(
+  $$select guardar_campana('00000000-0000-0000-0000-0000000000f7', 'Apertura ampliada',
+      current_date - 1, current_date + 6, null, '[{"cupos": 5, "pct": 20}]',
+      array['00000000-0000-0000-0000-0000000000b5']::uuid[])$$,
+  'Administración deja un plan fuera de la campaña');
+select is(
+  (select planes_excluidos from estado_campana()),
+  array['00000000-0000-0000-0000-0000000000b5']::uuid[],
+  'el estado de la campaña dice qué planes no entran');
+-- Primera compra: el plan excluido. Precio de siempre (su −20 %) y no gasta cupo.
+select registrar_membresia('00000000-0000-0000-0000-0000000000ab',
+  '00000000-0000-0000-0000-0000000000b5', 'Efectivo');
+select results_eq(
+  $$select m.importe, m.campana_id is null, e.vendidas
+      from membresias m, estado_campana() e
+     where m.cliente_id = '00000000-0000-0000-0000-0000000000ab'$$,
+  $$values (80000, true, 3)$$,
+  'un plan excluido se cobra a su precio de siempre y no gasta cupo');
+-- Después, un plan que SÍ entra: comprar el excluido no le quitó el derecho.
+select registrar_membresia('00000000-0000-0000-0000-0000000000ab',
+  '00000000-0000-0000-0000-0000000000b7', 'Efectivo');
+select results_eq(
+  $$select importe, campana_pct from membresias
+     where cliente_id = '00000000-0000-0000-0000-0000000000ab' and campana_id is not null$$,
+  $$values (80000, 20)$$,
+  'quien solo compró planes excluidos sigue teniendo derecho al descuento');
+select is((select vendidas from estado_campana()), 4, 'esa venta sí gasta cupo');
+select throws_ok(
+  $$select guardar_campana('00000000-0000-0000-0000-0000000000f7', 'Apertura ampliada',
+      current_date - 1, current_date + 6, null, '[{"cupos": 5, "pct": 20}]',
+      (select array_agg(id) from planes where se_vende))$$,
+  'P0001', 'Marca al menos un plan que entre en la campaña.',
+  'una campaña sin ningún plan dentro no se guarda');
+select lives_ok(
+  $$select guardar_campana('00000000-0000-0000-0000-0000000000f7', 'Apertura ampliada',
+      current_date - 1, current_date + 6, null, '[{"cupos": 5, "pct": 20}]')$$,
+  'editar sin exclusiones vuelve a dejar entrar todos los planes');
+select is((select cardinality(planes_excluidos) from estado_campana()), 0,
+  'al editar, las exclusiones nuevas sustituyen a las viejas');
 select throws_ok(
   $$select guardar_campana('00000000-0000-0000-0000-0000000000f7', 'Sin tramos',
       current_date - 1, current_date + 6, null, '[]')$$,

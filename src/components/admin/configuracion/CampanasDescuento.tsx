@@ -22,8 +22,10 @@ import {
   type CampoCampana,
   type EstadoDeCampana,
 } from "@/lib/admin/campana";
-import { fecha, numero } from "@/lib/admin/format";
+import { fecha, moneda, numero } from "@/lib/admin/format";
 import { sumarDias } from "@/lib/admin/horario";
+import type { PlanALaVenta } from "@/lib/admin/queries";
+import { MODALIDADES } from "@/lib/cliente/planes";
 import { soloDigitos } from "@/lib/validacion";
 
 const BOTON_PRIMARIO =
@@ -55,12 +57,33 @@ function rango(desde: string, hasta: string) {
   return m1 === fecha(hasta).split(" ")[1] ? `del ${d1} al ${fecha(hasta)}` : `del ${fecha(desde)} al ${fecha(hasta)}`;
 }
 
+/** «Inicio (Mat), Esencia (Reformer)»: los planes que no entran. Solo los que
+ *  siguen a la venta (uno retirado ya no se ofrece de ninguna forma). */
+function nombresFuera(excluidos: string[], planes: PlanALaVenta[]): string {
+  return planes
+    .filter((p) => excluidos.includes(p.id))
+    .map((p) => `${p.nombre} (${p.modalidad})`)
+    .join(", ");
+}
+
 /**
  * Campañas de descuento por tramos (la apertura): «las primeras 20 al 15 %,
  * las siguientes 25 al 10 %…». Quien cobra es la base (`registrar_membresia`);
  * aquí solo se montan, se terminan o se borran.
+ *
+ * Cada campaña elige qué planes ENTRAN (nov 2026: el estudio no quiere, por
+ * ejemplo, la clase suelta en la promoción). Se guardan las exclusiones.
  */
-export default function CampanasDescuento({ campanas, hoy }: { campanas: CampanaConfig[]; hoy: string }) {
+export default function CampanasDescuento({
+  campanas,
+  hoy,
+  planes,
+}: {
+  campanas: CampanaConfig[];
+  hoy: string;
+  /** Los planes a la venta: para elegir los que entran. */
+  planes: PlanALaVenta[];
+}) {
   // `null` = cerrado; `"nueva"` = crear; una campaña = editarla.
   const [editando, setEditando] = useState<CampanaConfig | "nueva" | null>(null);
 
@@ -82,7 +105,7 @@ export default function CampanasDescuento({ campanas, hoy }: { campanas: Campana
       ) : (
         <ul className="mt-4 divide-y divide-beige rounded-xl border border-beige">
           {campanas.map((c) => (
-            <FilaCampana key={c.id} campana={c} hoy={hoy} onEditar={() => setEditando(c)} />
+            <FilaCampana key={c.id} campana={c} hoy={hoy} planes={planes} onEditar={() => setEditando(c)} />
           ))}
         </ul>
       )}
@@ -93,6 +116,7 @@ export default function CampanasDescuento({ campanas, hoy }: { campanas: Campana
           key={editando === "nueva" ? "nueva" : editando.id}
           campana={editando === "nueva" ? null : editando}
           hoy={hoy}
+          planes={planes}
           onCerrar={() => setEditando(null)}
         />
       )}
@@ -100,7 +124,17 @@ export default function CampanasDescuento({ campanas, hoy }: { campanas: Campana
   );
 }
 
-function FilaCampana({ campana: c, hoy, onEditar }: { campana: CampanaConfig; hoy: string; onEditar: () => void }) {
+function FilaCampana({
+  campana: c,
+  hoy,
+  planes,
+  onEditar,
+}: {
+  campana: CampanaConfig;
+  hoy: string;
+  planes: PlanALaVenta[];
+  onEditar: () => void;
+}) {
   const { mostrarAviso } = useToast();
   const [enCurso, iniciar] = useTransition();
   // Segunda pulsación para lo que no se deshace.
@@ -159,6 +193,11 @@ function FilaCampana({ campana: c, hoy, onEditar }: { campana: CampanaConfig; ho
           </li>
         ))}
       </ul>
+      {nombresFuera(c.planesExcluidos, planes) && (
+        <p className="text-xs text-verde-700">
+          <span className="text-verde-300">Fuera de la campaña:</span> {nombresFuera(c.planesExcluidos, planes)}
+        </p>
+      )}
 
       {!terminada && (
         <div className="flex flex-wrap items-center gap-2">
@@ -202,10 +241,12 @@ function FilaCampana({ campana: c, hoy, onEditar }: { campana: CampanaConfig; ho
 function FormularioCampana({
   campana,
   hoy,
+  planes,
   onCerrar,
 }: {
   campana: CampanaConfig | null;
   hoy: string;
+  planes: PlanALaVenta[];
   onCerrar: () => void;
 }) {
   const { mostrarAviso } = useToast();
@@ -221,6 +262,8 @@ function FormularioCampana({
   const [tramos, setTramos] = useState<TramoEnEdicion[]>(
     (campana?.tramos ?? TRAMOS_APERTURA).map((t) => ({ cupos: String(t.cupos), pct: t.pct })),
   );
+  // Los planes que NO entran. Una campaña nueva arranca con todos dentro.
+  const [excluidos, setExcluidos] = useState<string[]>(campana?.planesExcluidos ?? []);
   // Los errores se enseñan tras el primer intento de guardar: antes, no
   // castigan lo que se está escribiendo.
   const [intentado, setIntentado] = useState(false);
@@ -232,8 +275,21 @@ function FormularioCampana({
     hasta,
     inicio: conInicio ? inicio : "",
     tramos: tramos.map((t) => ({ cupos: Number(t.cupos || 0), pct: t.pct })),
+    excluidos,
   };
-  const errores = erroresCampana(borrador, hoy, nueva);
+  const errores = erroresCampana(
+    borrador,
+    hoy,
+    nueva,
+    planes.map((p) => p.id),
+  );
+  const fuera = nombresFuera(excluidos, planes);
+
+  /** Marcar = el plan entra; desmarcar = queda fuera. */
+  function cambiarPlanes(ids: string[], entran: boolean) {
+    setExcluidos((ex) => (entran ? ex.filter((x) => !ids.includes(x)) : [...new Set([...ex, ...ids])]));
+    setErrorServidor(null);
+  }
   const error = (campo: CampoCampana) =>
     errorServidor?.campo === campo ? errorServidor.error : intentado ? errores[campo] : undefined;
   const meta = metaDe(borrador.tramos);
@@ -396,7 +452,7 @@ function FormularioCampana({
                 <p className="rounded-xl border border-beige bg-arena/50 px-4 py-3 text-sm text-verde-700">
                   Meta: <span className="font-cifra font-normal text-verde">{numero(meta)}</span> membresías. Se cobran{" "}
                   {frasesTramos(borrador.tramos)}; después, precio normal. Solo la primera membresía de cada
-                  cliente.
+                  cliente en un plan que entre.
                 </p>
               )
             )}
@@ -412,6 +468,73 @@ function FormularioCampana({
               </p>
             )}
           </div>
+        </fieldset>
+
+        {/* Qué planes entran, por modalidad (decisión del usuario: se marcan
+            los que ENTRAN; todos de entrada). */}
+        <fieldset className="space-y-3">
+          <legend className="mb-1.5 text-sm font-medium text-verde">Planes en la promoción</legend>
+          <p className="-mt-1 text-xs text-verde-300">
+            Desmarca los que no entran (por ejemplo, el de una clase). Comprar uno de esos no le quita a nadie el
+            descuento para su primera membresía de un plan que sí entra.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {MODALIDADES.map((m) => {
+              const grupo = planes.filter((p) => p.modalidad === m);
+              if (grupo.length === 0) return null;
+              const ids = grupo.map((p) => p.id);
+              return (
+                <div key={m} className="rounded-xl border border-beige px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold uppercase tracking-wider text-verde-300">{m}</p>
+                    <div className="flex items-center text-xs text-verde-300">
+                      <button
+                        type="button"
+                        onClick={() => cambiarPlanes(ids, true)}
+                        className="min-h-[32px] px-1.5 text-dorado-tinta underline-offset-2 hover:underline"
+                        aria-label={`Todos los planes de ${m} entran`}
+                      >
+                        Todos
+                      </button>
+                      ·
+                      <button
+                        type="button"
+                        onClick={() => cambiarPlanes(ids, false)}
+                        className="min-h-[32px] px-1.5 text-dorado-tinta underline-offset-2 hover:underline"
+                        aria-label={`Ningún plan de ${m} entra`}
+                      >
+                        Ninguno
+                      </button>
+                    </div>
+                  </div>
+                  <ul>
+                    {grupo.map((p) => (
+                      <li key={p.id}>
+                        <CampoCheck
+                          nombre={`campana-plan-${p.id}`}
+                          checked={!excluidos.includes(p.id)}
+                          onChange={(v) => cambiarPlanes([p.id], v)}
+                        >
+                          {p.nombre}{" "}
+                          <span className="font-cifra text-xs text-verde-300">{moneda(p.precioLista)}</span>
+                        </CampoCheck>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+          {fuera && (
+            <p className="text-sm text-verde-700">
+              <span className="text-verde-300">Fuera de la campaña:</span> {fuera}
+            </p>
+          )}
+          {error("planes") && (
+            <p role="alert" className="text-sm text-[var(--color-estado-grave)]">
+              {error("planes")}
+            </p>
+          )}
         </fieldset>
 
         <div className="space-y-2">

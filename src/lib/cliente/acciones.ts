@@ -11,9 +11,10 @@ import {
   esMenorDeEdad,
   type FichaRegistro,
 } from "@/lib/cliente/registro";
+import { CAMPOS_PERFIL, erroresPerfil, type MisDatosEditables } from "@/lib/cliente/perfil";
 import { crearClienteAdmin } from "@/lib/supabase/admin";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { nombrePropio } from "@/lib/validacion";
+import { nombrePropio, normalizarTelefonoPegado } from "@/lib/validacion";
 
 export type Resultado = { ok: true } | { ok: false; error: string; campo?: string };
 
@@ -279,5 +280,57 @@ export async function cancelarReserva(claseId: string): Promise<Resultado> {
   if (error) return { ok: false, error: error.code === "P0001" ? error.message : "No se pudo cancelar. Inténtalo de nuevo." };
   revalidatePath("/mi-cuenta");
   revalidatePath("/admin/clases");
+  return { ok: true };
+}
+
+/* ======================================================================
+   Mi perfil
+   ====================================================================== */
+
+/**
+ * El cliente corrige sus datos de CONTACTO (nov 2026). Vuelve a validar todo
+ * (una server action se puede llamar sin el formulario) y decide la minoría
+ * de edad con la fecha de la BASE, no con la que mande el navegador. La base
+ * lo comprueba otra vez y solo deja tocar esas columnas, y solo en su ficha
+ * (`actualizar_mis_datos`).
+ */
+export async function guardarMisDatos(d: MisDatosEditables): Promise<Resultado> {
+  const supabase = await crearClienteServidor();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Tu sesión caducó. Vuelve a entrar." };
+
+  const { data: ficha } = await supabase
+    .from("clientes")
+    .select("fecha_nacimiento")
+    .eq("cuenta_id", user.id)
+    .maybeSingle();
+  if (!ficha) return { ok: false, error: "Esta cuenta no es de un cliente." };
+
+  const limpio: MisDatosEditables = {
+    telefono: normalizarTelefonoPegado(d.telefono),
+    direccion: d.direccion.trim(),
+    eps: d.eps.trim(),
+    emergenciaNombre: nombrePropio(d.emergenciaNombre),
+    emergenciaTelefono: normalizarTelefonoPegado(d.emergenciaTelefono),
+  };
+  const menor = ficha.fecha_nacimiento ? esMenorDeEdad(ficha.fecha_nacimiento, hoyEnBogota()) : null;
+  const errores = erroresPerfil(limpio, menor);
+  const campo = CAMPOS_PERFIL.find((c) => errores[c]);
+  if (campo) return { ok: false, campo, error: errores[campo] as string };
+
+  const { error } = await supabase.rpc("actualizar_mis_datos", {
+    p_telefono: limpio.telefono,
+    p_direccion: limpio.direccion,
+    p_eps: limpio.eps,
+    p_emergencia_nombre: limpio.emergenciaNombre,
+    p_emergencia_telefono: limpio.emergenciaTelefono,
+  });
+  if (error) return { ok: false, error: error.code === "P0001" ? error.message : "No se pudo guardar. Inténtalo de nuevo." };
+
+  revalidatePath("/mi-cuenta", "layout");
+  // Recepción ve la ficha con el dato nuevo.
+  revalidatePath("/admin/usuarios", "layout");
   return { ok: true };
 }

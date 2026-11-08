@@ -70,8 +70,8 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 |---|---|
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
-| `npm test` | **Vitest**, 63 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard y estadísticas, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 128 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm test` | **Vitest**, 134 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard, estadísticas, Inicio, Reservar, Planes y Mi perfil del cliente, quién marca asistencia (`src/**/*.test.ts`) |
+| `npm run test:db` | **pgTAP**, 150 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -2082,6 +2082,115 @@ Migración `20261107120000_campana_apertura`.
   despliega). 3) Crear la campaña real en Configuración. La migración va
   ANTES que la web o a la vez: con la web primero no se rompe nada (ver
   arriba), pero la tarjeta de Configuración fallaría hasta aplicarla.
+  ⚠️ **8 nov 2026 — se desplegó la web SIN la migración**: Configuración daba
+  error 500 («Could not find the table 'public.campanas'») y la portada y el
+  dashboard registraban errores (sin romperse). Se aplicó ese día con
+  `supabase db push` (la CLI sí tenía permisos). Copia previa de esquema y
+  datos en `../respaldo-reforme-ngjy-2026-11-08-campana/`. **Al subir una
+  migración nueva, aplicarla en producción en el mismo momento que el push.**
+
+#### Campaña: qué planes entran (8 nov 2026)
+
+Pedido del estudio: que el plan de una clase no entre en la promoción.
+Migración `20261108150000_campana_planes`.
+
+- **Configuración → Campaña de descuento → formulario**: bloque **«Planes en
+  la promoción»**, tres grupos (Mat · Reformer · Fusión) con una casilla por
+  plan y «Todos · Ninguno» por grupo. **Se marcan los que ENTRAN** (decisión
+  del usuario); de entrada, todos. Eco «Fuera de la campaña: Inicio (Mat)»,
+  que también sale en la fila de cada campaña. Sin ningún plan dentro no se
+  guarda («Marca al menos un plan…», regla en `erroresCampana` y en la
+  base).
+- Se guardan las **exclusiones** (tabla `campana_planes_excluidos`, RLS
+  como `campana_tramos`): un plan creado después entra solo.
+- ⚠️ **Regla de derecho (decisión del usuario)**: comprar un plan excluido
+  NO gasta la «primera membresía». Tiene derecho quien no ha tenido NUNCA
+  una membresía de un plan que entre en esta campaña: puede probar con la
+  clase suelta y luego inscribirse con el descuento. En la base
+  (`registrar_membresia`) y en `tieneDerechoApertura` / `aperturaPara`
+  (`campana.ts`), que sustituyen a `aperturaPosible`.
+- Un plan excluido se cobra a su precio de siempre (con su descuento propio,
+  si tiene) y **no gasta cupo**.
+- `estado_campana()` devuelve además `planes_excluidos` (solo ids; la
+  sigue pidiendo la web pública). `guardar_campana` gana `p_excluidos`
+  (con default: las llamadas de 6 argumentos siguen valiendo).
+- Dónde se ve: «Asignar plan» (el aviso dice «No aplica a: Inicio (Mat)» y
+  la lista enseña el precio de apertura solo en los que entran); el área de
+  cliente (`getMiCuenta` trae `planesComprados`; en Planes los excluidos
+  salen a su precio y la banda de la campaña dice «No aplica a…»). La
+  portada no cambia.
+- 8 tests de base (150) y 3 de Vitest. Probado en el navegador: crear una
+  campaña dejando fuera «Inicio», el error con todo fuera, «Asignar plan» a
+  una clienta sin planes (Inicio $140.000, Origen con −15 %) y su vista de
+  Planes.
+
+#### Planes del cliente y plan destacado (`/mi-cuenta/planes`) — 8 nov 2026
+
+Rediseño con la referencia de los planes de DEMO adminGym (`PlanesView.vue`),
+decisión del usuario («no me gusta cómo se ven»). Piezas en
+`components/cliente/planes/`, reglas en `lib/cliente/planes.ts` (con tests).
+
+- **Pestañas por modalidad** (Mat · Reformer · Fusión, decisión del usuario),
+  cada una con «desde $X» y ★ si tiene el destacado. `tablist` ARIA con
+  flechas. Abre en la de SU plan; si no, la del destacado.
+- **Tarjeta** (`TarjetaPlanCliente`): cabecera verde (degradado a
+  `verde-900`) con icono por modalidad en un cuadro de SOLO borde dorado,
+  fondo transparente, nombre en
+  Cormorant y pastillas (oferta, «30 días de vigencia», «✓ Tu plan»); precio
+  grande en Lato (`font-cifra`) con «Antes $X» tachado y «Hasta el…» si hay
+  oferta; lo que incluye con ✓ (clases de cada tipo, precio por clase y las
+  «Características» del plan); botón **«Adquirir»** («Renovar» si es el
+  suyo), que abre WhatsApp con el plan escrito.
+- **Plan destacado**: cinta «★ Plan destacado», borde dorado de 2 px, brillo
+  que cruza la cabecera (`.brillo-plan`) y resplandor dorado que respira
+  (`.plan-destacado`); quietos con `prefers-reduced-motion`. En el móvil va
+  primero; en escritorio, en su sitio por precio y algo más grande.
+  - ⚠️ **Lo marca Administración** (decisión del usuario): casilla «Plan
+    destacado» en el formulario del plan; en su tarjeta del panel sale «☆
+    Destacado en la web». **No es «El más contratado»**, que se calcula con
+    los clientes y solo ve el equipo.
+  - Migración `20261108130000_plan_destacado`: `planes.destacado`, índice
+    único parcial (nunca dos) y trigger `planes_un_destacado` que apaga el
+    anterior al marcar otro (en la base: dos administradoras a la vez no
+    dejan dos). 3 tests de base (136).
+- ⚠️ **Sin banda «Precio especial» arriba** (decisión del usuario): los
+  descuentos de los planes se ven solo en su tarjeta. La banda de la
+  campaña de apertura sí se queda (con el mismo brillo).
+- Probado a 390 y 1280 px con un destacado y un descuento puestos en LOCAL
+  (Fusión Esencial y Fusión Equilibrio −15 % hasta el 30 nov): sin
+  desplazamiento lateral ni errores.
+
+#### Mi perfil del cliente (`/mi-cuenta/configuracion`) — 8 nov 2026
+
+Formato de «Mi perfil» de DEMO adminGym (decisión del usuario).
+`components/cliente/perfil/FormularioPerfil.tsx`, reglas en
+`lib/cliente/perfil.ts` (con tests).
+
+- **Barra lateral**: «Ver la web» se quitó; **«Mi perfil» va al pie**, en su
+  lugar, junto a «Cerrar sesión» (`pie: true` en `seccionesCliente.tsx`). La
+  lista de arriba queda Inicio · Reservar · Planes.
+- **Datos personales**, en dos columnas: con **candado** (solo lectura, la
+  corrige recepción) nombre, correo, documento, fecha de nacimiento y
+  acudiente, con «Pedir una corrección» (WhatsApp con el mensaje escrito);
+  **editables** teléfono, EPS (lista cerrada + «Otra»), dirección y contacto
+  de emergencia. Mismas reglas que el registro (un adulto no puede ser su
+  propio contacto de emergencia).
+- **Seguridad**: casilla «Cambiar contraseña» que abre actual / nueva /
+  repetir. Un solo «Guardar cambios» (primero los datos, luego la
+  contraseña con `cambiarMiContrasena`). «Guardar» apagado sin cambios;
+  «Descartar» deshace todo, también la casilla. `BotonContrasena` se borró.
+- ⚠️ **Seguridad en la BASE, no solo en la pantalla** (migración
+  `20261108140000_mis_datos`): el cliente NO tiene UPDATE sobre `clientes`
+  (RLS: solo el mostrador) y no se le da, porque una política de UPDATE no
+  puede limitar QUÉ columnas cambia. Lo único que puede llamar es
+  **`actualizar_mis_datos`** (`security definer`), que toca solo esas cinco
+  columnas y solo en `id = mi_cliente_id()`, y vuelve a validar. EXECUTE
+  revocado a `anon`. 6 tests de base (142). **Probado atacando la API con
+  la sesión de un cliente**: PATCH a su ficha cambiando nombre/correo/
+  documento → 0 filas; PATCH a la ficha de otra → 0 filas; la función con un
+  `p_nombre` de más → «no existe»; sin sesión → «permission denied».
+- **Inicio**: se quitó también el aviso «Precio especial» (decisión del
+  usuario). Solo queda el de la campaña de apertura.
 
 #### Planes (`/admin/planes`) — desde Supabase, oct 2026
 
@@ -2386,9 +2495,8 @@ antes**.
     el chat del estudio con el plan ya escrito («Hola, soy X (correo). Me
     interesa el plan Origen de Mat (8 de Mat, $260.000)…»). Aquí no se paga:
     lo activa recepción al cobrar. Sin plan, Inicio y Reservar llevan aquí.
-  - **Mi cuenta** (`/mi-cuenta/configuracion`): sus datos en SOLO LECTURA
-    (`getMisDatos()`; los corrige recepción, y el correo es su usuario) y
-    «Cambiar contraseña». La contraseña salió de la cabecera.
+  - ~~**Mi cuenta**~~ → **Mi perfil** desde el 8 nov 2026 (ver «Mi perfil
+    del cliente»). Antes: datos en solo lectura y «Cambiar contraseña».
 - **El panel de la instructora** ya no tiene Planes, Finanzas ni
   Estadísticas (decisión del usuario, oct 2026): `Seccion.ocultaA` en
   `secciones.tsx` + `seccionesDe(rol)` en la lateral, y las tres páginas la
@@ -2413,6 +2521,87 @@ antes**.
   `/admin` → `/mi-cuenta`, acceso web desde recepción). Arreglado por el
   camino: dos botones se anunciaban igual («Cancelar… de las 07:00» en días
   distintos); ahora llevan el día.
+
+#### Inicio del cliente rediseñado (`/mi-cuenta`) — 8 nov 2026
+
+Feedback del usuario: «se ve extremadamente vacía». Referencia: el Inicio de
+`DEMO adminGym` (`HomeView.vue`). Piezas en `components/cliente/inicio/` y
+cálculos puros en `lib/cliente/inicio.ts` (con tests).
+
+- **Cabecera**: la fecha de hoy como eyebrow, «Hola, X» y cuántas clases
+  tiene reservadas.
+- **Tarjeta del plan en VERDE de marca con motas** (`HeroFX` sin goteo,
+  decisión del usuario): una barra por modalidad («11 de 12 clases»), pastilla
+  de estado (● Activo · ◇ Empieza en 7 días · ▲ Vence en 3 días), fechas y
+  «Ver planes» / «Renovar». Sin plan, vencido o de baja: el porqué y los
+  botones, en la misma tarjeta.
+  - ⚠️ **Arreglo**: con un plan pagado que aún no empieza, la tarjeta decía
+    «Vigente hasta…» sin ninguna clase (el saldo solo contaba membresías que
+    cubren HOY). Ahora `getMiCuenta` cuenta la próxima si hoy no hay ninguna,
+    y devuelve `inicio`.
+- **Tu próxima clase**, grande (ficha de día, hora, tipo, instructora,
+  «Empieza en 40 min» si es hoy) con Cambiar / Cancelar. El resto de reservas
+  va debajo en «También reservaste». Sin plan ni reservas, no se pinta.
+- **Con cupo para ti**: hasta 3 clases que puede reservar con un toque
+  (`conCupoParaMi`: con cupo, que su plan cubra, con saldo de esa modalidad,
+  ni privadas ni en espera).
+- **Tus clases**: calendario del mes (‹ ›, hasta 6 meses atrás) con ●
+  asistió · sin marcar · ○ no vino · anillo = reservada, y «En noviembre: N
+  clases». Es una `<table>` con el estado de cada día en texto para
+  lectores. «Sin marcar» cuenta como clase tomada (se descontó y lo normal
+  es que viniera); «No vino» no. ⚠️ Un momento se dejó en solo «tomada /
+  reservada» creyendo que el estudio no pasaba lista, y se devolvió: sí se
+  pasa lista desde la agenda («Asistencia»), así que las cuatro marcas valen.
+- **Nueva función de base `mi_historial(desde, hasta)`** (migración
+  `20261108120000_mi_historial`): las reservas YA EMPEZADAS del propio cliente
+  con fecha, tipo, instructora, asistencia y si la canceló el estudio. Mismo
+  patrón que `agenda_cliente` (`security definer`, `mi_cliente_id()`, EXECUTE
+  revocado a `public` y `anon`), máximo un año. 5 tests de base (133).
+  `getMiHistorial` **no lanza**: sin la migración el calendario sale vacío.
+- ⚠️ **Descartado por el usuario** (no volver a ponerlo): el aviso verde
+  «¡Listo! Reservaste…» al reservar (en Inicio y en Reservar; el cambio ya se
+  ve: la clase sube a «Tu próxima clase» o el botón pasa a «✓ Reservada»;
+  los errores sí se avisan), la tira «Tu semana», la tarjeta «El estudio»
+  (dirección, WhatsApp, teléfono) y la **racha** de semanas seguidas.
+- Probado a 390 y 1280 px con un cliente con plan por empezar y otro con el
+  plan vencido: sin desplazamiento lateral ni errores de consola.
+- **Reservar (`/mi-cuenta/reservar`), rediseñada el mismo día** (decisión del
+  usuario: «calendario semanal y las clases como bloques de hora»). Piezas en
+  `components/cliente/reservar/`, reglas puras en `lib/cliente/reservar.ts`
+  (con tests):
+  - **Móvil**: semana con ‹ › (solo las semanas que trae la agenda) y siete
+    días L–D con cuántas clases puede reservar (✓ si tiene una; pasados
+    apagados). Debajo, el día como **tabla Hora · Reformer · Mat** (una fila
+    por hora con clase, «—» si una sala no tiene). ⚠️ Primero fueron
+    tarjetas sueltas por hora y el usuario las vio «muy sueltas»: tabla, en
+    una sola tarjeta con líneas.
+  - **Escritorio**: la semana entera en una `<table>` horas × días, como el
+    horario de un gimnasio. El mismo DOM; cambia con CSS.
+  - **Celda** (`CeldaClase`, plana, la misma en las dos tablas; en la de la
+    semana dice además el tipo): instructora y estado en texto
+    (`estadoParaMi`: «8 libres», «✓ Tu clase», «En espera · 2.º», «Llena ·
+    lista de espera», «Sin plan ese día», «Sin clases de Mat», «En
+    recepción»). Los no disponibles van apagados, pero se pueden pulsar para
+    leer el porqué.
+  - **Hoja de la clase** (`HojaClase`, sobre el `Modal` del panel, que en el
+    móvil sale desde abajo): hora, instructora y cupos. Al reservar, solo un
+    aviso con ⚠ «Puedes cancelarla hasta 2 horas antes sin que se descuente
+    de tu plan» (decisión del usuario: fuera el «te quedarán 11»). Según el
+    estado: Reservar · Cancelar reserva / Cambiar por
+    otra · Unirme a / Salir de la lista de espera · Ver los planes /
+    WhatsApp. **También la abre «Reservar» de «Con cupo para ti» en el
+    Inicio** (decisión del usuario). Al salir bien se cierra **sin aviso**;
+    el error se queda dentro. La hoja guarda la clase por **id**: tras
+    reservar, la agenda se vuelve a pedir.
+  - Abre en hoy si hay clases; si no, en el primer día en que puede reservar
+    (`diaInicial`).
+  - Probado con Playwright a 390 y 1280 px: reservar → «✓ Tu clase» sin
+    aviso → cancelar; desde el Inicio la hoja se abre y `Escape` devuelve el
+    foco al botón. Con Daniela (vencido), todo «Sin plan ese día».
+- ⚠️ **Gotcha de entorno**: el `~/.npmrc` del PC tiene
+  `legacy-peer-deps=true`, así que `npm install` se salta `vite` (peer de
+  Vitest) y **borra 700 líneas del `package-lock.json`**. Instalar con
+  `npm install --legacy-peer-deps=false` y comprobar que el lockfile no cambia.
 
 **⚠️ shadcn/ui se evaluó y se descartó (jul 2026).** Se probó instalar el bloque
 `@efferd/dashboard-3` en la rama `shadcn-dashboard-3`, ya borrada. Qué se aprendió,
@@ -2484,7 +2673,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, **https://www.reformestudiopilates.com** (y `reforme-studio-pilates.vercel.app`); push a `main` → despliegue |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme»). Desde el 24 oct 2026 está en la **organización del estudio** (cuenta de Google de Reforme, org `pxgyxdevjqhpzfskjwpm`), transferido desde la de `jhonespa123@gmail.com`, que sigue como miembro. Misma URL, claves, datos y cron: no hubo que tocar Vercel. Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — **las de `20261107120000_campana_apertura` para atrás (esta, aún solo en local)** |
+| Esquema | `supabase/migrations/` — aplicadas en producción hasta `20261107120000_campana_apertura` (8 nov 2026). ⚠️ **`20261108120000_mi_historial`, `20261108130000_plan_destacado`, `20261108140000_mis_datos` y `20261108150000_campana_planes` solo en local**: aplicarlas en producción a la vez que el push |
 
 ### Variables de entorno
 
