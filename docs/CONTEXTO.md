@@ -2673,7 +2673,7 @@ izquierda** (legibilidad); solo se centra su encabezado.
 | Web | Vercel, **https://www.reformestudiopilates.com** (y `reforme-studio-pilates.vercel.app`); push a `main` → despliegue |
 | Base de datos y cuentas | Supabase, proyecto **`ngjybazethrflxtuyhhx`** («PilatesReforme»). Desde el 24 oct 2026 está en la **organización del estudio** (cuenta de Google de Reforme, org `pxgyxdevjqhpzfskjwpm`), transferido desde la de `jhonespa123@gmail.com`, que sigue como miembro. Misma URL, claves, datos y cron: no hubo que tocar Vercel. Antes, `gdmxiqvmtegusevkqtgt`: ver «Mudanza de proyecto» |
 | Entorno local | `npx supabase start` (Docker) + `npm run dev`. Ver `docs/BASE_DE_DATOS.md` |
-| Esquema | `supabase/migrations/` — aplicadas en producción hasta `20261107120000_campana_apertura` (8 nov 2026). ⚠️ **`20261108120000_mi_historial`, `20261108130000_plan_destacado`, `20261108140000_mis_datos` y `20261108150000_campana_planes` solo en local**: aplicarlas en producción a la vez que el push |
+| Esquema | `supabase/migrations/` — todas aplicadas en producción (las últimas, `20261108120000_mi_historial` a `20261108150000_campana_planes`, el 8 nov 2026 con `supabase db push`, justo antes del push; copia previa en `../respaldo-reforme-ngjy-2026-11-08-area-cliente/`) |
 
 ### Variables de entorno
 
