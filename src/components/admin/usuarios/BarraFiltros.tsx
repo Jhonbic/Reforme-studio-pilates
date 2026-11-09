@@ -8,7 +8,7 @@ export type FiltroEstado = EstadoMembresia | "Todas";
 /** Texto libre: los planes son una tabla, y uno creado hoy tiene que poder
  *  filtrarse sin tocar este archivo. */
 export type FiltroPlan = string;
-export type Orden = "nombre" | "vencimiento" | "alta" | "importe";
+export type Orden = "nombre" | "vencimiento" | "alta" | "primeros" | "importe";
 
 const ESTADOS: FiltroEstado[] = ["Todas", ...ESTADOS_MEMBRESIA];
 
@@ -17,6 +17,7 @@ const ORDENES: { valor: Orden; etiqueta: string }[] = [
   { valor: "nombre", etiqueta: "Nombre (A–Z)" },
   { valor: "vencimiento", etiqueta: "Vence antes" },
   { valor: "alta", etiqueta: "Alta más reciente" },
+  { valor: "primeros", etiqueta: "Primeros en inscribirse" },
   { valor: "importe", etiqueta: "Mayor importe" },
 ];
 

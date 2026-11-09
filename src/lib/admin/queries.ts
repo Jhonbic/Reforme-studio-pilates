@@ -148,11 +148,19 @@ function aCliente(f: FilaClienteVigente): Cliente {
  */
 export async function getClientes(): Promise<Cliente[]> {
   const supabase = await crearClienteServidor();
-  const { data, error } = await supabase.from("clientes_vigentes").select("*");
-  if (error) throw new Error(`No se pudieron leer los clientes: ${error.message}`);
+  /* La vista solo trae el DÍA de alta; la hora exacta (`creado_en`) se pide
+     aparte a `clientes` para ordenar quién se inscribió primero dentro del
+     mismo día, sin tener que cambiar la vista en la base. */
+  const [vista, horas] = await Promise.all([
+    supabase.from("clientes_vigentes").select("*"),
+    supabase.from("clientes").select("id, creado_en"),
+  ]);
+  if (vista.error) throw new Error(`No se pudieron leer los clientes: ${vista.error.message}`);
+  // Sin la hora no se rompe nada: solo se pierde el desempate.
+  const creadoEn = new Map((horas.data ?? []).map((h) => [h.id, h.creado_en]));
 
-  return data
-    .map(aCliente)
+  return vista.data
+    .map((f) => ({ ...aCliente(f), creadoEn: creadoEn.get(f.id ?? "") }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 

@@ -143,6 +143,13 @@ export default function PanelUsuarios({
       ordenados.sort((a, b) => a.vencimiento.localeCompare(b.vencimiento));
     } else if (orden === "alta") {
       ordenados.sort((a, b) => b.alta.localeCompare(a.alta));
+    } else if (orden === "primeros") {
+      // Día de alta y, dentro del mismo día, la hora exacta de la ficha.
+      ordenados.sort(
+        (a, b) =>
+          a.alta.localeCompare(b.alta) ||
+          (a.creadoEn ?? "").localeCompare(b.creadoEn ?? ""),
+      );
     } else {
       ordenados.sort((a, b) => b.importeRenovacion - a.importeRenovacion);
     }

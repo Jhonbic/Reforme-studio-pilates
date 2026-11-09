@@ -84,6 +84,9 @@ export type Cliente = {
   vencimiento: string;
   /** Alta en el estudio, ISO corto. */
   alta: string;
+  /** Momento exacto en que se creó la ficha (ISO con hora). Solo desempata
+   *  el orden «Primeros en inscribirse» entre altas del mismo día. */
+  creadoEn?: string;
   /** Última clase a la que asistió, o `null` si nunca vino. */
   ultimaAsistencia: string | null;
   /** Lo que cuesta renovar su plan, COP entero. */
