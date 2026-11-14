@@ -1715,6 +1715,47 @@ pasó al modelo del **calendario del móvil** (decisión del usuario). Migració
 - ⚠️ `next dev` reescribe `AGENTS.md` (bloque `nextjs-agent-rules`): ese
   cambio no es de este trabajo.
 
+#### Dos instructoras por clase y sin bloqueo de horario (14 nov 2026)
+
+Pedido del estudio (imagen «Horarios de clase», nov 2026): Reformer y Mat se
+dan **a la misma hora** y **las dos instructoras están en las dos clases**.
+Hasta aquí la base impedía que una instructora tuviera dos clases a la vez y
+cada clase llevaba una sola. Migración `20261114120000_dos_instructoras`.
+
+- ⚠️ **Se QUITÓ la restricción `clases_instructora_sin_solapes`** (decisión
+  del usuario). Una instructora puede estar en Reformer y en Mat a las 7:00.
+  La de **sala** (`clases_sala_sin_solapes`) sigue: dos clases en la misma
+  sala a la vez no caben. El formulario dejó de calcular el «choque de
+  instructora» y la base dejó de rechazarlo. **No volver a ponerlo.**
+- **`clases.instructora2_id` y `horario_semanal.instructora2_id`**: segunda
+  instructora, opcional, distinta de la primera (`check`
+  `…_instructoras_distintas`, 23514). Las series la copian a sus clases
+  (`crear_clases_de_horario`), cambiar la franja la propaga
+  (`horario_sincroniza_clases`), «Copiar este día a…» la copia, y
+  `crear_clase_semanal` / `editar_clase_semanal` ganan un 8.º / 6.º argumento
+  `p_instructora2` con default (se borraron las firmas anteriores: con el
+  default, la llamada corta sería ambigua).
+- **La segunda instructora también pasa lista** (`marcar_asistencia` y
+  `puedeMarcarAsistencia`).
+- `agenda_cliente` y `mi_historial` siguen devolviendo UNA columna
+  `instructora`: con dos, «Ana y Laura». En la app, `conInstructoras()`
+  (`horario.ts`) lo dice igual en la agenda, el diálogo de reservas, el
+  dashboard y la ficha. En Estadísticas, una clase con dos instructoras
+  **cuenta para las dos** (`ocupacionPor` admite varias claves).
+- ⚠️ **PostgREST**: `clases` tiene ahora DOS claves a `equipo`, así que todo
+  embebido lleva el nombre de la clave (`equipo!clases_instructora_id_fkey`,
+  `segunda:equipo!clases_instructora2_id_fkey`). Sin él: «more than one
+  relationship».
+- **Formulario**: «Quién la da» y «Segunda instructora (opcional)» a media
+  columna cada una; la segunda excluye a la primera y se vacía si la primera
+  pasa a ser ella. Los avisos de serie ya no mencionan a la instructora (solo
+  la sala o más reservas que cupos).
+- **Horario real** en `scripts/horario-2026-2027.sql` (ver §8): festivos de
+  Colombia hasta jun 2027 como días cerrados y las franjas del cartel
+  encendidas con las dos instructoras activas, 50 min, hasta el 30 jun 2027.
+  La franja del sábado a las 12:00 (no está en el cartel) se queda apagada.
+- 3 tests de base (153) y 2 de Vitest.
+
 #### Agenda por sala y compacta en el móvil (17 oct 2026)
 
 Feedback del usuario: en el móvil, ver tantos recuadros de horas era

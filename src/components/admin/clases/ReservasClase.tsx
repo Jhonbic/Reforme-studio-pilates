@@ -11,7 +11,7 @@ import {
   quitarReserva,
   reservar,
 } from "@/lib/admin/acciones";
-import { cuandoEs, diaRelativo } from "@/lib/admin/horario";
+import { conInstructoras, cuandoEs, diaRelativo } from "@/lib/admin/horario";
 import { puedeMarcarAsistencia, resumenAsistencia } from "@/lib/admin/asistencia";
 import { numero } from "@/lib/admin/format";
 import type { Asistencia, ClaseEnAgenda, EstadoMembresia } from "@/lib/admin/types";
@@ -176,7 +176,7 @@ export default function ReservasClase({
       <div className="space-y-4">
         <p className="text-sm text-verde-700">
           {numero(clase.reservas)} de {numero(clase.cupos)} cupos reservados ·
-          con {clase.instructora}
+          con {conInstructoras(clase.instructora, clase.instructora2)}
         </p>
 
         {/* El recuento va antes de la lista: es lo que se quiere saber al

@@ -14,6 +14,7 @@ import { editarClaseSemanal, guardarClase } from "@/lib/admin/acciones";
 import { fecha as fechaCorta, numero } from "@/lib/admin/format";
 import {
   cadaSemana,
+  conInstructoras,
   diaLargo,
   diasEntre,
   duracionLegible,
@@ -43,11 +44,11 @@ const AVISO_CAJA =
 const BOTON =
   "control-fx relative inline-flex min-h-[44px] items-center justify-center gap-2 overflow-hidden rounded-full border border-verde/40 px-5 text-sm text-verde-700 transition-colors duration-300 hover:border-dorado hover:text-verde";
 
-type Campo = "instructoraId" | "cupos" | "fecha" | "horaInicio" | "hasta";
+type Campo = "instructoraId" | "instructora2Id" | "cupos" | "fecha" | "horaInicio" | "hasta";
 type Errores = Partial<Record<Campo, string>>;
 
 /** El orden en que se enfocan al fallar el envío. */
-const ORDEN: Campo[] = ["fecha", "horaInicio", "instructoraId", "cupos", "hasta"];
+const ORDEN: Campo[] = ["fecha", "horaInicio", "instructoraId", "instructora2Id", "cupos", "hasta"];
 
 /** Una serie dura como mucho un año (la base lo vuelve a impedir). */
 const MAX_DIAS_SERIE = 366;
@@ -87,6 +88,12 @@ function semanasEntre(desde: string, hasta: string): { n: number; ultima: string
  * y el administrador no entendía qué pasaba al encenderla. Al editar una clase
  * que se repite se pregunta «solo esta / todas las próximas». En «todas» no se
  * cambian día, hora ni modalidad: eso es otra serie (se quita y se crea).
+ *
+ * ⚠️ **Dos instructoras por clase y SIN choque de instructora** (nov 2026,
+ * pedido del estudio): Reformer y Mat se dan a la misma hora con las dos
+ * instructoras en las dos salas. El campo «Segunda instructora» es opcional
+ * y la base dejó de impedir que una persona tenga dos clases a la vez. Lo
+ * único que sigue chocando es la SALA.
  *
  * ⚠️ **Aquí el foco va al primer campo inválido y NO a un resumen de errores**,
  * al revés que el alta de cliente. No es una incoherencia: el alta tiene catorce
@@ -145,6 +152,7 @@ export default function FormularioClase({
          da la clase es una decisión, y un desplegable ya relleno se acepta sin
          mirarlo. */
       instructoraId: "",
+      instructora2Id: null,
       cupos: CUPOS_SUGERIDOS[sala],
     };
   }
@@ -157,6 +165,7 @@ export default function FormularioClase({
       horaInicio: c.horaInicio,
       duracionMin: c.duracionMin,
       instructoraId: c.instructoraId,
+      instructora2Id: c.instructora2Id,
       cupos: c.cupos,
     };
   }
@@ -220,33 +229,26 @@ export default function FormularioClase({
     : 0;
 
   /**
-   * ⚠️ **El choque de horarios se calcula en vivo, no al enviar.**
+   * ⚠️ **La sala ocupada se calcula en vivo, no al enviar.**
    *
    * La regla general del proyecto es «premia pronto, castiga tarde»: los errores
-   * de formato solo salen al salir del campo. Aquí no aplica, porque los cuatro
-   * campos que producen el choque —fecha, hora, duración e instructora— son
-   * desplegables: no hay nada a medio escribir que castigar. En el instante en
-   * que los cuatro tienen valor, o chocan o no chocan, y esconderlo hasta pulsar
-   * «Crear» solo retrasa la mala noticia.
+   * de formato solo salen al salir del campo. Aquí no aplica, porque los campos
+   * que producen el choque —fecha, hora, duración y modalidad— son desplegables:
+   * no hay nada a medio escribir que castigar. En el instante en que tienen
+   * valor, o chocan o no chocan, y esconderlo hasta pulsar «Crear» solo retrasa
+   * la mala noticia.
+   *
+   * ⚠️ Hasta nov 2026 aquí también se calculaba el choque de INSTRUCTORA
+   * (misma persona, dos clases a la vez). Se quitó a petición del estudio: las
+   * dos instructoras dan Reformer y Mat a la misma hora. No volver a ponerlo.
    *
    * Las canceladas no cuentan: su hueco está libre, para eso se anularon.
    */
-  const choque = !enSerie && v.instructoraId
-    ? (clases.find(
-        (c) =>
-          c.id !== clase?.id &&
-          !c.cancelada &&
-          c.fecha === v.fecha &&
-          c.instructoraId === v.instructoraId &&
-          seSolapan(c.horaInicio, c.duracionMin, v.horaInicio, v.duracionMin),
-      ) ?? null)
-    : null;
 
   /* ⚠️ Hay DOS salas (Reformer y Mat): dos clases a la vez en la MISMA sala
-     no caben, y se dice en vivo, como el choque de instructora. En salas
-     distintas no hay nada que avisar. Antes era un aviso ámbar («hacen falta
-     dos salas»); con las salas reales es un bloqueo, y la base lo impide
-     (`clases_sala_sin_solapes`). */
+     no caben, y se dice en vivo. En salas distintas no hay nada que avisar.
+     Antes era un aviso ámbar («hacen falta dos salas»); con las salas reales
+     es un bloqueo, y la base lo impide (`clases_sala_sin_solapes`). */
   const sala = salaDeClase(v.tipo, v.sala);
   const salaOcupada = enSerie
     ? null
@@ -272,7 +274,7 @@ export default function FormularioClase({
         (c) =>
           !c.cancelada &&
           c.fecha === fecha &&
-          (c.sala === sala || (v.instructoraId !== "" && c.instructoraId === v.instructoraId)) &&
+          c.sala === sala &&
           seSolapan(c.horaInicio, c.duracionMin, v.horaInicio, v.duracionMin),
       );
       if (ocupada) semanasOcupadas++;
@@ -280,24 +282,16 @@ export default function FormularioClase({
   }
 
   /* Al cambiar toda la serie: en cuántas de sus próximas clases no entraría
-     el cambio (la instructora ya tiene otra a esa hora, o hay más reservas
-     que los cupos nuevos). Esas se quedan como están. */
+     el cambio (hay más reservas que los cupos nuevos). Esas se quedan como
+     están. */
   const serie = enSerie
     ? clases.filter((c) => c.franjaId === clase?.franjaId && !c.cancelada && !c.empezada)
     : [];
-  const noEntran = serie.filter(
-    (s) =>
-      s.reservas > v.cupos ||
-      (v.instructoraId !== "" &&
-        clases.some(
-          (c) =>
-            c.id !== s.id &&
-            !c.cancelada &&
-            c.fecha === s.fecha &&
-            c.instructoraId === v.instructoraId &&
-            seSolapan(c.horaInicio, c.duracionMin, s.horaInicio, v.duracionMin),
-        )),
-  ).length;
+  const noEntran = serie.filter((s) => s.reservas > v.cupos).length;
+
+  /* La segunda no puede ser la primera: la lista la excluye, y si la primera
+     cambia a la persona que ya era la segunda, la segunda se vacía. */
+  const segundas = instructoras.filter((i) => i.id !== v.instructoraId);
 
   function errorDe(campo: Campo, valores: BorradorClase): string {
     switch (campo) {
@@ -322,6 +316,10 @@ export default function FormularioClase({
         return hasta > maxHasta ? "Como mucho, un año." : "";
       case "instructoraId":
         return valores.instructoraId ? "" : "Elige quién va a dar la clase.";
+      case "instructora2Id":
+        return valores.instructora2Id !== null && valores.instructora2Id === valores.instructoraId
+          ? "La segunda instructora tiene que ser otra persona."
+          : "";
       case "cupos": {
         if (valores.cupos <= 0) return "Tiene que caber al menos una persona.";
         const s = salaDeClase(valores.tipo, valores.sala);
@@ -348,6 +346,11 @@ export default function FormularioClase({
          tocado: una Privada de 8 personas no es una privada. */
       if (campo === "tipo" && !cuposTocados) {
         siguiente.cupos = CUPOS_SUGERIDOS[valor as TipoClase];
+      }
+      /* La primera pasa a ser la que era segunda: la segunda se vacía (si no,
+         serían la misma persona dos veces). */
+      if (campo === "instructoraId" && siguiente.instructora2Id === valor) {
+        siguiente.instructora2Id = null;
       }
       /* Errores que dependen de dos campos (cupos frente a la sala): si el
          cambio de modalidad o de sala los arregla, se quitan. */
@@ -381,20 +384,18 @@ export default function FormularioClase({
       return;
     }
 
-    /* El choque bloquea aunque no viva en `errores`: ya está en pantalla desde
-       antes de pulsar, así que aquí solo hay que no dejar pasar. El foco va a la
-       instructora, que es el campo que casi siempre se quiere cambiar. */
+    /* La sala ocupada bloquea aunque no viva en `errores`: ya está en pantalla
+       desde antes de pulsar, así que aquí solo hay que no dejar pasar. El foco
+       va a la hora, que es lo que se cambia para arreglarlo. */
     if (salaOcupada) {
       refs.current.horaInicio?.focus();
       return;
     }
-    if (choque) {
-      refs.current.instructoraId?.focus();
-      return;
-    }
 
-    const nombre =
-      instructoras.find((i) => i.id === v.instructoraId)?.nombre ?? "";
+    const nombre = conInstructoras(
+      instructoras.find((i) => i.id === v.instructoraId)?.nombre ?? "",
+      instructoras.find((i) => i.id === v.instructora2Id)?.nombre ?? null,
+    );
     setErrorEnvio("");
     iniciarGuardado(async () => {
       const r = enSerie
@@ -415,8 +416,8 @@ export default function FormularioClase({
         return;
       }
       /* Lo que la base rechaza y el formulario no vio venir (otra persona
-         programó a esa instructora a esa hora mientras tanto, o apuntó a
-         alguien y el aforo ya no puede bajar) va al campo que lo causa. */
+         ocupó esa sala a esa hora mientras tanto, o apuntó a alguien y el
+         aforo ya no puede bajar) va al campo que lo causa. */
       if (r.campo) {
         setErrores((e) => ({ ...e, [r.campo as Campo]: r.error }));
         refs.current[r.campo]?.focus();
@@ -585,30 +586,46 @@ export default function FormularioClase({
           </p>
         </div>
 
-        <CampoSelect
-          nombre="instructoraId"
-          etiqueta="Quién la da"
-          value={v.instructoraId}
-          onChange={(e) => set("instructoraId", e.target.value)}
-          /* El choque manda sobre el error de campo vacío: si hay conflicto es
-             que ya se eligió a alguien. */
-          error={
-            choque
-              ? `Esa instructora ya tiene ${choque.tipo} de ${choque.horaInicio} a ${choque.horaFin} ese día. Cambia la hora o elige a otra persona.`
-              : errores.instructoraId
-          }
-          ref={(el) => {
-            refs.current.instructoraId = el;
-          }}
-          ancho
-        >
-          <option value="">Elegir…</option>
-          {instructoras.map((i) => (
-            <option key={i.id} value={i.id}>
-              {i.nombre}
-            </option>
-          ))}
-        </CampoSelect>
+        {/* Quién la da: una instructora, y una segunda si la clase la dan dos.
+            Sin aviso de «ya tiene otra clase a esa hora»: desde nov 2026 una
+            instructora puede estar en Reformer y en Mat a la vez. */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <CampoSelect
+            nombre="instructoraId"
+            etiqueta="Quién la da"
+            value={v.instructoraId}
+            onChange={(e) => set("instructoraId", e.target.value)}
+            error={errores.instructoraId}
+            ref={(el) => {
+              refs.current.instructoraId = el;
+            }}
+          >
+            <option value="">Elegir…</option>
+            {instructoras.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.nombre}
+              </option>
+            ))}
+          </CampoSelect>
+
+          <CampoSelect
+            nombre="instructora2Id"
+            etiqueta="Segunda instructora (opcional)"
+            value={v.instructora2Id ?? ""}
+            onChange={(e) => set("instructora2Id", e.target.value || null)}
+            error={errores.instructora2Id}
+            ref={(el) => {
+              refs.current.instructora2Id = el;
+            }}
+          >
+            <option value="">Ninguna</option>
+            {segundas.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.nombre}
+              </option>
+            ))}
+          </CampoSelect>
+        </div>
 
         {/* ¿Se repite? Al final, cuando ya se sabe qué, cuándo y con quién: la
             opción dice la frase entera («todos los lunes a las 07:00»). */}
@@ -690,13 +707,13 @@ export default function FormularioClase({
         {repetir && semanasOcupadas > 0 && (
           <p className={AVISO_CAJA}>
             ▲ {semanasOcupadas === 1 ? "Una de las próximas semanas tiene" : `${numero(semanasOcupadas)} de las próximas semanas tienen`}{" "}
-            la sala o la instructora ocupadas a esa hora: ahí no se creará la clase.
+            la sala ocupada a esa hora: ahí no se creará la clase.
           </p>
         )}
         {enSerie && noEntran > 0 && (
           <p className={AVISO_CAJA}>
             ▲ En {noEntran === 1 ? "una de las próximas clases" : `${numero(noEntran)} de las próximas clases`} el
-            cambio no entra (la instructora ya tiene otra a esa hora, o hay más reservas que cupos):{" "}
+            cambio no entra (hay más reservas que cupos):{" "}
             {noEntran === 1 ? "se quedará" : "se quedarán"} como está.
           </p>
         )}

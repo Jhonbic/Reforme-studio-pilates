@@ -1,7 +1,7 @@
 import { telefonoCO } from "./format";
 import { descuentoVigente, precioVigente, type Descuento } from "./descuento";
 import { aEstadoCampana, type CampanaConfig, type EstadoCampana, type TramoCampana } from "./campana";
-import { finDe, hoyEnBogota, sumarDias } from "./horario";
+import { conInstructoras, finDe, hoyEnBogota, sumarDias } from "./horario";
 import { cache } from "react";
 import type { DatosDashboard } from "./dashboard";
 import type { DatosEstadisticas } from "./estadisticas";
@@ -397,7 +397,10 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
   const { data, error } = await supabase
     .from("clases")
     .select(
-      "id, tipo, sala, fecha, hora_inicio, duracion_min, instructora_id, cupos, cancelada, franja_id, serie:horario_semanal(hasta), equipo(nombre), reservas(id, cliente_id, asistencia, clientes(nombre)), lista_espera(id, cliente_id, creado_en, clientes(nombre))",
+      // ⚠️ `clases` tiene DOS claves a `equipo` (primera y segunda
+      // instructora): sin el nombre de la clave, PostgREST no sabe cuál
+      // embeber y falla con «more than one relationship».
+      "id, tipo, sala, fecha, hora_inicio, duracion_min, instructora_id, instructora2_id, cupos, cancelada, franja_id, serie:horario_semanal(hasta), equipo!clases_instructora_id_fkey(nombre), segunda:equipo!clases_instructora2_id_fkey(nombre), reservas(id, cliente_id, asistencia, clientes(nombre)), lista_espera(id, cliente_id, creado_en, clientes(nombre))",
     )
     .gte("fecha", sumarDias(hoy, -AGENDA_DIAS_ATRAS))
     .lte("fecha", sumarDias(hoy, AGENDA_DIAS_ADELANTE))
@@ -424,6 +427,7 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
       horaInicio: f.hora_inicio.slice(0, 5),
       duracionMin: f.duracion_min,
       instructoraId: f.instructora_id,
+      instructora2Id: f.instructora2_id,
       cupos: f.cupos,
       reservas: reservados.length,
       cancelada: f.cancelada,
@@ -436,6 +440,7 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
       /* Una instructora borrada del equipo no puede pasar (`restrict`), pero si
          faltara el dato se nota en vez de disimularlo. */
       instructora: f.equipo?.nombre ?? "Sin asignar",
+      instructora2: f.segunda?.nombre ?? null,
       horaFin,
       estado: estadoDeClase(clase, horaFin, hoy, ahora),
       /* Nunca negativo: la base no deja que haya más reservas que cupos, pero
@@ -1036,7 +1041,7 @@ export async function getClasesParaReservar(
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase
     .from("clases")
-    .select("id, tipo, sala, fecha, hora_inicio, duracion_min, cupos, equipo(nombre), reservas(cliente_id)")
+    .select("id, tipo, sala, fecha, hora_inicio, duracion_min, cupos, equipo!clases_instructora_id_fkey(nombre), segunda:equipo!clases_instructora2_id_fkey(nombre), reservas(cliente_id)")
     .eq("cancelada", false)
     .gte("fecha", hoy)
     .lte("fecha", sumarDias(hoy, 13))
@@ -1053,7 +1058,7 @@ export async function getClasesParaReservar(
         fecha: c.fecha,
         horaInicio,
         horaFin: finDe(horaInicio, c.duracion_min),
-        instructora: c.equipo?.nombre ?? "Sin asignar",
+        instructora: conInstructoras(c.equipo?.nombre ?? "Sin asignar", c.segunda?.nombre ?? null),
         libres: Math.max(0, c.cupos - c.reservas.length),
         yaReservada: c.reservas.some((r) => r.cliente_id === clienteId),
       };
@@ -1090,7 +1095,7 @@ export async function getHistorialClases(
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase
     .from("reservas")
-    .select("id, asistencia, clases!inner(fecha, hora_inicio, tipo, cancelada, equipo(nombre))")
+    .select("id, asistencia, clases!inner(fecha, hora_inicio, tipo, cancelada, equipo!clases_instructora_id_fkey(nombre), segunda:equipo!clases_instructora2_id_fkey(nombre))")
     .eq("cliente_id", clienteId)
     // Ordena las RESERVAS por la fecha de su clase (relación a uno). Con
     // `referencedTable` solo se ordenaría dentro del embebido.
@@ -1106,7 +1111,7 @@ export async function getHistorialClases(
         fecha: r.clases.fecha,
         horaInicio,
         tipo: r.clases.tipo,
-        instructora: r.clases.equipo?.nombre ?? "Sin asignar",
+        instructora: conInstructoras(r.clases.equipo?.nombre ?? "Sin asignar", r.clases.segunda?.nombre ?? null),
         cancelada: r.clases.cancelada,
         empezada: yaEmpezo(r.clases.fecha, horaInicio, hoy, ahora),
         asistencia: r.asistencia,

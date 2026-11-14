@@ -172,6 +172,13 @@ export type Clase = {
   duracionMin: number;
   /** Id de un `MiembroEquipo` con rol `Instructora`. */
   instructoraId: string;
+  /**
+   * Segunda instructora, si la clase la dan dos (nov 2026: Reformer y Mat
+   * se dan a la vez con las dos instructoras en las dos salas). `null` = una.
+   * ⚠️ Una instructora PUEDE tener dos clases a la misma hora: la base dejó
+   * de impedirlo. Lo que no cabe es dos clases en la misma sala.
+   */
+  instructora2Id: string | null;
   /** Personas que caben. En una `Privada` es 1. */
   cupos: number;
   /**
@@ -276,6 +283,8 @@ export type ClaseEnAgenda = Clase & {
   serieHasta: string | null;
   /** Nombre resuelto desde la tabla `equipo` a partir de `instructoraId`. */
   instructora: string;
+  /** Nombre de la segunda instructora, o `null`. Juntos: `conInstructoras()`. */
+  instructora2: string | null;
   /** `"07:50"`, calculada con `finDe()`. */
   horaFin: string;
   estado: EstadoClase;
@@ -306,6 +315,8 @@ export type BorradorClase = {
   horaInicio: string;
   duracionMin: number;
   instructoraId: string;
+  /** Opcional. Distinta de la primera (la base lo vuelve a comprobar). */
+  instructora2Id: string | null;
   cupos: number;
 };
 

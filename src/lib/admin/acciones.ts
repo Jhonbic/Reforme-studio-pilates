@@ -884,7 +884,8 @@ export async function desactivarMiembro(equipoId: string): Promise<ResultadoEqui
   const { count: proximas } = await supabase
     .from("clases")
     .select("id", { count: "exact", head: true })
-    .eq("instructora_id", m.id)
+    // Como primera o como segunda instructora.
+    .or(`instructora_id.eq.${m.id},instructora2_id.eq.${m.id}`)
     .eq("cancelada", false)
     .gte("fecha", hoyEnBogota());
 
@@ -1017,7 +1018,7 @@ export async function cambiarMiContrasena(actual: string, nueva: string): Promis
 export type ResultadoClase =
   /** `resumen`: lo que pasó con una clase semanal («4 clases, hasta el 2 nov…»). */
   | { ok: true; resumen?: string }
-  | { ok: false; error: string; campo?: "instructoraId" | "cupos" | "horaInicio" | "hasta" };
+  | { ok: false; error: string; campo?: "instructoraId" | "instructora2Id" | "cupos" | "horaInicio" | "hasta" };
 
 const TIPOS_CLASE: TipoClase[] = ["Reformer", "Mat", "Privada"];
 const esTipoClase = (v: string): v is TipoClase => (TIPOS_CLASE as string[]).includes(v);
@@ -1044,21 +1045,19 @@ function revalidarAgenda() {
  * por el formulario.
  */
 function errorDeClase(e: { code?: string; message: string }): ResultadoClase {
-  // 23P01 = violación de una restricción de exclusión. Hay dos: sala y
-  // instructora; el mensaje trae el nombre de la que saltó.
-  if (e.code === "23P01" && e.message.includes("clases_sala_sin_solapes")) {
+  // 23P01 = violación de una restricción de exclusión. Desde nov 2026 solo
+  // queda la de SALA: una instructora sí puede tener dos clases a la vez
+  // (Reformer y Mat en las dos salas).
+  if (e.code === "23P01") {
     return {
       ok: false,
       campo: "horaInicio",
       error: "Esa sala ya está ocupada a esa hora. Elige otra hora.",
     };
   }
-  if (e.code === "23P01") {
-    return {
-      ok: false,
-      campo: "instructoraId",
-      error: "Esa instructora ya tiene otra clase que se pisa con este horario.",
-    };
+  // 23514 = check: la segunda instructora es la misma que la primera.
+  if (e.code === "23514" && e.message.includes("instructoras_distintas")) {
+    return { ok: false, campo: "instructora2Id", error: "La segunda instructora tiene que ser otra persona." };
   }
   if (e.code === "P0001") return { ok: false, campo: "cupos", error: e.message };
   return { ok: false, error: `No se pudo guardar la clase: ${e.message}` };
@@ -1074,6 +1073,10 @@ function errorDeBorrador(b: BorradorClase): ResultadoClase | null {
     return { ok: false, error: "Duración no válida." };
   if (!UUID_VALIDO.test(b.instructoraId))
     return { ok: false, campo: "instructoraId", error: "Elige una instructora." };
+  if (b.instructora2Id !== null && !UUID_VALIDO.test(b.instructora2Id))
+    return { ok: false, campo: "instructora2Id", error: "Segunda instructora no válida." };
+  if (b.instructora2Id === b.instructoraId)
+    return { ok: false, campo: "instructora2Id", error: "La segunda instructora tiene que ser otra persona." };
   if (!Number.isInteger(b.cupos) || b.cupos <= 0)
     return { ok: false, campo: "cupos", error: "El aforo tiene que ser al menos 1." };
   // Programar en el pasado no tiene sentido; editar una clase que ya pasó,
@@ -1091,11 +1094,13 @@ const clases_ = (n: number) => `${n} ${n === 1 ? "clase" : "clases"}`;
  * Con `hasta`, la clase nueva se repite cada semana (mismo día, hora y sala)
  * desde su fecha hasta ese día: lo hace `crear_clase_semanal` en la base, que
  * crea TODAS sus clases al momento y dice cuántas semanas no se pudieron (sala
- * o instructora ocupadas). Una privada no se repite.
+ * ocupada). Una privada no se repite.
  *
- * El solapamiento de instructora lo comprueba el formulario EN VIVO (para
- * avisar antes de pulsar) y lo impide la BASE (restricción de exclusión): el
- * formulario evita el error de quien lo usa, la base el de cualquiera.
+ * La sala ocupada la comprueba el formulario EN VIVO (para avisar antes de
+ * pulsar) y lo impide la BASE (restricción de exclusión): el formulario evita
+ * el error de quien lo usa, la base el de cualquiera. ⚠️ Desde nov 2026 NO
+ * hay choque de instructora: la misma persona puede dar Reformer y Mat a la
+ * vez, y una clase puede llevar dos (`instructora2Id`).
  */
 export async function guardarClase(
   id: string | null,
@@ -1118,12 +1123,21 @@ export async function guardarClase(
       p_sala: b.tipo,
       p_duracion: b.duracionMin,
       p_instructora: b.instructoraId,
+      p_instructora2: b.instructora2Id,
       p_cupos: b.cupos,
       p_hasta: hasta,
     });
     if (error) {
       if (error.code === "P0001")
-        return { ok: false, campo: /fin|año/.test(error.message) ? "hasta" : "horaInicio", error: error.message };
+        return {
+          ok: false,
+          campo: /fin|año/.test(error.message)
+            ? "hasta"
+            : /segunda instructora/i.test(error.message)
+              ? "instructora2Id"
+              : "horaInicio",
+          error: error.message,
+        };
       return errorDeClase(error);
     }
     const r = data as { creadas: number; saltadas: number; hasta: string | null };
@@ -1134,7 +1148,7 @@ export async function guardarClase(
         `${clases_(r.creadas)} en la agenda` +
         (r.hasta ? `, la última el ${fechaCorta(r.hasta)}` : "") +
         (r.saltadas > 0
-          ? `. ${r.saltadas === 1 ? "Una semana no se pudo" : `${r.saltadas} semanas no se pudieron`}: la sala o la instructora ya estaban ocupadas`
+          ? `. ${r.saltadas === 1 ? "Una semana no se pudo" : `${r.saltadas} semanas no se pudieron`}: la sala ya estaba ocupada o el estudio cierra ese día`
           : "") +
         ".",
     };
@@ -1148,6 +1162,7 @@ export async function guardarClase(
     hora_inicio: b.horaInicio,
     duracion_min: b.duracionMin,
     instructora_id: b.instructoraId,
+    instructora2_id: b.instructora2Id,
     cupos: b.cupos,
   };
   const supabase = await crearClienteServidor();
@@ -1624,6 +1639,7 @@ export async function editarClaseSemanal(
   const { data, error } = await supabase.rpc("editar_clase_semanal", {
     p_franja: franjaId,
     p_instructora: b.instructoraId,
+    p_instructora2: b.instructora2Id,
     p_duracion: b.duracionMin,
     p_cupos: b.cupos,
     p_hasta: hasta,
@@ -1631,6 +1647,8 @@ export async function editarClaseSemanal(
   if (error) {
     if (error.code === "P0001" && /fin|año/.test(error.message))
       return { ok: false, campo: "hasta", error: error.message };
+    if (error.code === "P0001" && /segunda instructora/i.test(error.message))
+      return { ok: false, campo: "instructora2Id", error: error.message };
     return { ok: false, error: error.message };
   }
   const r = data as {
@@ -1653,7 +1671,7 @@ export async function editarClaseSemanal(
       partes.join(", ") +
       (r.hasta ? `. La última, el ${fechaCorta(r.hasta)}` : "") +
       (r.sin_cambiar > 0
-        ? `. ${clases_(r.sin_cambiar)} no se ${r.sin_cambiar === 1 ? "pudo" : "pudieron"} cambiar (la instructora ya tenía otra a esa hora, o hay más reservas que cupos): ${r.sin_cambiar === 1 ? "se queda" : "se quedan"} como ${r.sin_cambiar === 1 ? "estaba" : "estaban"}`
+        ? `. ${clases_(r.sin_cambiar)} no se ${r.sin_cambiar === 1 ? "pudo" : "pudieron"} cambiar (hay más reservas que cupos): ${r.sin_cambiar === 1 ? "se queda" : "se quedan"} como ${r.sin_cambiar === 1 ? "estaba" : "estaban"}`
         : ""),
   };
 }

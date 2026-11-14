@@ -63,7 +63,10 @@ export default async function EstadisticasPage() {
         clases={{
           semanas: SEMANAS_CLASES,
           mapa: mapaHorarios(agenda, hoy),
-          porInstructora: ocupacionPor(agenda, hoy, (c) => c.instructora),
+          // Con dos instructoras, la clase cuenta para las dos.
+          porInstructora: ocupacionPor(agenda, hoy, (c) =>
+            c.instructora2 ? [c.instructora, c.instructora2] : c.instructora,
+          ),
           porModalidad: ocupacionPor(agenda, hoy, (c) => c.tipo),
           uso: usoPorPlan(datos, agenda, hoy),
           diasDormido: DIAS_DORMIDO,

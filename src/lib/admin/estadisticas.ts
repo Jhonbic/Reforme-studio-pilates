@@ -328,20 +328,27 @@ export function mapaHorarios(clases: ClaseEnAgenda[], hoy: string) {
 
 export type FilaOcupacion = { nombre: string; clases: number; reservas: number; ocupacion: number | null };
 
-/** Ocupación de las últimas 4 semanas agrupada por lo que diga `clave`. */
+/**
+ * Ocupación de las últimas 4 semanas agrupada por lo que diga `clave`.
+ *
+ * `clave` puede devolver VARIAS claves (una clase con dos instructoras cuenta
+ * para las dos: cada una la dio entera, no media).
+ */
 export function ocupacionPor(
   clases: ClaseEnAgenda[],
   hoy: string,
-  clave: (c: ClaseEnAgenda) => string,
+  clave: (c: ClaseEnAgenda) => string | string[],
 ): FilaOcupacion[] {
   const filas = new Map<string, { clases: number; reservas: number; cupos: number }>();
   for (const c of pasadas(clases, hoy)) {
     const k = clave(c);
-    const f = filas.get(k) ?? { clases: 0, reservas: 0, cupos: 0 };
-    f.clases++;
-    f.reservas += c.reservas;
-    f.cupos += c.cupos;
-    filas.set(k, f);
+    for (const clave_ of Array.isArray(k) ? k : [k]) {
+      const f = filas.get(clave_) ?? { clases: 0, reservas: 0, cupos: 0 };
+      f.clases++;
+      f.reservas += c.reservas;
+      f.cupos += c.cupos;
+      filas.set(clave_, f);
+    }
   }
   return [...filas]
     .map(([nombre, f]) => ({

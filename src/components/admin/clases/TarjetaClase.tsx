@@ -2,7 +2,7 @@
 
 import { puedeMarcarAsistencia, resumenAsistencia } from "@/lib/admin/asistencia";
 import { fecha, numero } from "@/lib/admin/format";
-import { cadaSemana, duracionLegible, sumarDias } from "@/lib/admin/horario";
+import { cadaSemana, conInstructoras, duracionLegible, sumarDias } from "@/lib/admin/horario";
 import type { ClaseEnAgenda } from "@/lib/admin/types";
 import Dropdown, { DropdownItem } from "../Dropdown";
 import EstadoClaseBadge from "./EstadoClaseBadge";
@@ -87,7 +87,7 @@ export default function TarjetaClase({
           </h3>
           {/* La hora de inicio la dice la fila; aquí, quién y hasta cuándo. */}
           <p className="truncate text-sm text-verde-700">
-            {clase.instructora}
+            {conInstructoras(clase.instructora, clase.instructora2)}
             {/* En el móvil los cupos van aquí, en línea: la barra se oculta. */}
             <span className="font-cifra text-verde md:hidden">
               {" "}

@@ -10,7 +10,7 @@ import {
   resumenClientes,
 } from "@/lib/admin/dashboard";
 import { segmentosCampana } from "@/lib/admin/campana";
-import { horaEnBogota, hoyEnBogota, sumarDias } from "@/lib/admin/horario";
+import { conInstructoras, horaEnBogota, hoyEnBogota, sumarDias } from "@/lib/admin/horario";
 import { mesAnterior } from "@/lib/admin/periodo";
 import {
   getCampanaEnCurso,
@@ -90,7 +90,7 @@ export default async function DashboardPage() {
       fecha: c.fecha,
       horaInicio: c.horaInicio,
       tipo: c.tipo,
-      instructora: c.instructora,
+      instructora: conInstructoras(c.instructora, c.instructora2),
       cancelada: c.cancelada,
       personas: c.reservados.map((r) => r.nombre),
     }));

@@ -9,10 +9,12 @@ const clase = (p: Partial<ClaseEnAgenda> = {}): ClaseEnAgenda => ({
   horaInicio: "07:00",
   duracionMin: 50,
   instructoraId: "ana",
+  instructora2Id: null,
   cupos: 8,
   reservas: 2,
   cancelada: false,
   instructora: "Ana",
+  instructora2: null,
   horaFin: "07:50",
   estado: "Finalizada",
   libres: 6,
@@ -30,6 +32,13 @@ describe("puedeMarcarAsistencia", () => {
     expect(puedeMarcarAsistencia(clase(), false, "ana")).toBe(true);
     expect(puedeMarcarAsistencia(clase(), false, "luisa")).toBe(false);
     expect(puedeMarcarAsistencia(clase(), false, null)).toBe(false);
+  });
+
+  it("la segunda instructora de la clase también marca (nov 2026: dos por clase)", () => {
+    const dos = clase({ instructora2Id: "luisa", instructora2: "Luisa" });
+    expect(puedeMarcarAsistencia(dos, false, "luisa")).toBe(true);
+    expect(puedeMarcarAsistencia(dos, false, "ana")).toBe(true);
+    expect(puedeMarcarAsistencia(dos, false, "marta")).toBe(false);
   });
 
   it("el mostrador marca cualquier clase", () => {

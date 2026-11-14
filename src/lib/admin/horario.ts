@@ -195,6 +195,15 @@ export function cadaSemana(iso: string): string {
   return `todos los ${dia.endsWith("s") ? dia : `${dia}s`}`;
 }
 
+/**
+ * «Ana» o «Ana y Laura»: quién da la clase, con la segunda instructora si la
+ * hay (nov 2026). Un solo sitio para que la agenda, el diálogo de reservas, el
+ * dashboard y la ficha del cliente lo digan igual.
+ */
+export function conInstructoras(principal: string, segunda: string | null): string {
+  return segunda ? `${principal} y ${segunda}` : principal;
+}
+
 /** El número del día, para la tira de la semana. */
 export function numeroDia(iso: string): number {
   return aFechaUTC(iso).getUTCDate();

@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(150);
+select plan(153);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -64,7 +64,9 @@ update clases set cancelada = true where fecha between current_date and current_
 update membresias set campana_id = null, campana_pct = null where campana_id is not null;
 delete from campanas;
 
--- Agenda: solapes de instructora -----------------------------------------------
+-- Agenda: instructoras ------------------------------------------------------------
+-- ⚠️ Desde nov 2026 una instructora SÍ puede tener dos clases a la vez
+-- (Reformer y Mat, cada una en su sala), y una clase puede llevar dos.
 select lives_ok(
   $$insert into clases (id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos)
     values ('00000000-0000-0000-0000-00000000aa01', 'Reformer', '2031-03-03', '07:00', 50,
@@ -76,16 +78,28 @@ select lives_ok(
     values ('Reformer', '2031-03-03', '07:50', 50, '00000000-0000-0000-0000-0000000000e1', 8)$$,
   'encadenar 07:00–07:50 y 07:50–08:40 NO es solaparse');
 
-select throws_ok(
+select lives_ok(
   $$insert into clases (tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos)
-    values ('Mat', '2031-03-03', '07:30', 30, '00000000-0000-0000-0000-0000000000e1', 8)$$,
-  '23P01', null,
-  'una instructora no puede tener dos clases a la vez');
+    values ('Mat', '2031-03-03', '07:00', 50, '00000000-0000-0000-0000-0000000000e1', 8)$$,
+  'la misma instructora da Reformer y Mat a la misma hora: ya no hay bloqueo de instructora');
 
 select lives_ok(
   $$insert into clases (tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos, cancelada)
     values ('Mat', '2031-03-03', '07:30', 30, '00000000-0000-0000-0000-0000000000e1', 8, true)$$,
   'una clase cancelada deja libre su hueco');
+
+select lives_ok(
+  $$insert into clases (tipo, fecha, hora_inicio, duracion_min, instructora_id, instructora2_id, cupos)
+    values ('Reformer', '2031-03-03', '09:00', 50,
+            '00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000e2', 8)$$,
+  'una clase puede llevar dos instructoras');
+
+select throws_ok(
+  $$insert into clases (tipo, fecha, hora_inicio, duracion_min, instructora_id, instructora2_id, cupos)
+    values ('Mat', '2031-03-03', '09:00', 50,
+            '00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000e1', 8)$$,
+  '23514', null,
+  'la segunda instructora tiene que ser otra persona');
 
 -- Salas: una de Reformer y una de Mat, 8 personas cada una --------------------
 select throws_ok(
@@ -93,11 +107,6 @@ select throws_ok(
     values ('Reformer', '2031-03-03', '07:20', 50, '00000000-0000-0000-0000-0000000000e2', 8)$$,
   '23P01', null,
   'dos clases no pueden ocupar la misma sala a la vez, aunque sean de instructoras distintas');
-
-select lives_ok(
-  $$insert into clases (tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos)
-    values ('Mat', '2031-03-03', '07:00', 50, '00000000-0000-0000-0000-0000000000e2', 8)$$,
-  'Reformer y Mat a la misma hora sí: son salas distintas');
 
 select throws_ok(
   $$insert into clases (tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos)
@@ -311,6 +320,21 @@ select lives_ok(
   'la instructora de la clase marca la asistencia');
 reset role;
 
+-- La SEGUNDA instructora de una clase también pasa lista (nov 2026).
+set local request.jwt.claims to '{}';
+insert into clases (id, tipo, fecha, hora_inicio, duracion_min, instructora_id, instructora2_id, cupos) values
+  -- En 2019: el historial de 2020 que se comprueba más abajo espera una sola clase.
+  ('00000000-0000-0000-0000-00000000aa0b', 'Reformer', '2019-12-10', '09:00', 50,
+   '00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000e2', 8);
+insert into reservas (id, clase_id, cliente_id) values
+  ('00000000-0000-0000-0000-0000000000ac', '00000000-0000-0000-0000-00000000aa0b', '00000000-0000-0000-0000-0000000000d1');
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select lives_ok(
+  $$select marcar_asistencia('00000000-0000-0000-0000-0000000000ac', 'Asistió')$$,
+  'la segunda instructora de la clase también marca la asistencia');
+reset role;
+
 select ok(
   (select ultima_asistencia >= '2020-01-06' from clientes where id = '00000000-0000-0000-0000-0000000000d1'),
   '«Asistió» actualiza la última asistencia del cliente');
@@ -519,13 +543,24 @@ insert into clases (tipo, fecha, hora_inicio, duracion_min, instructora_id, cupo
 select throws_ok(
   $$select crear_clase_semanal(current_date + 3, '11:00', 'Reformer', 50,
                                '00000000-0000-0000-0000-0000000000e1', 6, current_date + 30)$$,
-  'P0001', 'Ese día la sala o la instructora ya están ocupadas a esa hora.',
+  'P0001', 'Ese día la sala ya está ocupada a esa hora.',
   'si el primer día está ocupado, la clase semanal no se crea');
 select ok(
   not exists (select 1 from horario_semanal
               where dia = extract(isodow from current_date + 3) and hora_inicio = '11:00'
                 and sala = 'Reformer' and activa),
   '…y no queda ninguna serie a medias');
+
+-- Una serie con dos instructoras se las pasa a todas sus clases (nov 2026).
+select crear_clase_semanal(current_date + 5, '13:00', 'Reformer', 50,
+                           '00000000-0000-0000-0000-0000000000e1', 6, current_date + 12,
+                           '00000000-0000-0000-0000-0000000000e2');
+select is(
+  (select count(*)::int from clases c join horario_semanal h on h.id = c.franja_id
+    where h.sala = 'Reformer' and h.hora_inicio = '13:00'
+      and c.instructora_id = '00000000-0000-0000-0000-0000000000e1'
+      and c.instructora2_id = '00000000-0000-0000-0000-0000000000e2'),
+  2, 'las clases de una serie con dos instructoras llevan a las dos');
 reset role;
 
 -- Se quita a mano la del día 16 y se rellena la agenda desde atrás: una

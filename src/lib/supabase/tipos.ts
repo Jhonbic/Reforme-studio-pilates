@@ -143,6 +143,7 @@ export type Database = {
           hora_inicio: string;
           id: string;
           instructora_id: string;
+          instructora2_id: string | null;
           sala: string;
           tipo: Database["public"]["Enums"]["tipo_clase"];
         };
@@ -157,6 +158,7 @@ export type Database = {
           hora_inicio: string;
           id?: string;
           instructora_id: string;
+          instructora2_id?: string | null;
           sala: string;
           tipo: Database["public"]["Enums"]["tipo_clase"];
         };
@@ -170,6 +172,7 @@ export type Database = {
           hora_inicio?: string;
           id?: string;
           instructora_id?: string;
+          instructora2_id?: string | null;
           sala?: string;
           tipo?: Database["public"]["Enums"]["tipo_clase"];
         };
@@ -184,6 +187,13 @@ export type Database = {
           {
             foreignKeyName: "clases_instructora_id_fkey";
             columns: ["instructora_id"];
+            isOneToOne: false;
+            referencedRelation: "equipo";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "clases_instructora2_id_fkey";
+            columns: ["instructora2_id"];
             isOneToOne: false;
             referencedRelation: "equipo";
             referencedColumns: ["id"];
@@ -371,6 +381,7 @@ export type Database = {
           hora_inicio: string;
           id: string;
           instructora_id: string | null;
+          instructora2_id: string | null;
           sala: string;
         };
         ComputedFields: never;
@@ -384,6 +395,7 @@ export type Database = {
           hora_inicio: string;
           id?: string;
           instructora_id?: string | null;
+          instructora2_id?: string | null;
           sala: string;
         };
         Update: {
@@ -396,12 +408,20 @@ export type Database = {
           hora_inicio?: string;
           id?: string;
           instructora_id?: string | null;
+          instructora2_id?: string | null;
           sala?: string;
         };
         Relationships: [
           {
             foreignKeyName: "horario_semanal_instructora_id_fkey";
             columns: ["instructora_id"];
+            isOneToOne: false;
+            referencedRelation: "equipo";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "horario_semanal_instructora2_id_fkey";
+            columns: ["instructora2_id"];
             isOneToOne: false;
             referencedRelation: "equipo";
             referencedColumns: ["id"];
@@ -890,6 +910,8 @@ export type Database = {
           p_hasta: string;
           p_hora: string;
           p_instructora: string;
+          /** Segunda instructora, opcional (20261114120000). */
+          p_instructora2?: string | null;
           p_sala: string;
         };
         Returns: Json;
@@ -913,6 +935,8 @@ export type Database = {
           p_franja: string;
           p_hasta: string;
           p_instructora: string;
+          /** Segunda instructora, opcional (20261114120000). */
+          p_instructora2?: string | null;
         };
         Returns: Json;
       };

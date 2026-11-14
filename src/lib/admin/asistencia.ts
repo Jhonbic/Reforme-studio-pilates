@@ -13,8 +13,9 @@ import type { ClaseEnAgenda, ReservaEnClase } from "./types";
  */
 
 /**
- * Quién puede marcar: el mostrador (Administración y Recepción) y la
- * instructora DE ESA CLASE. Solo una vez empezada y si no se canceló.
+ * Quién puede marcar: el mostrador (Administración y Recepción) y las
+ * instructoras DE ESA CLASE (la primera o la segunda, desde nov 2026). Solo
+ * una vez empezada y si no se canceló.
  */
 export function puedeMarcarAsistencia(
   clase: ClaseEnAgenda,
@@ -22,7 +23,10 @@ export function puedeMarcarAsistencia(
   miEquipoId: string | null,
 ): boolean {
   if (clase.estado === "Cancelada" || !clase.empezada) return false;
-  return esMostrador || (miEquipoId !== null && clase.instructoraId === miEquipoId);
+  return (
+    esMostrador ||
+    (miEquipoId !== null && (clase.instructoraId === miEquipoId || clase.instructora2Id === miEquipoId))
+  );
 }
 
 export type ResumenAsistencia = { asistio: number; noVino: number; sinMarcar: number };

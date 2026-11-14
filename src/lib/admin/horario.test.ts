@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   cadaSemana,
+  conInstructoras,
   diaSemana,
   diasEntre,
   finDe,
@@ -8,6 +9,11 @@ import {
   seSolapan,
   sumarDias,
 } from "./horario";
+
+it("conInstructoras: una sola o las dos con «y» (nov 2026: dos por clase)", () => {
+  expect(conInstructoras("Ana", null)).toBe("Ana");
+  expect(conInstructoras("Ana", "Laura")).toBe("Ana y Laura");
+});
 
 describe("horas y solapes", () => {
   it("la hora de fin se calcula", () => {
