@@ -9,7 +9,7 @@ import {
   TIPOS_IDENTIFICACION,
 } from "./catalogos";
 import { fecha as fechaCorta, moneda } from "./format";
-import { hoyEnBogota, sumarDias } from "./horario";
+import { horaEnBogota, hoyEnBogota, sumarDias } from "./horario";
 import { erroresCampana, type BorradorCampana, type CampoCampana } from "./campana";
 import { getUsuarioActual } from "./queries";
 import type {
@@ -1112,6 +1112,25 @@ export async function guardarClase(
   if (prohibido) return { ok: false, error: prohibido };
   const invalido = errorDeBorrador(b);
   if (invalido) return invalido;
+
+  // Hoy, una hora que ya pasó no se programa: la clase nacería «Finalizada»
+  // y ningún cliente la vería. Al editar solo cuenta si cambian el día o la
+  // hora (una clase en curso puede cambiar sus cupos). El formulario lo avisa
+  // en vivo; esto es para quien llame a la acción sin él.
+  if (b.fecha === hoyEnBogota() && b.horaInicio < horaEnBogota()) {
+    let cambia = true;
+    if (id) {
+      const supabase = await crearClienteServidor();
+      const { data } = await supabase.from("clases").select("fecha, hora_inicio").eq("id", id).maybeSingle();
+      cambia = !data || data.fecha !== b.fecha || data.hora_inicio.slice(0, 5) !== b.horaInicio;
+    }
+    if (cambia)
+      return {
+        ok: false,
+        campo: "horaInicio",
+        error: `Las ${b.horaInicio} de hoy ya pasaron. Elige una hora más tarde u otro día.`,
+      };
+  }
 
   if (hasta && !id) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(hasta)) return { ok: false, campo: "hasta", error: "Fecha de fin no válida." };

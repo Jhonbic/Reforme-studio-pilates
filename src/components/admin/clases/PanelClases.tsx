@@ -440,6 +440,7 @@ export default function PanelClases({
         fechaPorDefecto={dia < hoy ? hoy : dia}
         propuesta={propuesta}
         hoy={hoy}
+        ahora={ahora}
         instructoras={instructoras}
         salas={salas}
         clases={clases}

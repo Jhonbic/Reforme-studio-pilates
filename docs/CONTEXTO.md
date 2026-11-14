@@ -1699,6 +1699,11 @@ pasó al modelo del **calendario del móvil** (decisión del usuario). Migració
   «Todas las próximas» (`quitar_clase_semanal`) borra las que nadie reservó
   y **cancela** las que tienen gente (antes se quedaban vivas esperando que
   alguien las cancelara una a una). Las pasadas no se tocan.
+- ⚠️ **Hoy, una hora que ya pasó no se programa** (14 nov 2026): el
+  formulario lo dice en vivo bajo «Hora de inicio» y `guardarClase` lo
+  vuelve a impedir. Antes solo se bloqueaban los días pasados, y se pudo
+  crear a las 12:48 una clase de las 08:00 que nació «Finalizada» y no salía
+  al cliente. Al editar solo cuenta si cambian día u hora.
 - La tarjeta de una clase que se repite dice «↻ Se repite todos los
   miércoles» (`cadaSemana()` en `horario.ts`, con test: sábados, domingos).
 - Configuración: «Agenda creada por delante» pasó a **«Se puede reservar con

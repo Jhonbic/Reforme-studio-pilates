@@ -107,6 +107,7 @@ export default function FormularioClase({
   fechaPorDefecto,
   propuesta,
   hoy,
+  ahora,
   instructoras,
   salas,
   clases,
@@ -121,6 +122,8 @@ export default function FormularioClase({
   /** Hueco de la rejilla desde el que se abrió: hora y sala ya puestas. */
   propuesta?: { horaInicio: string; sala: SalaId };
   hoy: string;
+  /** La hora de ahora en Bogotá («HH:MM»), para no programar hoy una hora que ya pasó. */
+  ahora: string;
   instructoras: MiembroEquipo[];
   /** Las dos salas y su aforo (tabla `salas`). */
   salas: Sala[];
@@ -261,6 +264,16 @@ export default function FormularioClase({
           seSolapan(c.horaInicio, c.duracionMin, v.horaInicio, v.duracionMin),
       ) ?? null);
 
+  /* ⚠️ Hoy, una hora que ya pasó no se puede programar: la clase nacería
+     «Finalizada» y el cliente nunca la vería. El calendario ya impide los días
+     pasados; esto cubre las horas del día de hoy. Al editar solo cuenta si se
+     cambia el día o la hora: una clase en curso puede cambiar sus cupos. */
+  const horaPasada =
+    !enSerie &&
+    v.fecha === hoy &&
+    v.horaInicio < ahora &&
+    (esNueva || clase.fecha !== v.fecha || clase.horaInicio !== v.horaInicio);
+
   /* ⚠️ Las semanas SIGUIENTES que chocan no bloquean: solo la primera (la que
      se está viendo) tiene que poder crearse. Las demás se saltan y se avisa
      antes de pulsar de cuántas son. Se mira la agenda cargada (13 semanas). */
@@ -387,7 +400,7 @@ export default function FormularioClase({
     /* La sala ocupada bloquea aunque no viva en `errores`: ya está en pantalla
        desde antes de pulsar, así que aquí solo hay que no dejar pasar. El foco
        va a la hora, que es lo que se cambia para arreglarlo. */
-    if (salaOcupada) {
+    if (horaPasada || salaOcupada) {
       refs.current.horaInicio?.focus();
       return;
     }
@@ -543,7 +556,9 @@ export default function FormularioClase({
             onChange={(e) => set("horaInicio", e.target.value)}
             /* La sala ocupada va AQUÍ: lo normal es arreglarlo cambiando la hora. */
             error={
-              salaOcupada
+              horaPasada
+                ? `Las ${v.horaInicio} de hoy ya pasaron (son las ${ahora}). Elige una hora más tarde u otro día.`
+                : salaOcupada
                 ? `La sala de ${sala} está ocupada: ${salaOcupada.tipo} con ${salaOcupada.instructora} de ${salaOcupada.horaInicio} a ${salaOcupada.horaFin}.`
                 : errores.horaInicio
             }
