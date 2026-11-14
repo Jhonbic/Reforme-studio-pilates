@@ -113,7 +113,10 @@ export default function LineChart({
   const PW = Math.max(W - M.left - M.right, 10);
   const PH = H - M.top - M.bottom;
 
-  const max = Math.max(...datos.map((d) => d.value));
+  // ⚠️ Mínimo 4: con todo a cero, `log10(0)` en `pasoBonito` daba NaN y la
+  // línea no se dibujaba (pasó en producción, sin clientes activos aún). Y con
+  // 1–3 clientes el eje marcaba fracciones («0,25»): con 4, pasos enteros.
+  const max = Math.max(4, ...datos.map((d) => d.value));
   const paso = pasoBonito(max, 4);
   const techo = Math.ceil(max / paso) * paso;
 
