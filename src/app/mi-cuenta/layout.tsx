@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { inicioDe } from "@/components/admin/secciones";
 import ClienteSidebar from "@/components/cliente/ClienteSidebar";
 import ClienteTopbar from "@/components/cliente/ClienteTopbar";
 import { SidebarProvider } from "@/context/SidebarContext";
@@ -29,7 +30,8 @@ export const metadata: Metadata = {
 export default async function LayoutMiCuenta({ children }: { children: React.ReactNode }) {
   const cuenta = await getMiCuenta();
   if (!cuenta) {
-    redirect((await getUsuarioActual()) ? "/admin" : "/login?error=sin-acceso");
+    const equipo = await getUsuarioActual();
+    redirect(equipo ? inicioDe(equipo.rol) : "/login?error=sin-acceso");
   }
 
   // Bajo el nombre, como el rol en el panel: su plan, o que no tiene.

@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { exigirSeccion } from "@/lib/admin/acceso";
 import Card from "@/components/admin/Card";
 import PanelEstadisticas from "@/components/admin/estadisticas/PanelEstadisticas";
 import {
@@ -17,7 +17,7 @@ import {
 } from "@/lib/admin/estadisticas";
 import { fecha } from "@/lib/admin/format";
 import { diasEntre, horaEnBogota, hoyEnBogota } from "@/lib/admin/horario";
-import { getClases, getDatosEstadisticas, getUsuarioActual } from "@/lib/admin/queries";
+import { getClases, getDatosEstadisticas } from "@/lib/admin/queries";
 
 /**
  * Estadísticas: cómo se mueven los clientes (copia de `admingymdemo`) y cómo
@@ -27,9 +27,8 @@ import { getClases, getDatosEstadisticas, getUsuarioActual } from "@/lib/admin/q
  * cliente, y RLS no da los pagos a las instructoras.
  */
 export default async function EstadisticasPage() {
-  const usuario = await getUsuarioActual();
-  // La instructora no tiene esta sección (ni en el menú): vuelve al panel.
-  if (usuario?.rol === "Instructora") redirect("/admin");
+  // La instructora no tiene esta sección (ni en el menú): vuelve a su inicio.
+  const usuario = await exigirSeccion("/admin/estadisticas");
   if (usuario?.rol !== "Administración") {
     return (
       <div className="mx-auto w-full max-w-3xl">

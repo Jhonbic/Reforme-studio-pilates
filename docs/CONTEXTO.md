@@ -70,8 +70,8 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 |---|---|
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
-| `npm test` | **Vitest**, 134 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard, estadísticas, Inicio, Reservar, Planes y Mi perfil del cliente, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 150 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm test` | **Vitest**, 140 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard, estadísticas, Inicio, Reservar, Planes y Mi perfil del cliente, quién marca asistencia (`src/**/*.test.ts`) |
+| `npm run test:db` | **pgTAP**, 166 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -2545,8 +2545,25 @@ antes**.
     del cliente»). Antes: datos en solo lectura y «Cambiar contraseña».
 - **El panel de la instructora** ya no tiene Planes, Finanzas ni
   Estadísticas (decisión del usuario, oct 2026): `Seccion.ocultaA` en
-  `secciones.tsx` + `seccionesDe(rol)` en la lateral, y las tres páginas la
-  devuelven a `/admin` si entra por la dirección.
+  `secciones.tsx` + `seccionesDe(rol)` en la lateral.
+  ⚠️ **Desde el 15 nov 2026 tampoco Dashboard ni Usuarios** (decisión del
+  usuario): solo **Clases** (su inicio: entra directa ahí) y Configuración →
+  Mi perfil. Cerrado en tres capas:
+  - **Menú**: `ocultaA` en las dos secciones; `inicioDe(rol)` da su pantalla
+    de inicio (login, `/cambiar-contrasena`, `/mi-cuenta` y el logo).
+  - **URL**: `exigirSeccion(href)` (`lib/admin/acceso.ts`) en la primera
+    línea de cada página de una sección oculta (también en el
+    `generateMetadata` de la ficha, que lleva el nombre en el título). Un
+    test (`secciones.test.ts`) recorre `app/admin/**/page.tsx` y falla si
+    una página de esas secciones no la llama.
+  - **Base**: ya no lee fichas ni membresías (ver `docs/BASE_DE_DATOS.md` →
+    RLS). En la agenda ve los nombres de quien va a SUS clases
+    (`nombres_en_mis_clases`); en las de otras, solo el recuento
+    (`nombresOcultos` en `ClaseEnAgenda`, y el diálogo dice «Quién reservó
+    lo ven recepción y quien da la clase»).
+  - Probado atacando la API con su sesión: `clientes`, `clientes_vigentes`,
+    `membresias` y `pagos` → `[]`; `saldo_clases` y `disponibles_para` →
+    42501; `clientes_pocas_clases` → `[]`. Administración, igual que antes.
 - ⚠️ **Las reglas viven en la BASE** (migración `20261002130000`), no en la
   página: el cliente puede llamar a la API con su sesión.
   - `reservar_mi_clase`: plan vigente **el día de la clase** (no hoy), clase

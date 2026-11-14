@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { inicioDe } from "@/components/admin/secciones";
 import AuthShell from "@/components/auth/AuthShell";
 import { cerrarSesion } from "@/lib/auth/acciones";
 import { debeCambiarContrasena } from "@/lib/auth/temporal";
@@ -25,8 +26,8 @@ export default async function CambiarContrasenaPage() {
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect("/login");
   if (!debeCambiarContrasena(data.user)) {
-    const { data: perfil } = await supabase.from("perfiles").select("id").eq("id", data.user.id).maybeSingle();
-    redirect(perfil ? "/admin" : "/mi-cuenta");
+    const { data: perfil } = await supabase.from("perfiles").select("id, rol").eq("id", data.user.id).maybeSingle();
+    redirect(perfil ? inicioDe(perfil.rol) : "/mi-cuenta");
   }
 
   return (

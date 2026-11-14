@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import FormularioAlta from "@/components/admin/usuarios/FormularioAlta";
-import { getClientes, getDatosCliente, getUsuarioActual } from "@/lib/admin/queries";
+import { exigirSeccion } from "@/lib/admin/acceso";
+import { getClientes, getDatosCliente } from "@/lib/admin/queries";
 import { claveNombre } from "@/lib/validacion";
 
 /**
@@ -13,9 +14,9 @@ import { claveNombre } from "@/lib/validacion";
 export default async function EditarClientePage({
   params,
 }: PageProps<"/admin/usuarios/[id]/editar">) {
+  const usuario = await exigirSeccion("/admin/usuarios");
   const { id } = await params;
-  const usuario = await getUsuarioActual();
-  if (usuario?.rol !== "Administración" && usuario?.rol !== "Recepción") {
+  if (usuario.rol !== "Administración" && usuario?.rol !== "Recepción") {
     redirect(`/admin/usuarios/${id}`);
   }
 

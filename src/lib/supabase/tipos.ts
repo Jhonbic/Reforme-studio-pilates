@@ -991,6 +991,11 @@ export type Database = {
       };
       mi_cliente_id: { Args: Record<PropertyKey, never>; Returns: string };
       mi_equipo_id: { Args: Record<PropertyKey, never>; Returns: string };
+      // Escrito a mano (migración 20261115120000_instructora_sin_clientes).
+      nombres_en_mis_clases: {
+        Args: { p_desde: string; p_hasta: string };
+        Returns: { clase_id: string; cliente_id: string; nombre: string }[];
+      };
       // Escrito a mano (migración 20261108120000_mi_historial).
       mi_historial: {
         Args: { p_desde: string; p_hasta: string };

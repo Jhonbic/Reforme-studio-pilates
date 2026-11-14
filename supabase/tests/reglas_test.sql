@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(153);
+select plan(166);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -1159,6 +1159,73 @@ select throws_ok(
       current_date, current_date + 6, null, '[{"cupos": 5, "pct": 20}]')$$,
   'P0002', null,
   'una campaña terminada no se edita');
+reset role;
+
+-- La instructora no lee fichas de clientes (nov 2026) ----------------------------
+-- Ni por la pantalla ni pidiendo directamente a la API: solo los NOMBRES de
+-- quien va a sus clases, con `nombres_en_mis_clases`.
+set local request.jwt.claims to '{}';
+insert into clases (id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos) values
+  ('00000000-0000-0000-0000-00000000aa0c', 'Mat', '2019-11-05', '09:00', 50, '00000000-0000-0000-0000-0000000000e2', 8);
+insert into reservas (clase_id, cliente_id) values
+  ('00000000-0000-0000-0000-00000000aa0c', '00000000-0000-0000-0000-0000000000d2');
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is((select count(*)::integer from clientes), 0, 'la instructora no lee ninguna ficha de cliente');
+select is((select count(*)::integer from clientes_vigentes), 0, 'ni la vista de clientes');
+select is((select count(*)::integer from membresias), 0, 'ni las membresías');
+select throws_ok(
+  $$select * from saldo_clases('00000000-0000-0000-0000-0000000000d1')$$,
+  '42501', null, 'ni el saldo de clases de un cliente');
+select throws_ok(
+  $$select * from disponibles_para('2031-03-03', 'Mat')$$,
+  '42501', null, 'ni cuántas clases le quedan a cada cliente');
+select is((select count(*)::integer from clientes_pocas_clases(90)), 0,
+  'ni la lista de quién tiene pocas clases');
+select is(
+  (select nombre from nombres_en_mis_clases('2019-01-01', '2020-12-31')
+    where cliente_id = '00000000-0000-0000-0000-0000000000d1'
+      and clase_id = '00000000-0000-0000-0000-00000000aa09'),
+  'Cliente con plan',
+  'sí ve el nombre de quien va a SUS clases');
+select is(
+  (select count(*)::integer from nombres_en_mis_clases('2019-01-01', '2020-12-31')
+    where cliente_id = '00000000-0000-0000-0000-0000000000d2'),
+  0,
+  'no ve quién va a las clases de otra instructora');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select is((select count(*)::integer from nombres_en_mis_clases('2019-01-01', '2020-12-31')), 2,
+  'la otra instructora ve a quien va a su clase y a la que da de segunda');
+-- El caso que se coló al principio: la misma alumna va a una clase suya (aa0b)
+-- y a otra que no da (aa09). Su nombre sale solo en la suya.
+select is(
+  (select count(*)::integer from nombres_en_mis_clases('2019-01-01', '2020-12-31')
+    where clase_id = '00000000-0000-0000-0000-00000000aa09'),
+  0,
+  'una alumna suya no sale con nombre en la clase de otra instructora');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select ok((select count(*) from clientes where id in ('00000000-0000-0000-0000-0000000000d1',
+                                                      '00000000-0000-0000-0000-0000000000d2')) = 2,
+  'Administración sigue leyendo las fichas');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select is((select count(*)::integer from nombres_en_mis_clases('2019-01-01', '2031-12-31')), 0,
+  'un cliente no saca nombres de nadie');
+reset role;
+
+set local role anon;
+select throws_ok(
+  $$select * from nombres_en_mis_clases('2019-01-01', '2031-12-31')$$,
+  '42501', null, 'sin sesión no se llama');
 reset role;
 
 select * from finish();

@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { inicioDe } from "@/components/admin/secciones";
 import { crearClienteAdmin } from "@/lib/supabase/admin";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { debeCambiarContrasena } from "./temporal";
@@ -20,9 +21,15 @@ export type EstadoLogin = {
  * otra web. Por eso tampoco vale `//otra-web.com`, que el navegador lee como
  * dominio.
  */
-function destinoSeguro(siguiente: FormDataEntryValue | null, zona: "/admin" | "/mi-cuenta"): string {
-  if (typeof siguiente !== "string") return zona;
-  if (siguiente !== zona && !siguiente.startsWith(`${zona}/`)) return zona;
+function destinoSeguro(
+  siguiente: FormDataEntryValue | null,
+  zona: "/admin" | "/mi-cuenta",
+  /** La pantalla de inicio de quien entra (la instructora no tiene Dashboard). */
+  inicio: string = zona,
+): string {
+  if (typeof siguiente !== "string") return inicio;
+  if (siguiente !== zona && !siguiente.startsWith(`${zona}/`)) return inicio;
+  // Una sección que su rol no abre la devuelve a su inicio la propia página.
   return siguiente;
 }
 
@@ -62,7 +69,7 @@ export async function iniciarSesion(
   //   · con ficha de cliente → área de cliente;
   //   · con ninguna de las dos → una cuenta que no sirve: se cierra la sesión.
   const [{ data: perfil }, { data: ficha }] = await Promise.all([
-    supabase.from("perfiles").select("id").eq("id", data.user.id).maybeSingle(),
+    supabase.from("perfiles").select("id, rol").eq("id", data.user.id).maybeSingle(),
     supabase.from("clientes").select("id").eq("cuenta_id", data.user.id).maybeSingle(),
   ]);
 
@@ -80,7 +87,11 @@ export async function iniciarSesion(
   if (debeCambiarContrasena(data.user)) redirect("/cambiar-contrasena");
 
   // `redirect` lanza: tiene que ir FUERA de cualquier try/catch.
-  redirect(destinoSeguro(datos.get("siguiente"), perfil ? "/admin" : "/mi-cuenta"));
+  redirect(
+    perfil
+      ? destinoSeguro(datos.get("siguiente"), "/admin", inicioDe(perfil.rol))
+      : destinoSeguro(datos.get("siguiente"), "/mi-cuenta"),
+  );
 }
 
 export type EstadoCambio = { error?: string };
@@ -107,8 +118,8 @@ export async function cambiarContrasenaInicial(
   const supabase = await crearClienteServidor();
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect("/login");
-  const { data: perfil } = await supabase.from("perfiles").select("id").eq("id", data.user.id).maybeSingle();
-  const zona = perfil ? "/admin" : "/mi-cuenta";
+  const { data: perfil } = await supabase.from("perfiles").select("id, rol").eq("id", data.user.id).maybeSingle();
+  const zona = perfil ? inicioDe(perfil.rol) : "/mi-cuenta";
   // Solo para quien entró con una temporal; el resto cambia la suya en su
   // perfil, donde se pide la actual.
   if (!debeCambiarContrasena(data.user)) redirect(zona);

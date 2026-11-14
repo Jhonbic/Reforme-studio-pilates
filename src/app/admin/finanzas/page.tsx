@@ -1,11 +1,8 @@
-import { redirect } from "next/navigation";
 import Card from "@/components/admin/Card";
 import PanelFinanzas from "@/components/admin/finanzas/PanelFinanzas";
+import { exigirSeccion } from "@/lib/admin/acceso";
 import { hoyEnBogota } from "@/lib/admin/horario";
-import {
-  getMovimientos,
-  getUsuarioActual,
-} from "@/lib/admin/queries";
+import { getMovimientos } from "@/lib/admin/queries";
 
 /**
  * Finanzas, leyendo de Supabase (`pagos` y `gastos`).
@@ -24,9 +21,8 @@ import {
  * («gráficas feas sin sentido»). No volver a ponerla.
  */
 export default async function FinanzasPage() {
-  const usuario = await getUsuarioActual();
-  // La instructora no tiene esta sección (ni en el menú): vuelve al panel.
-  if (usuario?.rol === "Instructora") redirect("/admin");
+  // La instructora no tiene esta sección (ni en el menú): vuelve a su inicio.
+  const usuario = await exigirSeccion("/admin/finanzas");
 
   if (usuario?.rol !== "Administración") {
     return (

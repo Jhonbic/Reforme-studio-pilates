@@ -19,8 +19,8 @@ import {
   getMetaClientes,
   getPagosDesde,
   getPocasClases,
-  getUsuarioActual,
 } from "@/lib/admin/queries";
+import { exigirSeccion } from "@/lib/admin/acceso";
 import {
   enlaceWhatsApp,
   mensajeCumpleanos,
@@ -59,9 +59,10 @@ function textoVence(dias: number): string {
  * se ve y se cobra en su ficha.
  */
 export default async function DashboardPage() {
+  // La instructora no tiene Dashboard: entra directa a Clases.
+  const usuario = await exigirSeccion("/admin");
   const hoy = hoyEnBogota();
-  const usuario = await getUsuarioActual();
-  const esAdmin = usuario?.rol === "Administración";
+  const esAdmin = usuario.rol === "Administración";
   const [datos, agenda, meta, pagos, pocas, campana] = await Promise.all([
     getDatosDashboard(),
     getClases(hoy, horaEnBogota()),

@@ -105,8 +105,11 @@ export type Seccion = {
    Usuarios porque las dos son la operación diaria del estudio (quién viene, qué
    se da), mientras Planes y Finanzas se miran de vez en cuando. */
 export const SECCIONES: Seccion[] = [
-  { href: "/admin", label: "Dashboard", icono: IconoDashboard },
-  { href: "/admin/usuarios", label: "Usuarios", icono: IconoUsuarios },
+  // La instructora tampoco ve el Dashboard ni Usuarios (decisión del usuario,
+  // nov 2026): son fichas y cifras de clientes. Entra directa a Clases, y la
+  // base tampoco le da las fichas (migración 20261115120000).
+  { href: "/admin", label: "Dashboard", icono: IconoDashboard, ocultaA: ["Instructora"] },
+  { href: "/admin/usuarios", label: "Usuarios", icono: IconoUsuarios, ocultaA: ["Instructora"] },
   { href: "/admin/clases", label: "Clases", icono: IconoClases },
   // La instructora no ve dinero ni catálogo (decisión del usuario, oct 2026):
   // su trabajo es la agenda y sus clientes.
@@ -120,6 +123,16 @@ export const SECCIONES: Seccion[] = [
 /** Las secciones que ve un rol, en el orden del menú. */
 export function seccionesDe(rol: string | undefined): Seccion[] {
   return SECCIONES.filter((s) => !rol || !s.ocultaA?.includes(rol as RolEquipo));
+}
+
+/** La primera pantalla de un rol: la primera sección de su menú. */
+export function inicioDe(rol: string | undefined): string {
+  return seccionesDe(rol)[0]?.href ?? "/admin";
+}
+
+/** Si un rol puede abrir una ruta del panel (por la sección a la que pertenece). */
+export function puedeVer(rol: string | undefined, pathname: string): boolean {
+  return !seccionActual(pathname).ocultaA?.includes(rol as RolEquipo);
 }
 
 /**

@@ -1,6 +1,7 @@
 import Card from "@/components/admin/Card";
 import FormularioAlta from "@/components/admin/usuarios/FormularioAlta";
-import { getClientes, getUsuarioActual } from "@/lib/admin/queries";
+import { exigirSeccion } from "@/lib/admin/acceso";
+import { getClientes } from "@/lib/admin/queries";
 import { claveNombre } from "@/lib/validacion";
 
 /**
@@ -12,8 +13,8 @@ import { claveNombre } from "@/lib/validacion";
  * campos para luego decir «no puedes» es lo peor que se puede hacer.
  */
 export default async function NuevoClientePage() {
-  const usuario = await getUsuarioActual();
-  if (usuario?.rol !== "Administración" && usuario?.rol !== "Recepción") {
+  const usuario = await exigirSeccion("/admin/usuarios/nuevo");
+  if (usuario.rol !== "Administración" && usuario?.rol !== "Recepción") {
     return (
       <div className="mx-auto w-full max-w-3xl">
         <h1 className="sr-only">Nuevo cliente</h1>

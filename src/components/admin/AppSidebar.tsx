@@ -7,7 +7,7 @@ import Logo from "@/components/Logo";
 import HeroFX from "@/components/fx/HeroFX";
 import { iniciales } from "@/lib/admin/format";
 import type { UsuarioActual } from "@/lib/admin/types";
-import { esSeccionActiva, seccionesDe } from "./secciones";
+import { esSeccionActiva, inicioDe, seccionesDe } from "./secciones";
 
 /**
  * ⚠️ **Quién ha entrado va aquí, encima de las secciones, no en la cabecera**
@@ -94,7 +94,7 @@ export default function AppSidebar({ usuario }: { usuario: UsuarioActual }) {
           <Logo
             size={30}
             layout="horizontal"
-            href="/admin"
+            href={inicioDe(usuario.rol)}
             className="text-arena"
           />
 

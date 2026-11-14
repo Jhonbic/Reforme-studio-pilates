@@ -1,20 +1,17 @@
 import PanelUsuarios from "@/components/admin/usuarios/PanelUsuarios";
 import { ESTADOS_MEMBRESIA } from "@/lib/admin/catalogos";
-import {
-  getClientes,
-  getConteoEstados,
-  getEquipo,
-  getUsuarioActual,
-} from "@/lib/admin/queries";
+import { exigirSeccion } from "@/lib/admin/acceso";
+import { getClientes, getConteoEstados, getEquipo } from "@/lib/admin/queries";
 
 export default async function UsuariosPage({ searchParams }: PageProps<"/admin/usuarios">) {
+  // La instructora no tiene Usuarios (ni en el menú): vuelve a su inicio.
+  const usuario = await exigirSeccion("/admin/usuarios");
   const { estado } = await searchParams;
   /* Solo un estado que existe: `?estado=loquesea` abre la lista sin filtro en
      vez de dejarla vacía con un filtro que ninguna pastilla enseña. */
   const estadoInicial = ESTADOS_MEMBRESIA.find((e) => e === estado);
 
-  const usuario = await getUsuarioActual();
-  const esAdmin = usuario?.rol === "Administración";
+  const esAdmin = usuario.rol === "Administración";
   const [clientes, equipo] = await Promise.all([
     getClientes(),
     getEquipo(),
@@ -32,7 +29,7 @@ export default async function UsuariosPage({ searchParams }: PageProps<"/admin/u
         equipo={equipo}
         conteos={getConteoEstados(clientes)}
         esAdmin={esAdmin}
-        correoActual={usuario?.correo ?? ""}
+        correoActual={usuario.correo}
         estadoInicial={estadoInicial}
       />
     </div>

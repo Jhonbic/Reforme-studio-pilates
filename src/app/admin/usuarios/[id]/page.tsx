@@ -25,9 +25,9 @@ import {
   getPlanesALaVenta,
   getPlanesAdquiridos,
   getSaldoCliente,
-  getUsuarioActual,
   tieneAccesoWeb,
 } from "@/lib/admin/queries";
+import { exigirSeccion } from "@/lib/admin/acceso";
 import { edad } from "@/lib/validacion";
 
 /**
@@ -50,6 +50,8 @@ import { edad } from "@/lib/validacion";
 export async function generateMetadata({
   params,
 }: PageProps<"/admin/usuarios/[id]">): Promise<Metadata> {
+  // El título lleva el nombre del cliente: también aquí, antes de pedirlo.
+  await exigirSeccion("/admin/usuarios");
   const { id } = await params;
   const cliente = await getCliente(id);
   return {
@@ -114,11 +116,12 @@ function Telefono({ numero }: { numero: string | null }) {
 export default async function FichaClientePage({
   params,
 }: PageProps<"/admin/usuarios/[id]">) {
+  // La instructora no tiene Usuarios (ni la ficha): vuelve a su inicio.
+  const usuario = await exigirSeccion("/admin/usuarios");
   const { id } = await params;
   const hoy = hoyEnBogota();
-  const [cliente, usuario, datos, saldo, historial] = await Promise.all([
+  const [cliente, datos, saldo, historial] = await Promise.all([
     getCliente(id),
-    getUsuarioActual(),
     getDatosPersonales(id),
     getCliente(id).then((c) => (c ? getSaldoCliente(c.id, hoy) : [])),
     getCliente(id).then((c) => (c ? getHistorialClases(c.id, hoy, horaEnBogota()) : [])),

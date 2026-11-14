@@ -1,7 +1,7 @@
-import { redirect } from "next/navigation";
 import PanelPlanes from "@/components/admin/planes/PanelPlanes";
+import { exigirSeccion } from "@/lib/admin/acceso";
 import { hoyEnBogota } from "@/lib/admin/horario";
-import { getPlanes, getUsuarioActual } from "@/lib/admin/queries";
+import { getPlanes } from "@/lib/admin/queries";
 
 /**
  * Catálogo de planes, leyendo de Supabase (tabla `planes`).
@@ -19,11 +19,10 @@ import { getPlanes, getUsuarioActual } from "@/lib/admin/queries";
  * que depende del rol es el «Cobrado · 30 días», ver `getPlanes()`.
  */
 export default async function PlanesPage() {
-  const usuario = await getUsuarioActual();
-  // La instructora no tiene esta sección (ni en el menú): vuelve al panel.
-  if (usuario?.rol === "Instructora") redirect("/admin");
+  // La instructora no tiene esta sección (ni en el menú): vuelve a su inicio.
+  const usuario = await exigirSeccion("/admin/planes");
   const puedeVerCobros =
-    usuario?.rol === "Administración" || usuario?.rol === "Recepción";
+    usuario.rol === "Administración" || usuario.rol === "Recepción";
 
   return (
     <div className="mx-auto w-full max-w-[1440px]">

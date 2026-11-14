@@ -296,6 +296,12 @@ export type ClaseEnAgenda = Clase & {
   reservados: ReservaEnClase[];
   /** Lista de espera, por orden de llegada (el primero entra al liberarse un cupo). */
   enEspera: { id: string; clienteId: string; nombre: string }[];
+  /**
+   * `true` si quien mira no puede saber QUIÉN reservó: una instructora en una
+   * clase que no da (RLS no le deja leer las fichas). Ve los recuentos, no los
+   * nombres, y entonces `nombre` llega vacío.
+   */
+  nombresOcultos?: boolean;
 };
 
 /**

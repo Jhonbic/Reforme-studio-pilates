@@ -181,12 +181,23 @@ API directamente, lo único que le para es esto.
 |---|---|---|---|---|
 | Administración | todo | leer, registrar | todo | todo |
 | Recepción | leer, crear, editar | leer, registrar | leer | — |
-| Instructora | leer | — | leer | — |
+| Instructora | — (solo nombres, ver abajo) | — | leer | — |
 
 Sin fila en `perfiles`, una cuenta autenticada **no ve nada**. Estar en
 `auth.users` no da acceso por sí solo.
 
 Una instructora no ve gastos a propósito: no tiene por qué conocer la nómina.
+
+⚠️ **Desde el 15 nov 2026 (migración `20261115120000_instructora_sin_clientes`)
+la instructora no lee `clientes` ni `membresias`** (antes las dos eran
+«lectura del personal», `tiene_perfil()`: con su sesión podía sacar por la API
+todas las fichas). Las políticas pasaron a `es_mostrador()`, y `saldo_clases`,
+`disponibles_para` y `clientes_pocas_clases` también dejan fuera a la
+instructora. Para pasar lista tiene **`nombres_en_mis_clases(desde, hasta)`**:
+clase, cliente y nombre de quien reservó o espera en las clases que ELLA da
+(primera o segunda instructora). Va por clase: una alumna suya no sale con
+nombre en la clase de otra. `reservas` y `lista_espera` las sigue leyendo
+(solo ids y asistencia), para los recuentos de la agenda.
 
 ## Cómo la usa la app
 

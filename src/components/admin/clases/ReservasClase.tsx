@@ -218,6 +218,13 @@ export default function ReservasClase({
           <p className="rounded-xl border border-beige bg-arena/50 px-4 py-6 text-center text-sm text-verde-300">
             Nadie la ha reservado todavía.
           </p>
+        ) : clase.nombresOcultos ? (
+          /* Una instructora en una clase que no da: sabe cuántos van (arriba),
+             no quiénes. La base no le deja leer esas fichas. */
+          <p className="rounded-xl border border-beige bg-arena/50 px-4 py-6 text-center text-sm text-verde-700">
+            Quién reservó lo ven recepción y quien da la clase.
+            {clase.enEspera.length > 0 && ` En lista de espera: ${numero(clase.enEspera.length)}.`}
+          </p>
         ) : (
           <ul className="divide-y divide-beige rounded-xl border border-beige">
             {clase.reservados.map((r) => (
@@ -339,7 +346,7 @@ export default function ReservasClase({
 
         {/* Lista de espera, por orden de llegada: al liberarse un cupo entra
             sola la primera que tenga clases en su plan. */}
-        {clase.enEspera.length > 0 && (
+        {clase.enEspera.length > 0 && !clase.nombresOcultos && (
           <div>
             <p className="text-sm font-medium text-verde">
               Lista de espera · {numero(clase.enEspera.length)}

@@ -394,6 +394,8 @@ const AGENDA_DIAS_ADELANTE = 91;
  */
 export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgenda[]> {
   const supabase = await crearClienteServidor();
+  const desde = sumarDias(hoy, -AGENDA_DIAS_ATRAS);
+  const hasta = sumarDias(hoy, AGENDA_DIAS_ADELANTE);
   const { data, error } = await supabase
     .from("clases")
     .select(
@@ -402,21 +404,45 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
       // embeber y falla con «more than one relationship».
       "id, tipo, sala, fecha, hora_inicio, duracion_min, instructora_id, instructora2_id, cupos, cancelada, franja_id, serie:horario_semanal(hasta), equipo!clases_instructora_id_fkey(nombre), segunda:equipo!clases_instructora2_id_fkey(nombre), reservas(id, cliente_id, asistencia, clientes(nombre)), lista_espera(id, cliente_id, creado_en, clientes(nombre))",
     )
-    .gte("fecha", sumarDias(hoy, -AGENDA_DIAS_ATRAS))
-    .lte("fecha", sumarDias(hoy, AGENDA_DIAS_ADELANTE))
+    .gte("fecha", desde)
+    .lte("fecha", hasta)
     .order("fecha")
     .order("hora_inicio");
   if (error) throw new Error(`No se pudo leer la agenda: ${error.message}`);
 
+  /* ⚠️ Una instructora no lee `clientes` (RLS, migración 20261115120000): el
+     embebido le llega vacío. Los nombres de quien va a SUS clases los da
+     `nombres_en_mis_clases`; los de las clases de otras no los ve. Solo se
+     pide si hace falta: al mostrador nunca le falta ninguno. */
+  const faltan = data.some(
+    (f) => f.reservas.some((r) => !r.clientes) || f.lista_espera.some((e) => !e.clientes),
+  );
+  const nombres = new Map<string, string>();
+  if (faltan) {
+    const r = await supabase.rpc("nombres_en_mis_clases", { p_desde: desde, p_hasta: hasta });
+    if (r.error) console.error(`No se pudieron leer los nombres de tus clases: ${r.error.message}`);
+    // ⚠️ Por clase Y cliente: una alumna suya que también va a la clase de
+    // otra instructora no tiene que salir con nombre en esa otra clase.
+    for (const n of r.data ?? []) nombres.set(`${n.clase_id}|${n.cliente_id}`, n.nombre);
+  }
+
   return data.map((f) => {
+    const nombreDe = (clienteId: string, embebido: { nombre: string } | null) =>
+      embebido?.nombre ?? nombres.get(`${f.id}|${clienteId}`) ?? null;
+    const ocultos =
+      f.reservas.some((r) => nombreDe(r.cliente_id, r.clientes) === null) ||
+      f.lista_espera.some((e) => nombreDe(e.cliente_id, e.clientes) === null);
     const reservados = f.reservas
       .map((r) => ({
         id: r.id,
         clienteId: r.cliente_id,
-        nombre: r.clientes?.nombre ?? "Cliente eliminado",
+        nombre: nombreDe(r.cliente_id, r.clientes) ?? "",
         asistencia: r.asistencia,
       }))
       .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+    const enEspera = [...f.lista_espera]
+      .sort((a, b) => a.creado_en.localeCompare(b.creado_en))
+      .map((e) => ({ id: e.id, clienteId: e.cliente_id, nombre: nombreDe(e.cliente_id, e.clientes) ?? "" }));
     const clase: Clase = {
       id: f.id,
       tipo: f.tipo,
@@ -448,9 +474,8 @@ export async function getClases(hoy: string, ahora: string): Promise<ClaseEnAgen
       libres: Math.max(0, clase.cupos - clase.reservas),
       empezada: yaEmpezo(clase.fecha, clase.horaInicio, hoy, ahora),
       reservados,
-      enEspera: [...f.lista_espera]
-        .sort((a, b) => a.creado_en.localeCompare(b.creado_en))
-        .map((e) => ({ id: e.id, clienteId: e.cliente_id, nombre: e.clientes?.nombre ?? "Cliente eliminado" })),
+      enEspera,
+      ...(ocultos && { nombresOcultos: true }),
     };
   });
 }
