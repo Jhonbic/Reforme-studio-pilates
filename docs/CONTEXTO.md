@@ -71,7 +71,7 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
 | `npm test` | **Vitest**, 140 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard, estadísticas, Inicio, Reservar, Planes y Mi perfil del cliente, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 166 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm run test:db` | **pgTAP**, 172 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -2486,6 +2486,15 @@ antes**.
       altas de recepción) con `check` de 5–200 caracteres. La ficha del panel
       la enseña desde el 18 oct 2026, con emergencia y acudiente (ver «Ficha
       del cliente — estilo JainSportBox»).
+- ⚠️ **Registros sin plan se borran solos a los 10 días** (18 nov 2026,
+  decisión del usuario, sin aviso previo). Cron `borrar-registros-sin-plan`
+  cada noche a las 03:30 de Bogotá → `borrar_registros_sin_plan(10)`
+  (migración `20261118120000`). Borra la ficha y su cuenta web solo si NO
+  tiene ninguna membresía, pago, reserva ni lista de espera, no está de baja
+  y se creó (`creado_en`) hace más de 10 días. Vale igual para altas de
+  recepción y de la web. La cuenta se conserva si es también del equipo.
+  Interna: EXECUTE revocado a todos. 6 tests de base (172). También en
+  `supabase/restaurar/despues-de-restaurar.sql`.
 - **«Acceso web»** en la ficha del cliente (recepción y administración): el
   único camino para los clientes que ya existen. Contraseña temporal mostrada
   una vez, como con el equipo; si ya tiene acceso, genera otra. ⚠️ **Desde

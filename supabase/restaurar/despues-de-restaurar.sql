@@ -28,3 +28,8 @@ drop policy if exists "comprobantes: solo Administración sube" on storage.objec
 create policy "comprobantes: solo Administración sube"
   on storage.objects for insert
   with check (bucket_id = 'comprobantes' and public.es_admin());
+
+-- Borrado nocturno de registros sin plan a los 10 días. Igual que en la
+-- migración 20261118120000_borrar_registros_sin_plan.
+select cron.unschedule(jobid) from cron.job where jobname = 'borrar-registros-sin-plan';
+select cron.schedule('borrar-registros-sin-plan', '30 8 * * *', $$select public.borrar_registros_sin_plan(10)$$);

@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(166);
+select plan(172);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -1226,6 +1226,54 @@ set local role anon;
 select throws_ok(
   $$select * from nombres_en_mis_clases('2019-01-01', '2031-12-31')$$,
   '42501', null, 'sin sesión no se llama');
+reset role;
+
+-- Registros sin plan: se borran solos a los 10 días -------------------------------
+insert into auth.users (id, email) values
+  ('00000000-0000-0000-0000-0000000001f1', 'viejo-sin-nada@reforme.local'),
+  ('00000000-0000-0000-0000-0000000001f2', 'viejo-del-equipo@reforme.local');
+insert into equipo (id, nombre, correo, rol, cuenta_id) values
+  ('00000000-0000-0000-0000-0000000001e1', 'Viejo del equipo', 'viejo-del-equipo@reforme.local', 'Recepción',
+   '00000000-0000-0000-0000-0000000001f2');
+insert into clientes (id, nombre, identificacion, cuenta_id, acepta_terminos, correo, telefono,
+                      fecha_nacimiento, direccion, emergencia_nombre, emergencia_telefono, creado_en) values
+  ('00000000-0000-0000-0000-0000000001d1', 'Viejo sin nada', 'TESTB01', '00000000-0000-0000-0000-0000000001f1', true,
+   'viejo-sin-nada@reforme.local', '3000000201', '1990-01-01', 'Calle de prueba 1', 'Contacto Prueba', '3000000301',
+   now() - interval '11 days'),
+  ('00000000-0000-0000-0000-0000000001d2', 'Viejo del equipo', 'TESTB02', '00000000-0000-0000-0000-0000000001f2', true,
+   'viejo-del-equipo@reforme.local', '3000000202', '1990-01-01', 'Calle de prueba 2', 'Contacto Prueba', '3000000302',
+   now() - interval '11 days');
+insert into clientes (id, nombre, identificacion, correo, creado_en, baja) values
+  ('00000000-0000-0000-0000-0000000001d3', 'Reciente sin nada', 'TESTB03', 'reciente@reforme.local', now() - interval '9 days', null),
+  ('00000000-0000-0000-0000-0000000001d4', 'Viejo con plan', 'TESTB04', 'viejo-plan@reforme.local', now() - interval '40 days', null),
+  ('00000000-0000-0000-0000-0000000001d5', 'Viejo de baja', 'TESTB05', 'viejo-baja@reforme.local', now() - interval '40 days', current_date);
+insert into membresias (cliente_id, plan_id, inicio, vencimiento, importe)
+  values ('00000000-0000-0000-0000-0000000001d4', '00000000-0000-0000-0000-0000000000b1',
+          '2020-01-01', '2020-01-30', 100000);
+
+select borrar_registros_sin_plan(10);
+
+select is((select array_agg(id::text order by id) from clientes where id in (
+    '00000000-0000-0000-0000-0000000001d1', '00000000-0000-0000-0000-0000000001d2',
+    '00000000-0000-0000-0000-0000000001d3', '00000000-0000-0000-0000-0000000001d4',
+    '00000000-0000-0000-0000-0000000001d5')),
+  array['00000000-0000-0000-0000-0000000001d3', '00000000-0000-0000-0000-0000000001d4',
+        '00000000-0000-0000-0000-0000000001d5'],
+  'a los 10 días se borran las fichas sin plan; no las recientes, ni las que compraron, ni las de baja');
+select ok(not exists (select 1 from auth.users where id = '00000000-0000-0000-0000-0000000001f1'),
+  'con la ficha se borra su cuenta web');
+select ok(exists (select 1 from auth.users where id = '00000000-0000-0000-0000-0000000001f2'),
+  'la cuenta de alguien del equipo se conserva');
+select ok(exists (select 1 from clientes where id = '00000000-0000-0000-0000-0000000000d2'),
+  'un cliente sin plan registrado hoy no se toca');
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$select borrar_registros_sin_plan(10)$$, '42501', null,
+  'ni Administración la llama desde la API');
+reset role;
+set local role anon;
+select throws_ok($$select borrar_registros_sin_plan(10)$$, '42501', null, 'sin sesión tampoco');
 reset role;
 
 select * from finish();
