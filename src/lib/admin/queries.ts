@@ -8,6 +8,7 @@ import type { DatosEstadisticas } from "./estadisticas";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/tipos";
 import type { AltaCliente } from "./acciones";
+import type { AvisoReserva } from "./actividad";
 
 type FilaClienteVigente =
   Database["public"]["Views"]["clientes_vigentes"]["Row"];
@@ -1142,4 +1143,75 @@ export async function getHistorialClases(
         asistencia: r.asistencia,
       };
   });
+}
+
+/** Hasta dónde llega la página «Actividad»: un mes, y como mucho 300 avisos. */
+export const DIAS_ACTIVIDAD = 30;
+const MAX_ACTIVIDAD = 300;
+
+/**
+ * Los últimos movimientos de reservas (tabla `actividad_reservas`, nov 2026)
+ * y hasta dónde los había visto quien mira.
+ *
+ * ⚠️ **Abrir la página los marca como vistos** (`marcar_actividad_vista`, que
+ * devuelve la marca ANTERIOR: lo posterior a ella es lo nuevo). Va aquí, en el
+ * servidor, y no en un efecto del navegador: así la campana baja a cero en la
+ * misma navegación y no hay un parpadeo de «nuevos». Las precargas de los
+ * enlaces no llegan hasta aquí: se paran en el `loading.tsx`.
+ *
+ * RLS decide qué llega: Administración y Recepción, todo; la instructora, lo
+ * de sus clases.
+ */
+export async function getActividad(): Promise<{ avisos: AvisoReserva[]; vistoHasta: string }> {
+  const supabase = await crearClienteServidor();
+  const desde = new Date(Date.now() - DIAS_ACTIVIDAD * 86_400_000).toISOString();
+  const [{ data: { user } }, visto, filas] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.rpc("marcar_actividad_vista"),
+    supabase
+      .from("actividad_reservas")
+      .select(
+        "id, creado_en, tipo, origen, hecho_por, hecho_por_nombre, cliente_id, cliente_nombre, clase_fecha, clase_hora, clase_tipo, anterior_fecha, anterior_hora, detalle",
+      )
+      .gte("creado_en", desde)
+      .order("creado_en", { ascending: false })
+      .limit(MAX_ACTIVIDAD),
+  ]);
+  if (filas.error) throw new Error(`No se pudo leer la actividad: ${filas.error.message}`);
+  if (visto.error) console.error(`No se pudo marcar la actividad como vista: ${visto.error.message}`);
+
+  return {
+    vistoHasta: visto.data ?? new Date().toISOString(),
+    avisos: filas.data.map((f) => ({
+      id: f.id,
+      creadoEn: f.creado_en,
+      tipo: f.tipo,
+      origen: f.origen,
+      hechoPor: f.hecho_por_nombre,
+      clienteId: f.cliente_id,
+      cliente: f.cliente_nombre,
+      clase: { fecha: f.clase_fecha, hora: f.clase_hora.slice(0, 5), tipo: f.clase_tipo },
+      anterior:
+        f.anterior_fecha && f.anterior_hora
+          ? { fecha: f.anterior_fecha, hora: f.anterior_hora.slice(0, 5) }
+          : null,
+      detalle: f.detalle,
+      mio: !!user && f.hecho_por === user.id,
+    })),
+  };
+}
+
+/**
+ * Cuántos movimientos no ha visto quien tiene la sesión (la campana).
+ * ⚠️ **No lanza**: es un número en la barra lateral, y si la base falla (o aún
+ * no tiene la migración) el panel tiene que seguir abriéndose. Sin dato, cero.
+ */
+export async function getActividadSinVer(): Promise<number> {
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase.rpc("actividad_sin_ver");
+  if (error) {
+    console.error(`No se pudo contar la actividad sin ver: ${error.message}`);
+    return 0;
+  }
+  return data ?? 0;
 }

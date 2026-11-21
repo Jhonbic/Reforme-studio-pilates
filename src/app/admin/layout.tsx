@@ -3,9 +3,10 @@ import { redirect } from "next/navigation";
 import { getMiCuenta } from "@/lib/cliente/datos";
 import AdminTopbar from "@/components/admin/AdminTopbar";
 import AppSidebar from "@/components/admin/AppSidebar";
+import { ActividadProvider } from "@/context/ActividadContext";
 import { SidebarProvider } from "@/context/SidebarContext";
 import { ToastProvider } from "@/context/ToastContext";
-import { getUsuarioActual } from "@/lib/admin/queries";
+import { getActividadSinVer, getUsuarioActual } from "@/lib/admin/queries";
 
 export const metadata: Metadata = {
   title: "Panel administrativo · Reforme Studio Pilates",
@@ -39,26 +40,31 @@ export default async function AdminLayout(props: LayoutProps<"/admin">) {
     redirect((await getMiCuenta()) ? "/mi-cuenta" : "/login?error=sin-acceso");
   }
 
+  // La campana: lo que no ha visto de la actividad de reservas. No lanza.
+  const sinVer = await getActividadSinVer();
+
   return (
     <SidebarProvider>
-      <ToastProvider>
-        <div className="flex min-h-[100svh] flex-col bg-arena lg:flex-row">
-          <AppSidebar usuario={usuario} />
+      <ActividadProvider inicial={sinVer}>
+        <ToastProvider>
+          <div className="flex min-h-[100svh] flex-col bg-arena lg:flex-row">
+            <AppSidebar usuario={usuario} />
 
-          {/* ⚠️ `min-w-0` es obligatorio, no cosmético: un hijo flex tiene
-              `min-width: auto` y no se encoge por debajo de su contenido. Sin
-              esto, una rejilla ancha desborda la columna y —peor aquí— el
-              ResizeObserver de los gráficos mediría un ancho inflado, que es
-              justo el bug del estiramiento de las gráficas. */}
-          <div className="flex min-w-0 flex-1 flex-col">
-            <AdminTopbar />
+            {/* ⚠️ `min-w-0` es obligatorio, no cosmético: un hijo flex tiene
+                `min-width: auto` y no se encoge por debajo de su contenido. Sin
+                esto, una rejilla ancha desborda la columna y —peor aquí— el
+                ResizeObserver de los gráficos mediría un ancho inflado, que es
+                justo el bug del estiramiento de las gráficas. */}
+            <div className="flex min-w-0 flex-1 flex-col">
+              <AdminTopbar />
 
-            <main className="flex-1 px-4 py-5 sm:px-6 lg:px-6 lg:py-6 xl:px-8">
-              {props.children}
-            </main>
+              <main className="flex-1 px-4 py-5 sm:px-6 lg:px-6 lg:py-6 xl:px-8">
+                {props.children}
+              </main>
+            </div>
           </div>
-        </div>
-      </ToastProvider>
+        </ToastProvider>
+      </ActividadProvider>
     </SidebarProvider>
   );
 }

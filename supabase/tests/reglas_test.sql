@@ -12,7 +12,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(172);
+select plan(186);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -1274,6 +1274,112 @@ select throws_ok($$select borrar_registros_sin_plan(10)$$, '42501', null,
 reset role;
 set local role anon;
 select throws_ok($$select borrar_registros_sin_plan(10)$$, '42501', null, 'sin sesión tampoco');
+reset role;
+
+
+-- Actividad de reservas (nov 2026) --------------------------------------------
+-- d8 reserva, cambia y otra clienta (d9) entra sola desde la lista de espera.
+-- Clases de Mat en febrero de 2032: g1 (1 cupo, instructora e1) y g2 (8, e2).
+set local request.jwt.claims to '{}';
+insert into auth.users (id, email) values
+  ('00000000-0000-0000-0000-0000000002c8', 'actividad-uno@reforme.local'),
+  ('00000000-0000-0000-0000-0000000002c9', 'actividad-dos@reforme.local');
+insert into clientes (id, nombre, identificacion, cuenta_id, acepta_terminos,
+                      correo, telefono, fecha_nacimiento, direccion, emergencia_nombre, emergencia_telefono) values
+  ('00000000-0000-0000-0000-0000000002d8', 'Clienta actividad', 'TESTC08', '00000000-0000-0000-0000-0000000002c8', true,
+   'actividad-uno@reforme.local', '3000000408', '1990-01-01', 'Calle de prueba 8', 'Contacto Prueba', '3000000508'),
+  ('00000000-0000-0000-0000-0000000002d9', 'Clienta en espera', 'TESTC09', '00000000-0000-0000-0000-0000000002c9', true,
+   'actividad-dos@reforme.local', '3000000409', '1990-01-01', 'Calle de prueba 9', 'Contacto Prueba', '3000000509');
+insert into membresias (cliente_id, plan_id, inicio, vencimiento, importe) values
+  ('00000000-0000-0000-0000-0000000002d8', '00000000-0000-0000-0000-0000000000b2', '2032-01-01', '2032-12-31', 100000),
+  ('00000000-0000-0000-0000-0000000002d9', '00000000-0000-0000-0000-0000000000b2', '2032-01-01', '2032-12-31', 100000);
+insert into clases (id, tipo, fecha, hora_inicio, duracion_min, instructora_id, cupos) values
+  ('00000000-0000-0000-0000-0000000002f1', 'Mat', '2032-02-02', '10:00', 50, '00000000-0000-0000-0000-0000000000e1', 1),
+  ('00000000-0000-0000-0000-0000000002f2', 'Mat', '2032-02-03', '10:00', 50, '00000000-0000-0000-0000-0000000000e2', 8);
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000002c8","role":"authenticated"}';
+select reservar_mi_clase('00000000-0000-0000-0000-0000000002f1');
+reset role;
+
+select results_eq(
+  $$select tipo::text, origen::text, hecho_por, hecho_por_nombre, cliente_nombre
+    from actividad_reservas where cliente_id = '00000000-0000-0000-0000-0000000002d8'$$,
+  $$values ('Reservó', 'Cliente', '00000000-0000-0000-0000-0000000002c8'::uuid, 'Clienta actividad', 'Clienta actividad')$$,
+  'reservar desde la web deja un aviso: reservó, el cliente, quién');
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000002c9","role":"authenticated"}';
+select unirme_lista_espera('00000000-0000-0000-0000-0000000002f1');
+reset role;
+
+-- Administración abre la campana: lo anterior queda visto.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select marcar_actividad_vista();
+select is(actividad_sin_ver(), 0, 'después de mirar la actividad no queda nada sin ver');
+reset role;
+
+-- d8 cambia g1 por g2: el cupo de g1 se libera y entra d9 desde la lista.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000002c8","role":"authenticated"}';
+select reprogramar_mi_reserva('00000000-0000-0000-0000-0000000002f1', '00000000-0000-0000-0000-0000000002f2');
+select is((select count(*)::int from actividad_reservas), 0, 'un cliente no lee la actividad (ni la suya)');
+reset role;
+
+select results_eq(
+  $$select tipo::text, origen::text, anterior_clase_id, clase_id
+    from actividad_reservas where cliente_id = '00000000-0000-0000-0000-0000000002d8' order by creado_en$$,
+  $$values ('Reservó', 'Cliente', null::uuid, '00000000-0000-0000-0000-0000000002f1'::uuid),
+           ('Cambió',  'Cliente', '00000000-0000-0000-0000-0000000002f1'::uuid, '00000000-0000-0000-0000-0000000002f2'::uuid)$$,
+  'reprogramar es UN aviso «cambió», con la clase de antes y la nueva (no un «canceló» y un «reservó»)');
+select results_eq(
+  $$select tipo::text, origen::text, hecho_por from actividad_reservas
+    where cliente_id = '00000000-0000-0000-0000-0000000002d9'$$,
+  $$values ('Reservó', 'Lista de espera', null::uuid)$$,
+  'quien entra solo desde la lista de espera sale como «lista de espera», no como quien liberó el cupo');
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(actividad_sin_ver(), 2, 'la campana cuenta lo que llegó después de mirar');
+delete from reservas
+  where clase_id = '00000000-0000-0000-0000-0000000002f1' and cliente_id = '00000000-0000-0000-0000-0000000002d9';
+select results_eq(
+  $$select tipo::text, origen::text, hecho_por_nombre from actividad_reservas
+    where cliente_id = '00000000-0000-0000-0000-0000000002d9' order by creado_en desc limit 1$$,
+  $$values ('Canceló', 'Equipo', 'Admin test')$$,
+  'quitar a alguien desde el panel dice quién del equipo fue');
+select is(actividad_sin_ver(), 2, 'lo que hace uno mismo no le suma en la campana');
+select throws_ok(
+  $$insert into actividad_reservas (tipo, origen, cliente_id, cliente_nombre, clase_fecha, clase_hora, clase_tipo)
+    values ('Reservó', 'Cliente', '00000000-0000-0000-0000-0000000002d8', 'Falso', '2032-02-02', '10:00', 'Mat')$$,
+  '42501', null, 'ni Administración escribe avisos a mano: solo los triggers');
+reset role;
+
+-- La instructora: solo lo de sus clases.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is(
+  (select count(*)::int from actividad_reservas
+    where cliente_id in ('00000000-0000-0000-0000-0000000002d8', '00000000-0000-0000-0000-0000000002d9')),
+  4, 'la instructora de g1 ve los cuatro movimientos que tocan su clase (también el cambio que sale de ella)');
+reset role;
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select results_eq(
+  $$select tipo::text from actividad_reservas
+    where cliente_id in ('00000000-0000-0000-0000-0000000002d8', '00000000-0000-0000-0000-0000000002d9')$$,
+  $$values ('Cambió')$$,
+  'la de g2 solo ve el cambio que llega a la suya');
+reset role;
+
+select is(
+  (select count(*)::int from actividad_reservas where clase_id = '00000000-0000-0000-0000-0000000000f6'),
+  0, 'lo que se carga sin sesión (semilla, restaurar una copia) no deja aviso');
+
+set local role anon;
+select is((select count(*)::int from actividad_reservas), 0, 'sin sesión no se lee nada');
+select throws_ok($$select marcar_actividad_vista()$$, '42501', null, 'sin sesión no se marca nada como visto');
 reset role;
 
 select * from finish();

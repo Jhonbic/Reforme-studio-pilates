@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
 import HeroFX from "@/components/fx/HeroFX";
+import { useActividad } from "@/context/ActividadContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { seccionActual, subseccionDe } from "./secciones";
 
@@ -37,6 +38,7 @@ export default function AdminTopbar() {
   const router = useRouter();
   const seccion = seccionActual(pathname);
   const { toggleSidebar, visible } = useSidebar();
+  const { sinVer } = useActividad();
   /* Una subsección titula por sí misma: en `/admin/usuarios/nuevo` el menú marca
      «Usuarios» (bien, es donde estás), pero titular «Usuarios» sería falso. */
   const sub = subseccionDe(pathname);
@@ -104,10 +106,24 @@ export default function AdminTopbar() {
         <button
           type="button"
           onClick={toggleSidebar}
-          aria-label={visible ? "Cerrar navegación" : "Abrir navegación"}
+          aria-label={
+            visible
+              ? "Cerrar navegación"
+              : sinVer > 0
+                ? `Abrir navegación (${sinVer} movimientos de reservas sin ver)`
+                : "Abrir navegación"
+          }
           aria-expanded={visible}
-          className={`${BOTON} -ml-2 inline-flex text-arena hover:text-dorado-light lg:hidden`}
+          className={`${BOTON} relative -ml-2 inline-flex text-arena hover:text-dorado-light lg:hidden`}
         >
+          {/* En el móvil la campana está dentro del cajón: sin este punto,
+              nadie sabría que hay algo nuevo sin abrirlo. */}
+          {sinVer > 0 && (
+            <span
+              aria-hidden="true"
+              className="absolute right-2 top-2 size-2.5 rounded-full bg-dorado ring-2 ring-verde"
+            />
+          )}
           <svg
             className="h-5 w-5"
             fill="none"

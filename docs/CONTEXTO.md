@@ -70,8 +70,8 @@ CTA principal: **"Reservar mi clase"** → `/registro`.
 |---|---|
 | `npm run lint` | ESLint (0 avisos) |
 | `npm run typecheck` | TypeScript. ⚠️ Corre `next typegen` antes de `tsc`: `PageProps`/`LayoutProps` los genera Next en `.next/types`, que no está en git — en una máquina limpia (la CI) `tsc` solo fallaba |
-| `npm test` | **Vitest**, 140 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard, estadísticas, Inicio, Reservar, Planes y Mi perfil del cliente, quién marca asistencia (`src/**/*.test.ts`) |
-| `npm run test:db` | **pgTAP**, 172 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
+| `npm test` | **Vitest**, 146 tests de la lógica pura: periodos, fechas, validaciones, formato, cálculos del dashboard, estadísticas, Inicio, Reservar, Planes y Mi perfil del cliente, quién marca asistencia, actividad de reservas (`src/**/*.test.ts`) |
+| `npm run test:db` | **pgTAP**, 186 tests de las reglas de la BASE con Supabase local encendido (`supabase/tests/reglas_test.sql`): solapes de instructora, aforo, borrar vs cancelar, y qué ve y hace cada rol (sin sesión, cuenta sin perfil, Administración, cliente) |
 
 - **CI** (`.github/workflows/ci.yml`): en cada push y pull request a `main`,
   dos trabajos en paralelo — *web* (lint, tipos, Vitest, build) y *base*
@@ -361,6 +361,10 @@ En `src/components/`:
     - ⚠️ **«Cambiar contraseña» y «Cerrar sesión» viven en Configuración → Mi
       perfil** (`configuracion/MiPerfil.tsx`), que tiene CADA rol. Estuvieron
       un momento en el pie de la barra y el usuario los quiso allí.
+    - ⚠️ **La campana VOLVIÓ el 21 nov 2026, con otro contenido**: ahora
+      avisa de reservas, cancelaciones y cambios, y va en la barra lateral
+      bajo la cuenta, no en la cabecera. Ver «Actividad de reservas». Lo que
+      sigue es la campana vieja.
     - ⚠️ **Sin campana de avisos** (misma decisión): `Campana.tsx`,
       `getNotificaciones()`, el tipo `Notificacion` y `mock.ts` (solo guardaba
       sus dos avisos de ejemplo) se borraron. Las membresías por vencer ya
@@ -2675,6 +2679,75 @@ cálculos puros en `lib/cliente/inicio.ts` (con tests).
   Vitest) y **borra 700 líneas del `package-lock.json`**. Instalar con
   `npm install --legacy-peer-deps=false` y comprobar que el lockfile no cambia.
 
+#### Actividad de reservas (`/admin/actividad`) — 21 nov 2026
+
+Pedido del usuario: saber cuándo alguien reserva o cancela una clase, **en la
+web y sin servicios externos** (WhatsApp o correo, más adelante). Decisiones
+suyas: **campana en la barra lateral + página con el historial**; **todos los
+movimientos, diciendo quién los hizo**; **Administración y Recepción ven todo,
+la instructora solo lo de sus clases**. Migración
+`20261121120000_actividad_reservas`.
+
+- ⚠️ **Lo escribe un TRIGGER sobre `reservas`** (`reservas_dejan_actividad`,
+  tabla `actividad_reservas`), no la app: una reserva nace o muere por siete
+  caminos (reservar y cancelar del cliente, reprogramar, apuntar y quitar,
+  mover, lista de espera, dar de baja) y varios son funciones de base.
+  - Cada aviso copia nombre del cliente, fecha, hora y tipo de la clase, y
+    quién lo hizo: se sigue leyendo aunque la clase se mueva o se borre.
+  - **Origen**: «Cliente» (su sesión es la del cliente), «Equipo» (con el
+    nombre de quien lo hizo) o «Lista de espera». ⚠️ La lista de espera corre
+    con la sesión de quien LIBERÓ el cupo, así que `promover_lista_espera` se
+    marca con `set_config('reforme.origen', 'lista_espera', true)` y lo apaga
+    al salir del bucle.
+  - ⚠️ **Sin sesión no se apunta nada**: la semilla local llenaba la campana
+    con cientos de avisos, y restaurar una copia haría lo mismo.
+  - ⚠️ **Reprogramar y mover son UN aviso «Cambió»**, con la clase de antes y
+    la nueva: en la misma transacción, la reserva nueva convierte la
+    cancelación anterior del mismo cliente (`txid_current()`).
+  - Al dar de baja, la cancelación dice «Al darla de baja».
+  - Los triggers AFTER van por orden alfabético: `reservas_dejan_…` corre antes
+    que `reservas_liberan_cupo`, así la cancelación queda antes que la entrada
+    de la lista de espera que provoca.
+- **Lectura**: RLS `to authenticated` — mostrador todo, instructora las filas
+  de sus clases (la de antes o la de después de un cambio). Nadie escribe por
+  la API. ⚠️ Sin el `to authenticated`, leerla sin sesión daba «permission
+  denied for function mi_equipo_id» en vez de cero filas.
+- **Lo visto**: tabla `actividad_vista` (una marca por cuenta).
+  `marcar_actividad_vista()` la mueve a ahora y devuelve la anterior;
+  `actividad_sin_ver()` cuenta lo posterior **sin lo que hizo uno mismo**.
+  Sin marca, la última semana.
+- **Campana** (`AppSidebar`, bajo la cuenta, fuera de la lista de secciones):
+  «Actividad» con el número sin ver. En el móvil, un punto dorado en el ☰
+  (y el número en su `aria-label`). El número vive en `ActividadContext`:
+  el primero llega del layout; después pregunta **cada minuto**, al volver a
+  la pestaña y al cambiar de página (server action `contarActividadSinVer`).
+  Se descartó Supabase Realtime: un minuto no cambia nada en recepción.
+  `getActividadSinVer` **no lanza**: sin la migración el panel abre igual.
+- **Página** (`PanelActividad`, `max-w-5xl`): agrupada por día de Colombia,
+  del más nuevo al más viejo, 30 días y como mucho 300. Pastilla Reserva ●
+  verde · Cancelación ○ ámbar · Cambio ↻ neutro; «Hace 5 min»; la clase
+  («Mat · lun 23 de nov · 09:00», tachada la de antes en un cambio); y quién
+  («Desde su cuenta», «Desde el panel · Ana», «Entró sola desde la lista de
+  espera»). Filtros: qué pasó (pastillas con recuento) y quién lo hizo
+  (`<select>`). El nombre lleva a la ficha solo para el mostrador.
+  - ⚠️ **Abrir la página marca lo visto EN EL SERVIDOR** (`getActividad`), y
+    lo nuevo desde la vez anterior lleva «Nuevo» y un filete dorado. Las
+    precargas no llegan: se paran en el `loading.tsx`.
+  - ⚠️ **Gotcha**: con `loading.tsx` la ruta cambia (y la campana pregunta)
+    ANTES de que el servidor marque lo visto: la campana se quedaba en el
+    número viejo. La página llama a `refrescar()` del contexto al montarse.
+  - Con la página abierta, si llega algo, sale «Hay N nuevos · Ver»
+    (`router.refresh()`).
+- `ACTIVIDAD` en `secciones.tsx` va **fuera de `SECCIONES`** (no es una
+  pastilla del menú) pero dentro de `seccionActual`: si no, la ruta se
+  tomaba por el Dashboard y a la instructora la devolvía a Clases.
+- 14 tests de base (186) y 6 de Vitest (146). Probado en el navegador contra
+  la base local a 1280 y 390 px: la campana cuenta, baja a cero al entrar,
+  sube con un movimiento nuevo, «Nuevo» marcado, filtros; sin errores ni
+  desplazamiento lateral.
+- Pendiente: avisar al CLIENTE (WhatsApp/correo), y quizá borrar los avisos
+  de más de unos meses (hoy se guardan todos; un estudio genera pocos).
+
 **⚠️ shadcn/ui se evaluó y se descartó (jul 2026).** Se probó instalar el bloque
 `@efferd/dashboard-3` en la rama `shadcn-dashboard-3`, ya borrada. Qué se aprendió,
 por si se vuelve a plantear:
@@ -3005,7 +3078,9 @@ Configuración). Lo que falta, por módulo:
    de espera y reprogramar~~ (hecho).
 6. **Asistencia**: ~~marcar asistió / no vino e historial~~ (hecho,
    «Asistencia»); falta la política de cancelación configurable.
-7. **Notificaciones automáticas** (WhatsApp y/o correo): confirmación de
+7. **Notificaciones automáticas** (WhatsApp y/o correo): ~~que el equipo se
+   entere de reservas y cancelaciones~~ (hecho en la web, «Actividad de
+   reservas»); al cliente, todo: confirmación de
    reserva, recordatorio de clase, cancelaciones, plan por vencer o vencido,
    pocas clases. Personalizables.
 8. **Financiero**: ~~Daviplata y «otros»~~, ~~pagos pendientes y abonos~~

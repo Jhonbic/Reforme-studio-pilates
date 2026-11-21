@@ -23,6 +23,40 @@ export type Database = {
   };
   public: {
     Tables: {
+      // Escrito a mano (migración 20261121120000_actividad_reservas).
+      actividad_reservas: {
+        Row: {
+          anterior_clase_id: string | null;
+          anterior_fecha: string | null;
+          anterior_hora: string | null;
+          clase_fecha: string;
+          clase_hora: string;
+          clase_id: string | null;
+          clase_tipo: Database["public"]["Enums"]["tipo_clase"];
+          cliente_id: string;
+          cliente_nombre: string;
+          creado_en: string;
+          detalle: string | null;
+          hecho_por: string | null;
+          hecho_por_nombre: string | null;
+          id: string;
+          origen: Database["public"]["Enums"]["origen_movimiento"];
+          tipo: Database["public"]["Enums"]["movimiento_reserva"];
+          transaccion: number;
+        };
+        ComputedFields: never;
+        Insert: Record<string, never>;
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      // Escrito a mano (migración 20261121120000_actividad_reservas).
+      actividad_vista: {
+        Row: { cuenta_id: string; visto_hasta: string };
+        ComputedFields: never;
+        Insert: { cuenta_id: string; visto_hasta?: string };
+        Update: { cuenta_id?: string; visto_hasta?: string };
+        Relationships: [];
+      };
       ajustes: {
         Row: {
           agenda_generada_hasta: string | null;
@@ -865,6 +899,9 @@ export type Database = {
       };
     };
     Functions: {
+      // Escrito a mano (migración 20261121120000_actividad_reservas).
+      actividad_sin_ver: { Args: Record<PropertyKey, never>; Returns: number };
+      marcar_actividad_vista: { Args: Record<PropertyKey, never>; Returns: string };
       // Escrito a mano (migración 20261108140000_mis_datos).
       actualizar_mis_datos: {
         Args: {
@@ -1064,6 +1101,8 @@ export type Database = {
       estado_membresia: "Activa" | "Por vencer" | "Vencida" | "Inactiva" | "Sin plan" | "De baja";
       metodo_pago: "Efectivo" | "Nequi" | "Transferencia" | "Tarjeta" | "Daviplata" | "Otro";
       modalidad_plan: "Mat" | "Reformer" | "Fusión";
+      movimiento_reserva: "Reservó" | "Canceló" | "Cambió";
+      origen_movimiento: "Cliente" | "Equipo" | "Lista de espera";
       rol_equipo: "Instructora" | "Administración" | "Recepción";
       tipo_clase: "Reformer" | "Mat" | "Privada";
       tipo_identificacion: "C.C." | "T.I." | "C.E." | "Pasaporte" | "R.C.";
@@ -1186,6 +1225,8 @@ export const Constants = {
       estado_membresia: ["Activa", "Por vencer", "Vencida", "Inactiva", "Sin plan", "De baja"],
       metodo_pago: ["Efectivo", "Nequi", "Transferencia", "Tarjeta", "Daviplata", "Otro"],
       modalidad_plan: ["Mat", "Reformer", "Fusión"],
+      movimiento_reserva: ["Reservó", "Canceló", "Cambió"],
+      origen_movimiento: ["Cliente", "Equipo", "Lista de espera"],
       rol_equipo: ["Instructora", "Administración", "Recepción"],
       tipo_clase: ["Reformer", "Mat", "Privada"],
       tipo_identificacion: ["C.C.", "T.I.", "C.E.", "Pasaporte", "R.C."],

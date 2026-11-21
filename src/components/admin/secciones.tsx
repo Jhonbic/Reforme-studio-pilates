@@ -93,6 +93,16 @@ function IconoConfiguracion() {
   );
 }
 
+/* Campana: lo universal para «avisos». */
+function IconoActividad() {
+  return (
+    <svg {...svg}>
+      <path d="M6 9a6 6 0 1 1 12 0c0 4.5 1.8 6.5 2.5 7.2a.5.5 0 0 1-.36.8H3.86a.5.5 0 0 1-.36-.8C4.2 15.5 6 13.5 6 9z" />
+      <path d="M10 20.5a2.2 2.2 0 0 0 4 0" />
+    </svg>
+  );
+}
+
 export type Seccion = {
   href: string;
   label: string;
@@ -119,6 +129,22 @@ export const SECCIONES: Seccion[] = [
   { href: "/admin/estadisticas", label: "Estadísticas", icono: IconoEstadisticas, ocultaA: ["Instructora"] },
   { href: "/admin/configuracion", label: "Configuración", icono: IconoConfiguracion },
 ];
+
+/**
+ * Actividad de reservas (nov 2026): quién reserva, cancela o cambia.
+ *
+ * ⚠️ **Fuera de `SECCIONES` a propósito**: no es una pastilla más del menú
+ * sino la CAMPANA que va bajo la cuenta, con el número de avisos sin ver
+ * (decisión del usuario). Aquí está para que la topbar la titule y
+ * `seccionActual` no la confunda con el Dashboard (que la instructora no ve,
+ * y la devolvería a Clases). La ven todos los roles: a la instructora RLS
+ * solo le da lo de sus clases.
+ */
+export const ACTIVIDAD: Seccion = {
+  href: "/admin/actividad",
+  label: "Actividad",
+  icono: IconoActividad,
+};
 
 /** Las secciones que ve un rol, en el orden del menú. */
 export function seccionesDe(rol: string | undefined): Seccion[] {
@@ -206,7 +232,7 @@ export function esSeccionActiva(href: string, pathname: string) {
 
 export function seccionActual(pathname: string): Seccion {
   return (
-    [...SECCIONES]
+    [...SECCIONES, ACTIVIDAD]
       .reverse()
       .find((s) => esSeccionActiva(s.href, pathname)) ?? SECCIONES[0]
   );

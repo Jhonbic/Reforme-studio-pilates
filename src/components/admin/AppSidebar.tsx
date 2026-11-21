@@ -2,18 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { numeroCampana, useActividad } from "@/context/ActividadContext";
 import { useSidebar } from "@/context/SidebarContext";
 import Logo from "@/components/Logo";
 import HeroFX from "@/components/fx/HeroFX";
 import { iniciales } from "@/lib/admin/format";
 import type { UsuarioActual } from "@/lib/admin/types";
-import { esSeccionActiva, inicioDe, seccionesDe } from "./secciones";
+import { ACTIVIDAD, esSeccionActiva, inicioDe, seccionesDe } from "./secciones";
 
 /**
  * ⚠️ **Quién ha entrado va aquí, encima de las secciones, no en la cabecera**
  * (decisión del usuario, oct 2026). Antes era una pastilla dorada con
  * desplegable en la esquina de la topbar, junto a una campana de avisos que
- * se quitó: dos de sus tres avisos eran de ejemplo.
+ * se quitó: dos de sus tres avisos eran de ejemplo. La campana volvió en nov
+ * 2026, aquí debajo de la cuenta, con la actividad de reservas.
  *
  * Cambiar la contraseña y cerrar sesión NO están aquí: viven en
  * Configuración → Mi perfil, que tiene cada rol. Pulsar el nombre lleva ahí.
@@ -21,6 +23,8 @@ import { esSeccionActiva, inicioDe, seccionesDe } from "./secciones";
 export default function AppSidebar({ usuario }: { usuario: UsuarioActual }) {
   const { isExpanded, isMobileOpen, closeMobileSidebar } = useSidebar();
   const pathname = usePathname();
+  const { sinVer } = useActividad();
+  const enActividad = esSeccionActiva(ACTIVIDAD.href, pathname);
 
   const handleNavigation = () => {
     if (isMobileOpen) {
@@ -144,6 +148,38 @@ export default function AppSidebar({ usuario }: { usuario: UsuarioActual }) {
             <p className="mt-0.5 truncate text-xs text-dorado-light">{usuario.rol}</p>
           </div>
         </Link>
+
+        {/* La campana: movimientos de reservas que no ha visto (nov 2026,
+            decisión del usuario). Justo bajo la cuenta y fuera de la lista de
+            secciones: no es un módulo de trabajo sino lo que avisa de que ha
+            pasado algo. Mismo par de colores que una sección activa. */}
+        <div className="border-b border-verde-700/70 px-4 py-3">
+          <Link
+            href={ACTIVIDAD.href}
+            onClick={handleNavigation}
+            aria-current={enActividad ? "page" : undefined}
+            aria-label={sinVer > 0 ? `Actividad de reservas: ${sinVer} sin ver` : "Actividad de reservas"}
+            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-all ${
+              enActividad
+                ? "bg-dorado text-verde-900 shadow-sm"
+                : "text-beige hover:bg-verde-700/70 hover:text-arena active:bg-verde-700"
+            }`}
+          >
+            <ACTIVIDAD.icono />
+            <span>Actividad</span>
+            {/* El número va también en el `aria-label`: aquí es solo vista. */}
+            {sinVer > 0 && (
+              <span
+                aria-hidden="true"
+                className={`font-cifra ml-auto inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-bold ${
+                  enActividad ? "bg-verde-900 text-arena" : "bg-dorado text-verde-900"
+                }`}
+              >
+                {numeroCampana(sinVer)}
+              </span>
+            )}
+          </Link>
+        </div>
 
         {/* Navegación */}
         <nav aria-label="Secciones del panel" className="flex-1 overflow-y-auto px-4 py-6">

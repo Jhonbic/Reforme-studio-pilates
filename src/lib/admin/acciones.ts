@@ -11,7 +11,7 @@ import {
 import { fecha as fechaCorta, moneda } from "./format";
 import { horaEnBogota, hoyEnBogota, sumarDias } from "./horario";
 import { erroresCampana, type BorradorCampana, type CampoCampana } from "./campana";
-import { getUsuarioActual } from "./queries";
+import { getActividadSinVer, getUsuarioActual } from "./queries";
 import type {
   Asistencia,
   BorradorClase,
@@ -1793,4 +1793,12 @@ export async function accesoWebCliente(clienteId: string): Promise<ResultadoEqui
 
   revalidatePath(`/admin/usuarios/${c.id}`);
   return { ok: true, contrasena };
+}
+
+/**
+ * Lo que pregunta la campana cada minuto: cuántos movimientos de reservas no
+ * se han visto. Solo lectura; RLS decide qué cuenta para cada rol.
+ */
+export async function contarActividadSinVer(): Promise<number> {
+  return getActividadSinVer();
 }
